@@ -1,0 +1,5 @@
+name: bayesianMLP
+channels:
+  - http://conda.anaconda.org/gurobi
+  - defaults
+prefix: /home/franciscoperez/anaconda3/envs/bayesianMLP

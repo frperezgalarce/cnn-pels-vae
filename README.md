@@ -7,7 +7,7 @@ To run the CNN-PELSVAE model, we provide a Dockerfile that simplifies the setup 
 ### Build the Docker Image:
 Use the following command to build the Docker image:
 
-docker build -t cnnpelsvae .
+$docker build -t cnnpelsvae .$
 
 This command will create a Docker image named cnnpelsvae based on the instructions provided in the Dockerfile.
 

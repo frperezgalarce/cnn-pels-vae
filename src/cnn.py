@@ -8,6 +8,7 @@ from src.utils import *
 from sklearn.metrics import confusion_matrix
 from sklearn.utils.class_weight import compute_class_weight
 from torch.utils.data import DataLoader, TensorDataset
+import wandb
 
 # Define the number of classes
 def print_grad_norm(grad):
@@ -71,7 +72,7 @@ class CNN(nn.Module):
         return x
 
 def run_cnn():
-    
+    wandb.init(project='cnn-pelsvae', entity='fjperez10')
     # Define the input shape of the data
     light_curve_lenght = 100
     input_shape = (light_curve_lenght, 2)
@@ -216,6 +217,7 @@ def run_cnn():
         epochs_range = range(0, epoch+1)
 
         print(f"Epoch {epoch + 1}, loss: {running_loss:.4f}, val_loss: {val_loss:.4f}, accuracy: {accuracy:.4f}, accuracy_val: {accuracy_val:.4f}")
+        wandb.log({'epoch': epoch, 'loss': running_loss, 'val_loss':val_loss, 'val_accu': accuracy_val})
 
     # Load the best model state
     model.load_state_dict(best_model)

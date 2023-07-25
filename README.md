@@ -1,6 +1,6 @@
 # CNN-PELSVAE
 
-This repository contains the code for the CNN-PELSVAE project. The project involves building a Convolutional Neural Network with a Probabilistic Embedding Learning Shared Variational Autoencoder (CNN-PELSVAE) model.
+This repository contains the code for the CNN-PELSVAE project. The project, which is focused on facing the data shift problem, involves building a Convolutional Neural Network classifier with a embebbed deep generative modeling of periodic variable stars. 
 
 
 ## Conda instructions

@@ -1,0 +1,58 @@
+# Byte-compiled / optimized files
+__pycache__/
+*.py[cod]
+*$py.class
+
+# C extensions
+*.so
+
+#numpy files
+*.npy
+
+# Distribution / packaging
+dist/
+build/
+*.egg-info/
+*.egg
+
+# Virtual environment
+venv/
+env/
+ENV/
+
+# macOS related
+.DS_Store
+
+# Jupyter Notebook temporary files
+.ipynb_checkpoints/
+
+# Other environment specific files
+*.env
+*.log
+
+# IDE-related files (change this based on your IDE)
+.vscode/
+.idea/
+*.pydevproject
+
+# Environment variable files
+.env
+
+# Compiled Python files
+*.pyc
+
+# Local development files
+db.sqlite3
+db.sqlite3-journal
+
+# Log files
+*.log
+
+# Compiled source
+__pycache__/
+
+# Python egg metadata
+*.egg-info/
+
+# Pipenv
+Pipfile.lock

@@ -1,0 +1,109 @@
+{
+    "os": "Linux-4.15.0-213-generic-x86_64-with-debian-buster-sid",
+    "python": "3.7.12",
+    "heartbeatAt": "2023-07-29T14:58:58.765347",
+    "startedAt": "2023-07-29T14:58:57.728127",
+    "docker": null,
+    "cuda": "10.1.243",
+    "args": [],
+    "state": "running",
+    "program": "testing_functions.py",
+    "codePath": "src/PELS-VAE/notebooks/testing_functions.py",
+    "git": {
+        "remote": "https://github.com/frperezgalarce/bayesian-mlp-vs.git",
+        "commit": "545acc07f094a39e1b61ccfb32c9c731bd290375"
+    },
+    "email": "fjperez10@uc.cl",
+    "root": "/home/franciscoperez/Documents/GitHub/CNN-PELSVAE",
+    "host": "karimsala6s",
+    "username": "franciscoperez",
+    "executable": "/home/franciscoperez/anaconda3/envs/cnnpelsvae/bin/python",
+    "cpu_count": 6,
+    "cpu_count_logical": 12,
+    "cpu_freq": {
+        "current": 4342.859916666667,
+        "min": 800.0,
+        "max": 4600.0
+    },
+    "cpu_freq_per_core": [
+        {
+            "current": 4372.034,
+            "min": 800.0,
+            "max": 4600.0
+        },
+        {
+            "current": 4359.735,
+            "min": 800.0,
+            "max": 4600.0
+        },
+        {
+            "current": 4305.328,
+            "min": 800.0,
+            "max": 4600.0
+        },
+        {
+            "current": 4346.611,
+            "min": 800.0,
+            "max": 4600.0
+        },
+        {
+            "current": 4299.463,
+            "min": 800.0,
+            "max": 4600.0
+        },
+        {
+            "current": 4305.73,
+            "min": 800.0,
+            "max": 4600.0
+        },
+        {
+            "current": 4389.395,
+            "min": 800.0,
+            "max": 4600.0
+        },
+        {
+            "current": 4330.664,
+            "min": 800.0,
+            "max": 4600.0
+        },
+        {
+            "current": 4342.407,
+            "min": 800.0,
+            "max": 4600.0
+        },
+        {
+            "current": 4300.144,
+            "min": 800.0,
+            "max": 4600.0
+        },
+        {
+            "current": 4369.682,
+            "min": 800.0,
+            "max": 4600.0
+        },
+        {
+            "current": 4393.126,
+            "min": 800.0,
+            "max": 4600.0
+        }
+    ],
+    "disk": {
+        "total": 375.6892738342285,
+        "used": 264.77484130859375
+    },
+    "gpu": "NVIDIA GeForce GTX 1080",
+    "gpu_count": 2,
+    "gpu_devices": [
+        {
+            "name": "NVIDIA GeForce GTX 1080",
+            "memory_total": 8589934592
+        },
+        {
+            "name": "NVIDIA GeForce GTX 1080",
+            "memory_total": 8589934592
+        }
+    ],
+    "memory": {
+        "total": 62.778018951416016
+    }
+}

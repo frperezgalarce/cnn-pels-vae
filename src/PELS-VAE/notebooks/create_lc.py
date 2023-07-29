@@ -26,7 +26,7 @@ save_plots = False
 save_tables = False
 
 ID = 'b68z1hwo'
-gpu = False
+gpu = False # fail when true is selected
 
 if not os.path.exists('%s/wandb/run--%s/VAE_model_None.pt' % 
                       (main_path, ID)):
@@ -45,7 +45,8 @@ device = torch.device("cuda:0" if torch.cuda.is_available() and gpu else "cpu")
 
 vae, config = load_model_list(ID=ID)
 config['phys_params'] = 'PTA'
-config
+#config['normed'] = False
+print(config)
 
 dataset = Astro_lightcurves(survey=config['data'],
                             band='I' if config['data'] else 'B',
@@ -76,6 +77,9 @@ dataloader, _ = dataset.get_dataloader(batch_size=100,
 mu, std = evaluate_encoder(vae, dataloader, config, 
                            n_classes=num_cls, force=False)       
 
+print('mu: ', mu.shape)
+
+print('std: ', std.shape)
 
 examples = []
 meta_aux = dataset.meta.reset_index()
@@ -85,8 +89,20 @@ for i, cls in enumerate(dataset.label_onehot_enc.categories_[0]):
 examples = pd.concat(examples, axis=0)
 print(examples.index)
 
+print('examples: ', examples)
 
 data, lb, onehot, pp = dataset[examples.index]
+
+
+print('data: {}, lb: {}, onehot: {}, pp: {}'.format(data, lb, onehot, pp))
+
+data = add_perturbation(data, scale=0.0)
+
+#print('data: ', data)
+#print('data2: ', data2)
+
+#this should be modified to generate new light curves
+
 data = torch.from_numpy(data).to(device)
 onehot = torch.from_numpy(onehot).to(device)
 pp = torch.from_numpy(pp).to(device)
@@ -107,4 +123,38 @@ xhat_z = torch.cat([data[:,:,0].unsqueeze(-1), xhat_z], dim=-1).detach().numpy()
 xhat_mu = torch.cat([data[:,:,0].unsqueeze(-1), xhat_mu], dim=-1).detach().numpy()
 data = data.detach().numpy()
 
-plot_wall_lcs(xhat_mu, data, cls=lb, save=save_plots)
+plot_wall_lcs(xhat_mu, data, cls=lb, save=save_plots) #data is real_lc
+
+plot_wall_synthetic_lcs(xhat_mu,  cls=lb,  save=save_plots)
+
+lc_reverted = revert_light_curve(2, xhat_mu[0,:,:])
+
+
+
+plt.show()
+plt.figure(figsize=(10, 5))
+
+# Scatter plot 1
+plt.subplot(1, 2, 1)
+plt.scatter(xhat_mu[0,:,0], xhat_mu[0,:,1], label='Folded light curve')
+plt.gca().invert_yaxis()
+plt.xlabel('X-axis')
+plt.ylabel('Y-axis')
+plt.title('Folded light curve from PELS-VAE')
+plt.legend()
+
+# Scatter plot 2
+plt.subplot(1, 2, 2)
+plt.scatter(lc_reverted[:,0], lc_reverted[:,1], label='Recover light curve')
+plt.gca().invert_yaxis()
+plt.xlabel('X-axis')
+plt.ylabel('Y-axis')
+plt.title('Recovered light curve')
+plt.legend()
+
+
+# Adjust spacing between plots
+plt.tight_layout()
+
+# Show the figure
+plt.show()

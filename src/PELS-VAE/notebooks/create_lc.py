@@ -1,25 +1,13 @@
-import os, glob, re, sys
+import os, sys
 import socket
 import torch
-#import wandb
-import numpy as np
-
-import matplotlib.pyplot as plt
-import matplotlib.cm as cm
-import seaborn as sb
 import pandas as pd
-#import umap
-from sklearn.manifold import TSNE
-from tqdm import tqdm_notebook
-
 sys.path.append('../')
 from src.vae_models import *
 from src.datasets import Astro_lightcurves
 from src.utils import *
-
 import warnings
 warnings.filterwarnings('ignore')
-
 main_path = os.path.dirname(os.getcwd())
 
 save_plots = False
@@ -45,6 +33,7 @@ device = torch.device("cuda:0" if torch.cuda.is_available() and gpu else "cpu")
 
 vae, config = load_model_list(ID=ID)
 config['phys_params'] = 'PTA'
+config['physics_dim'] = 3
 #config['normed'] = False
 print(config)
 
@@ -83,12 +72,21 @@ print('std: ', std.shape)
 
 examples = []
 meta_aux = dataset.meta.reset_index()
+
+dict_classes = {}
+objects_by_class = 3
+#TODO: select objects
 for i, cls in enumerate(dataset.label_onehot_enc.categories_[0]):
     aux = meta_aux.query('Type == "%s"' % (cls)).sample(3)
     examples.append(aux)
+    for j in range(3): 
+        dict_classes[i*3+j] = cls
 examples = pd.concat(examples, axis=0)
+print(dict_classes)
+
 print(examples.index)
 
+print(dataset.label_onehot_enc.categories_[0])
 print('examples: ', examples)
 
 data, lb, onehot, pp = dataset[examples.index]
@@ -106,6 +104,8 @@ data = add_perturbation(data, scale=0.0)
 data = torch.from_numpy(data).to(device)
 onehot = torch.from_numpy(onehot).to(device)
 pp = torch.from_numpy(pp).to(device)
+
+#TODO: modify pp
 
 if config['label_dim'] > 0 and config['physics_dim'] > 0:
     xhat_z, mu_, logvar_, z_ = vae(data, label=onehot, phy=pp)
@@ -127,34 +127,10 @@ plot_wall_lcs(xhat_mu, data, cls=lb, save=save_plots) #data is real_lc
 
 plot_wall_synthetic_lcs(xhat_mu,  cls=lb,  save=save_plots)
 
-lc_reverted = revert_light_curve(2, xhat_mu[0,:,:])
+lc_reverted = revert_light_curve(2, xhat_mu, classes = lb)
 
 
+print('lc_reverted: ', lc_reverted.shape)
+print('xhat_mu: ', xhat_mu.shape)
 
-plt.show()
-plt.figure(figsize=(10, 5))
-
-# Scatter plot 1
-plt.subplot(1, 2, 1)
-plt.scatter(xhat_mu[0,:,0], xhat_mu[0,:,1], label='Folded light curve')
-plt.gca().invert_yaxis()
-plt.xlabel('X-axis')
-plt.ylabel('Y-axis')
-plt.title('Folded light curve from PELS-VAE')
-plt.legend()
-
-# Scatter plot 2
-plt.subplot(1, 2, 2)
-plt.scatter(lc_reverted[:,0], lc_reverted[:,1], label='Recover light curve')
-plt.gca().invert_yaxis()
-plt.xlabel('X-axis')
-plt.ylabel('Y-axis')
-plt.title('Recovered light curve')
-plt.legend()
-
-
-# Adjust spacing between plots
-plt.tight_layout()
-
-# Show the figure
-plt.show()
+compare_folded_crude_lc(xhat_mu, lc_reverted)

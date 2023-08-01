@@ -134,3 +134,9 @@ print('lc_reverted: ', lc_reverted.shape)
 print('xhat_mu: ', xhat_mu.shape)
 
 compare_folded_crude_lc(xhat_mu, lc_reverted)
+
+#TODO: save a batch in this 
+
+PATH_DATA = "/home/franciscoperez/Documents/GitHub/CNN-PELSVAE/src/data"
+
+save_arrays_to_folder(lc_reverted, lb, PATH_DATA)

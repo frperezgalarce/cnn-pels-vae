@@ -9,6 +9,7 @@ from src.utils import *
 import warnings
 warnings.filterwarnings('ignore')
 main_path = os.path.dirname(os.getcwd())
+PATH_DATA = "/home/franciscoperez/Documents/GitHub/CNN-PELSVAE/src/data"
 
 save_plots = False
 save_tables = False
@@ -73,18 +74,15 @@ print('std: ', std.shape)
 examples = []
 meta_aux = dataset.meta.reset_index()
 
-dict_classes = {}
-objects_by_class = 3
-#TODO: select objects
-for i, cls in enumerate(dataset.label_onehot_enc.categories_[0]):
-    aux = meta_aux.query('Type == "%s"' % (cls)).sample(3)
-    examples.append(aux)
-    for j in range(3): 
-        dict_classes[i*3+j] = cls
-examples = pd.concat(examples, axis=0)
-print(dict_classes)
 
-print(examples.index)
+objects_by_class = {'ACEP':3, 'CEP': 3,  'DSCT': 3,  'ECL':3,  'ELL': 3,  'LPV': 3,  'RRLYR':  3,  'T2CEP':3}
+for i, cls in enumerate(dataset.label_onehot_enc.categories_[0]):
+    aux = meta_aux.query('Type == "%s"' % (cls)).sample(objects_by_class[cls])
+    examples.append(aux)
+
+examples = pd.concat(examples, axis=0)
+sample_period = np.round(examples['Period'].to_list(),2)
+ 
 
 print(dataset.label_onehot_enc.categories_[0])
 print('examples: ', examples)
@@ -94,7 +92,7 @@ data, lb, onehot, pp = dataset[examples.index]
 
 print('data: {}, lb: {}, onehot: {}, pp: {}'.format(data, lb, onehot, pp))
 
-data = add_perturbation(data, scale=0.0)
+#data = add_perturbation(data, scale=0.0)
 
 #print('data: ', data)
 #print('data2: ', data2)
@@ -127,16 +125,13 @@ plot_wall_lcs(xhat_mu, data, cls=lb, save=save_plots) #data is real_lc
 
 plot_wall_synthetic_lcs(xhat_mu,  cls=lb,  save=save_plots)
 
-lc_reverted = revert_light_curve(2, xhat_mu, classes = lb)
+lc_reverted = revert_light_curve(sample_period, xhat_mu, classes = lb)
 
 
 print('lc_reverted: ', lc_reverted.shape)
 print('xhat_mu: ', xhat_mu.shape)
 
-compare_folded_crude_lc(xhat_mu, lc_reverted)
+compare_folded_crude_lc(xhat_mu, lc_reverted, cls=lb, period=sample_period)
 
-#TODO: save a batch in this 
-
-PATH_DATA = "/home/franciscoperez/Documents/GitHub/CNN-PELSVAE/src/data"
 
 save_arrays_to_folder(lc_reverted, lb, PATH_DATA)

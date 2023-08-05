@@ -56,3 +56,11 @@ __pycache__/
 
 # Pipenv
 Pipfile.lock
+
+# JSON
+*.json
+*.txt
+*.png
+*.yaml
+*.csv
+*.ipynb

@@ -10,6 +10,7 @@ import matplotlib.pyplot as plt
 import itertools
 from sklearn.preprocessing import LabelEncoder
 from sklearn.metrics import recall_score
+import seaborn as sns
 
 PATH_FEATURES_TRAIN = '/home/franciscoperez/Documents/GitHub/data/BIASEDFATS/Train_rrlyr-1.csv'
 PATH_FEATURES_TEST = '/home/franciscoperez/Documents/GitHub/data/BIASEDFATS/Test_rrlyr-1.csv'
@@ -255,3 +256,5 @@ def export_recall_latex(true_labels, predicted_labels, label_encoder):
 
     # Print the LaTeX table
     print(latex_table)
+
+

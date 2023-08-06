@@ -8,7 +8,7 @@ from torch.utils.data.sampler import SubsetRandomSampler
 from sklearn import preprocessing
 from src.utils import normalize_each, normalize_glob, return_dt
 
-local_root = '/Users/jorgetil/Google Drive/Colab_Notebooks/data'
+local_root = '/home/franciscoperez/Documents/GitHub/CNN-PELSVAE2/cnn-pels-vae/src/PELS-VAE/data'
 colab_root = '/content/drive/My Drive/Colab_Notebooks/data'
 exalearn_root = '/home/jorgemarpa/data'
 
@@ -93,7 +93,7 @@ class Astro_lightcurves(Dataset):
             wheather to subsample the entire dataset
         """
         
-        if machine == 'Jorges-MBP':
+        if (machine == 'Jorges-MBP') or (machine == 'karimsala6s'):
             root = local_root
         elif machine == 'colab':
             root = colab_root

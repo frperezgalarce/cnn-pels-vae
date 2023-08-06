@@ -8,7 +8,7 @@ __pycache__/
 
 #numpy files
 *.npy
-
+*.gz
 # Distribution / packaging
 dist/
 build/
@@ -63,4 +63,4 @@ Pipfile.lock
 *.png
 *.yaml
 *.csv
-*.ipynb
+*.ipynbsrc/PELS-VAE/data/time_series/real/OGLE3_lcs_I_meta_snr5_augmented_folded_trim600.npy.gz

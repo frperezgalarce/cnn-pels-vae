@@ -4,7 +4,8 @@ import pickle
 import pandas as pd
 import matplotlib.pyplot as plt 
 
-PATH_PP = '/home/franciscoperez/Documents/GitHub/CNN-PELSVAE/src/PELSVAE/data/inter/definite_matches.csv'
+PATH_PP = '/home/franciscoperez/Documents/GitHub/CNN-PELSVAE2/cnn-pels-vae/src/PELS-VAE/data/inter/definite_matches.csv'
+
 
 mean_prior_dict = {'RRLYR':{'components':2,'mean_priors':[[1.0, 3.0, 4.9],[1.0, 3.0, 4.9]]}, 
                    'CEP':{'components':2,'mean_priors':[[1.0, 3.0, 4.9],[1.0, 3.0, 4.9]]}}

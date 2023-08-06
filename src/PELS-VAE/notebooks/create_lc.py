@@ -9,7 +9,7 @@ from src.utils import *
 import warnings
 warnings.filterwarnings('ignore')
 main_path = os.path.dirname(os.getcwd())
-PATH_DATA = "/home/franciscoperez/Documents/GitHub/CNN-PELSVAE/src/data"
+PATH_DATA = "/home/franciscoperez/Documents/GitHub/CNN-PELSVAE2/cnn-pels-vae/src/data"
 
 save_plots = False
 save_tables = False
@@ -86,6 +86,9 @@ sample_period = np.round(examples['Period'].to_list(),2)
 
 print(dataset.label_onehot_enc.categories_[0])
 print('examples: ', examples)
+
+print(dataset)
+
 
 data, lb, onehot, pp = dataset[examples.index]
 

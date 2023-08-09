@@ -64,3 +64,5 @@ Pipfile.lock
 *.yaml
 *.csv
 *.ipynbsrc/PELS-VAE/data/time_series/real/OGLE3_lcs_I_meta_snr5_augmented_folded_trim600.npy.gz
+wandb/
+*.pkl

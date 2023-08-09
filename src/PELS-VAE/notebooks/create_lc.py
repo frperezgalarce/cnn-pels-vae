@@ -14,7 +14,7 @@ PATH_DATA = "/home/franciscoperez/Documents/GitHub/CNN-PELSVAE2/cnn-pels-vae/src
 save_plots = False
 save_tables = False
 
-ID = 'b68z1hwo'
+ID = 'yp4qdw1r' #'7q2bduwv' #'b68z1hwo'
 gpu = False # fail when true is selected
 
 if not os.path.exists('%s/wandb/run--%s/VAE_model_None.pt' % 
@@ -67,9 +67,9 @@ dataloader, _ = dataset.get_dataloader(batch_size=100,
 mu, std = evaluate_encoder(vae, dataloader, config, 
                            n_classes=num_cls, force=False)       
 
-print('mu: ', mu.shape)
+#print('mu: ', mu.shape)
 
-print('std: ', std.shape)
+#print('std: ', std.shape)
 
 examples = []
 meta_aux = dataset.meta.reset_index()
@@ -95,7 +95,7 @@ data, lb, onehot, pp = dataset[examples.index]
 
 print('data: {}, lb: {}, onehot: {}, pp: {}'.format(data, lb, onehot, pp))
 
-#data = add_perturbation(data, scale=0.0)
+pp2 = add_perturbation(pp, scale=5.0)
 
 #print('data: ', data)
 #print('data2: ', data2)
@@ -105,12 +105,17 @@ print('data: {}, lb: {}, onehot: {}, pp: {}'.format(data, lb, onehot, pp))
 data = torch.from_numpy(data).to(device)
 onehot = torch.from_numpy(onehot).to(device)
 pp = torch.from_numpy(pp).to(device)
+pp2 = torch.from_numpy(pp2).to(device)
 
 #TODO: modify pp
 
 if config['label_dim'] > 0 and config['physics_dim'] > 0:
     xhat_z, mu_, logvar_, z_ = vae(data, label=onehot, phy=pp)
     xhat_mu = vae.decoder(mu_, data[:,:,0], label=onehot, phy=pp)
+
+    xhat_z2, mu_2, logvar_2, z_2 = vae(data, label=onehot, phy=pp2)
+    xhat_mu2 = vae.decoder(mu_2, data[:,:,0], label=onehot, phy=pp2)
+
 elif config['label_dim'] > 0 and config['physics_dim'] == 0:
     xhat_z, mu_, logvar_, z_ = vae(data, label=onehot)
     xhat_mu = vae.decoder(mu_, data[:,:,0], label=onehot)
@@ -122,9 +127,15 @@ else:
 
 xhat_z = torch.cat([data[:,:,0].unsqueeze(-1), xhat_z], dim=-1).detach().numpy()
 xhat_mu = torch.cat([data[:,:,0].unsqueeze(-1), xhat_mu], dim=-1).detach().numpy()
+xhat_mu2 = torch.cat([data[:,:,0].unsqueeze(-1), xhat_mu2], dim=-1).detach().numpy()
+
 data = data.detach().numpy()
 
 plot_wall_lcs(xhat_mu, data, cls=lb, save=save_plots) #data is real_lc
+
+
+plot_wall_lcs(xhat_mu, xhat_mu2, cls=lb, save=save_plots) #data is real_lc
+
 
 plot_wall_synthetic_lcs(xhat_mu,  cls=lb,  save=save_plots)
 

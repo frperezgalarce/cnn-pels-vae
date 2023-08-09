@@ -749,7 +749,7 @@ def add_perturbation(array, scale=0.01):
     Returns:
         numpy.ndarray: A new array with perturbation added.
     """
-    perturbation = scale * np.random.randn(*array.shape).astype(np.float32)
+    perturbation = (1.0+scale) * np.random.randn(*array.shape).astype(np.float32)
     print('Perturbation mean: ', perturbation.mean())
     perturbed_array = array + perturbation
 

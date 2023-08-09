@@ -10,14 +10,15 @@ import seaborn as sns
 import wandb
 import warnings
 import matplotlib.pyplot as plt
+import yaml
+import sys, os 
 
 sys.path.append('../')
 from src.datasets import Astro_lightcurves
 from src.utils import evaluate_encoder, load_model_list
 warnings.filterwarnings('ignore')
-import yaml
 
-with open('config.yaml', 'r') as file:
+with open('regressor.yaml', 'r') as file:
     config = yaml.safe_load(file)
 
 # You can now access your settings as:
@@ -101,15 +102,13 @@ def load_predict(pp, filename = 'file.pkl'):
 def save_model(model, filename='filename_model.pkl'): 
     pickle.dump(model, open(filename, 'wb'))
 
-def train_model(reg, config_dic, name):
+def train_model(reg, config_dic, name, p, z):
     model = reg(**config_dic[name])
     
     try:
         model.fit(p, z)
     except MemoryError:
-        print('Fail')
-        continue
-
+        print('Fail') 
     return model
 
 def main():
@@ -155,7 +154,7 @@ def main():
 
     for name, reg in regressors.items():
         
-        model = train_model(reg, config_dict, name)
+        model = train_model(reg, config_dict, name, p, z)
 
         save_model(model, filename=name+'.pkl')
         

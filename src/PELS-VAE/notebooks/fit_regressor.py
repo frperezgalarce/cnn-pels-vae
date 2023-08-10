@@ -1,7 +1,7 @@
+# Import necessary libraries
 import socket
 import torch
 import numpy as np
-from sklearn import metrics
 from sklearn.metrics import mean_squared_error, mean_absolute_error, r2_score
 from math import sqrt
 from sklearn.ensemble import RandomForestRegressor
@@ -11,24 +11,23 @@ import wandb
 import warnings
 import matplotlib.pyplot as plt
 import yaml
-import sys, os 
+import sys, os
 
 sys.path.append('../')
 from src.datasets import Astro_lightcurves
 from src.utils import evaluate_encoder, load_model_list
 warnings.filterwarnings('ignore')
 
+# Read configurations from a YAML file
 with open('regressor.yaml', 'r') as file:
-    config = yaml.safe_load(file)
+    config_file = yaml.safe_load(file)
 
-# You can now access your settings as:
-PATH_DATA = config['PATH_DATA']
+# Extracting path configurations
+PATH_DATA = config_file['PATH_DATA']
+save_plots = config_file['save_plots']
+save_tables = config_file['save_tables']
 
-#PATH_DATA = "/home/franciscoperez/Documents/GitHub/CNN-PELSVAE/src/data"
-
-save_plots = False
-save_tables = False
-
+# Function to set up environment and download model weights if not available
 def setup_environment(ID, gpu=False):
     main_path = os.path.dirname(os.getcwd())
     if not os.path.exists('%s/wandb/run--%s/VAE_model_None.pt' % (main_path, ID)):
@@ -41,6 +40,7 @@ def setup_environment(ID, gpu=False):
     vae, config = load_model_list(ID=ID)
     return vae, config, device
 
+# Function to prepare the dataset
 def prepare_dataset(config):
     dataset = Astro_lightcurves(survey=config['data'],
                             band='I' if config['data'] else 'B',
@@ -58,15 +58,17 @@ def prepare_dataset(config):
     dataset.remove_nan()
     return dataset
 
+# Function to print regression metrics
 def print_metrics_regression(y_test, y_pred):
     print('Mean Squared Error (MSE): ', mean_squared_error(y_test, y_pred))
     print('Root Mean Squared Error (RMSE): ', sqrt(mean_squared_error(y_test, y_pred)))
     print('Mean Absolute Error (MAE): ', mean_absolute_error(y_test, y_pred))
     print('R^2 Score: ', r2_score(y_test, y_pred))
 
+# Functions to plot various diagnostic plots
 def scatter_plot(y_test, y_pred):
-    plt.scatter(y_test, y_pred, alpha=0.05)
-    plt.plot([y_test.min(), y_test.max()], [y_test.min(), y_test.max()], 'k--', lw=2)
+    plt.scatter(y_test, y_pred, alpha=config_file['plotting']['scatter_plot_alpha'])
+    plt.plot([y_test.min(), y_test.max()], [y_test.min(), y_test.max()], 'k--', lw=config_file['plotting']['scatter_plot_line_width'])
     plt.xlabel('True')
     plt.ylabel('Predicted')
     plt.title('True vs Predicted Values')
@@ -74,7 +76,7 @@ def scatter_plot(y_test, y_pred):
 
 def residual_plot(y_test, y_pred):
     residuals = y_test - y_pred
-    plt.scatter(y_pred, residuals, alpha=0.05)
+    plt.scatter(y_pred, residuals, alpha=config_file['plotting']['residual_plot_alpha'])
     plt.hlines(y=0, xmin=y_pred.min(), xmax=y_pred.max(), colors='k', linestyles='solid')
     plt.xlabel('Predicted')
     plt.ylabel('Residuals')
@@ -94,14 +96,17 @@ def plot_figures(y_test, y_pred):
     residual_plot(y_test, y_pred)
     prediction_error_plot(y_test, y_pred)
 
+# Function to load predictions from a saved model
 def load_predict(pp, filename = 'file.pkl'): 
     loaded_model = pickle.load(open(filename, 'rb'))
     z = loaded_model.predict(pp)
     return z
 
+# Function to save trained model to disk
 def save_model(model, filename='filename_model.pkl'): 
     pickle.dump(model, open(filename, 'wb'))
 
+# Function to train the model using specified configurations
 def train_model(reg, config_dic, name, p, z):
     model = reg(**config_dic[name])
     
@@ -111,11 +116,12 @@ def train_model(reg, config_dic, name, p, z):
         print('Fail') 
     return model
 
+# Main function to set up the model and training process
 def main():
 
     phys2 = ['abs_Gmag', 'teff_val', 'Period']
-    ID = 'b68z1hwo'#'b68z1hwo' #'7q2bduwv'
-    gpu = True 
+    ID = config_file['model_parameters']['ID'] #'b68z1hwo'#'b68z1hwo' #'7q2bduwv'
+    gpu = config_file['model_parameters']['gpu'] #True 
     vae, config, _ = setup_environment(ID, gpu)
     dataset = prepare_dataset(config)
     dataloader, _ = dataset.get_dataloader(batch_size=100, test_split=0., shuffle=False)
@@ -140,29 +146,26 @@ def main():
 
     regressors = {'RFR': RandomForestRegressor}
 
-    config_dict = dict(RFR=dict(n_estimators=100,
-                            criterion='mse',
-                            max_depth=None,
-                            min_samples_split=2,
-                            min_samples_leaf=1,
-                            min_weight_fraction_leaf=0.0,
-                            max_features=len(phys2),
-                            n_jobs=-1))
-
-    p = meta_.loc[:,phys2].values
+    config_dict = dict(config_file['regressors'])
+    p = meta_.loc[:, phys2].values
     z = mu_.copy()
 
     for name, reg in regressors.items():
+        filename = name + '.pkl'
         
-        model = train_model(reg, config_dict, name, p, z)
+        # Check if the model file exists
+        if os.path.exists(filename):
+            print(f"Loading existing model from {filename}")
+            model = pickle.load(open(filename, 'rb'))
+        else:
+            print(f"Training new model {name}")
+            model = train_model(reg, config_dict, name, p, z)
+            save_model(model, filename=filename)
 
-        save_model(model, filename=name+'.pkl')
-        
-        z_hat = load_predict(p, filename=name+'.pkl')
+        z_hat = model.predict(p) # Directly using the model for prediction
 
         print_metrics_regression(z, z_hat)
-
         plot_figures(z, z_hat)
-
+        
 if __name__ == "__main__":
     main()

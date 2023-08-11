@@ -66,3 +66,13 @@ Pipfile.lock
 *.ipynbsrc/PELS-VAE/data/time_series/real/OGLE3_lcs_I_meta_snr5_augmented_folded_trim600.npy.gz
 wandb/
 *.pkl
+
+# ignore folders
+data/bkp/
+data/inter/OGLE3_x_GaiaDR2_to_validate.csv
+data/OGLE3/
+notebooks/bkps/
+.ipynb_checkpoints/
+.DS_Store
+src/__pycache__/
+wandb/debug.log

@@ -1,14 +1,12 @@
 import sys
 import numpy as np
-import pandas as pd
-import torch
 import gzip
-from torch.utils.data import DataLoader, TensorDataset, Dataset
+from torch.utils.data import DataLoader, Dataset
 from torch.utils.data.sampler import SubsetRandomSampler
 from sklearn import preprocessing
-from src.utils import normalize_each, normalize_glob, return_dt
+from src.utils import normalize_each, return_dt
 
-local_root = '/home/franciscoperez/Documents/GitHub/CNN-PELSVAE2/cnn-pels-vae/src/PELS-VAE/data'
+local_root = '/home/franciscoperez/Documents/GitHub/CNN-PELSVAE2/cnn-pels-vae/src/data'
 colab_root = '/content/drive/My Drive/Colab_Notebooks/data'
 exalearn_root = '/home/jorgemarpa/data'
 

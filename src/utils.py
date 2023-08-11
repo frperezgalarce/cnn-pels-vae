@@ -299,7 +299,7 @@ import wandb
 PATH_FEATURES_TRAIN = '/home/franciscoperez/Documents/GitHub/data/BIASEDFATS/Train_rrlyr-1.csv'
 PATH_LIGHT_CURVES_OGLE = '/home/franciscoperez/Desktop/Code/FATS/LCsOGLE/data/'
 
-path = os.path.dirname(os.getcwd())
+path = os.path.dirname(os.getcwd())+'/cnn-pels-vae'
 
 # Create a wall of generated time series
 def plot_wall_time_series(generated_lc, cls=[], data_real=None,
@@ -650,10 +650,10 @@ def load_model_list(ID='zg3r4orb', device='cpu'):
     conf
         Dictionary with model hyperparameters and configuration values
     """
-    
     fname = glob.glob('%s/wandb/run-*-%s/VAE_model_*.pt' % (path, ID))[0]
-    
+    print(fname)
     config_f = glob.glob('%s/wandb/run-*-%s/config.yaml' % (path, ID))[0]
+    print(config_f)
     with open(config_f, 'r') as f:
         conf = yaml.safe_load(f)
     conf = {k: v['value'] for k,v in conf.items() if 'wandb' not in k}

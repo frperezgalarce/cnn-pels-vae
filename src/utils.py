@@ -57,10 +57,10 @@ def read_light_curve_ogle(example_test, example_train, lenght_lc=100):
     return numpy_array_lcus_train, numpy_array_lcus_test, numpy_y_test, numpy_y_train
 
 def load_light_curve_ogle():
-    numpy_array_lcus_train = np.load('src/data/np_array.npy', allow_pickle=True)
-    numpy_array_lcus_test = np.load('src/data/np_array.npy', allow_pickle=True)
-    numpy_y_test = np.load('src/data/np_array_y.npy', allow_pickle=True) #TODO: modify
-    numpy_y_train = np.load('src/data/np_array_y.npy', allow_pickle=True)
+    numpy_array_lcus_train = np.load('data/np_array.npy', allow_pickle=True)
+    numpy_array_lcus_test = np.load('data/np_array.npy', allow_pickle=True)
+    numpy_y_test = np.load('data/np_array_y.npy', allow_pickle=True) #TODO: modify
+    numpy_y_train = np.load('data/np_array_y.npy', allow_pickle=True)
     return numpy_array_lcus_train, numpy_array_lcus_test, numpy_y_test, numpy_y_train
 
 

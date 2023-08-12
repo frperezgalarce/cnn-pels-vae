@@ -4,7 +4,7 @@ import pickle
 import pandas as pd
 import matplotlib.pyplot as plt 
 
-PATH_PP = '/home/franciscoperez/Documents/GitHub/CNN-PELSVAE2/cnn-pels-vae/src/data/inter/definite_matches.csv'
+PATH_PP = '/home/franciscoperez/Documents/GitHub/CNN-PELSVAE2/cnn-pels-vae/data/inter/definite_matches.csv'
 
 
 mean_prior_dict = {'RRLYR':{'components':2,'mean_priors':[[1.0, 3.0, 4.9],[1.0, 3.0, 4.9]]}, 
@@ -90,7 +90,7 @@ def train_and_save(components=3):
         if X.shape[0] > 30:
             bgmm = BayesianGaussianMixtureModel(n_components=components, random_state=42)
             bgmm.train(X, mean_prior=None)
-            bgmm.save_model('bgm_model_'+str(star_class)+'.pkl')
+            bgmm.save_model('models/bgm_model_'+str(star_class)+'.pkl')
             bgmm.plot_2d_bgmm(bgmm, X, star_class, feature1 = 'teff_val', feature2='Period')
 
 def get_load_and_sample(star_class='RRLYR'):

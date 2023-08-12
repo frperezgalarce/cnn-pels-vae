@@ -6,7 +6,7 @@ from torch.utils.data.sampler import SubsetRandomSampler
 from sklearn import preprocessing
 from src.utils import normalize_each, return_dt
 
-local_root = '/home/franciscoperez/Documents/GitHub/CNN-PELSVAE2/cnn-pels-vae/src/data'
+local_root = '/home/franciscoperez/Documents/GitHub/CNN-PELSVAE2/cnn-pels-vae/data'
 colab_root = '/content/drive/My Drive/Colab_Notebooks/data'
 exalearn_root = '/home/jorgemarpa/data'
 

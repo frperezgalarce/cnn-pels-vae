@@ -9,7 +9,7 @@ from src.utils import *
 import warnings
 warnings.filterwarnings('ignore')
 main_path = os.path.dirname(os.getcwd())
-PATH_DATA = "/home/franciscoperez/Documents/GitHub/CNN-PELSVAE2/cnn-pels-vae/src/data"
+PATH_DATA = "/home/franciscoperez/Documents/GitHub/CNN-PELSVAE2/cnn-pels-vae/data"
 
 save_plots = False
 save_tables = False
@@ -17,6 +17,7 @@ save_tables = False
 ID = 'yp4qdw1r' #'7q2bduwv' #'b68z1hwo'
 gpu = False # fail when true is selected
 
+'''
 if not os.path.exists('%s/wandb/run--%s/VAE_model_None.pt' % 
                       (main_path, ID)):
     print('Downloading files from Weight & Biases')
@@ -29,7 +30,7 @@ if not os.path.exists('%s/wandb/run--%s/VAE_model_None.pt' %
     run.file('config.yaml').download(replace=True, 
                                      root='%s/wandb/run--%s/' % 
                                      (main_path, ID))
-
+'''
 device = torch.device("cuda:0" if torch.cuda.is_available() and gpu else "cpu")
 
 vae, config = load_model_list(ID=ID)

@@ -7,7 +7,6 @@ from math import sqrt
 from sklearn.ensemble import RandomForestRegressor
 import pickle
 import seaborn as sns
-import wandb
 import warnings
 import matplotlib.pyplot as plt
 import yaml
@@ -155,7 +154,7 @@ def main():
     z = mu_.copy()
 
     for name, reg in regressors.items():
-        filename = name + '.pkl'
+        filename = 'models/'+ name + '.pkl'
         
         # Check if the model file exists
         if os.path.exists(filename):

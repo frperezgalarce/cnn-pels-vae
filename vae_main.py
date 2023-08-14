@@ -113,6 +113,9 @@ folded = True
 cls = args.cls
 
 cmt = args.comment
+print(cmt)
+print(args.phy)
+print(args.beta)
 
 ## training params
 lr = args.lr
@@ -152,7 +155,8 @@ else:
     model_name = 'VAE'
 
 # Initialize W&B project
-wandb.init(project="Phy-VAE", notes=cmt, tags=[data, cmt, phy])
+#wandb.init(project="cnn-pelsvae", notes=cmt, tags=[data, cmt, phy])
+wandb.init(project='cnn-pelsvae', entity='fjperez10', notes=cmt)
 
 # Define hyper-parameters
 config = wandb.config

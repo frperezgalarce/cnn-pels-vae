@@ -302,7 +302,7 @@ PATH_LIGHT_CURVES_OGLE = '/home/franciscoperez/Desktop/Code/FATS/LCsOGLE/data/'
 path = os.path.dirname(os.getcwd())+'/cnn-pels-vae'
 
 # Create a wall of generated time series
-def plot_wall_time_series(generated_lc, cls=[], data_real=None,
+def plot_wall_time_series(generated_lc, cls=[], data_real=None, color='vlue',
                           dim=(2, 4), figsize=(16, 4), title=None):
     """Light-curves wall plot, function used during VAE training phase.
     Figure designed and ready to be appended to W&B logger.
@@ -567,8 +567,7 @@ def plot_latent_space(z, y=None):
                      hue='y' if y is not None else None,
                      hue_order=sorted(set(y)) if y is not None else None,
                      diag_kind="hist", markers=".", height=2,
-                     plot_kws=dict(s=30, edgecolors='face', alpha=.8),
-                     diag_kws=dict(histtype='step'))
+                     plot_kws=dict(s=30, edgecolors='face', alpha=.8))
 
     plt.tight_layout()
     pp.fig.canvas.draw()

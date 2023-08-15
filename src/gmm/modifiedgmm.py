@@ -39,3 +39,4 @@ class ModifiedGaussianSampler:
         self.load_p(path)
         samples = self.metropolis_hasting(n_samples=5, iterations=1000, burn_in=500)
         return samples
+    

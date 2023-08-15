@@ -13,7 +13,7 @@ import yaml
 import os
 
 #sys.path.append('./')
-from src.datasets import Astro_lightcurves
+from src.vae.datasets import Astro_lightcurves
 from src.utils import evaluate_encoder, load_model_list
 warnings.filterwarnings('ignore')
 
@@ -120,7 +120,8 @@ def train_model(reg, config_dic, name, p, z):
     return model
 
 # Main function to set up the model and training process
-def main():
+def main(samples):
+    #TODO: incorporate samples in method, to generate latent space
 
     phys2 = ['abs_Gmag', 'teff_val', 'Period']
     ID = config_file['model_parameters']['ID'] #'b68z1hwo'#'b68z1hwo' #'7q2bduwv'

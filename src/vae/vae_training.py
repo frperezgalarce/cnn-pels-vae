@@ -4,7 +4,7 @@ import torch
 import torch.nn as nn
 from torch.nn import functional as F
 from src.utils import *
-from src.training_callbacks import EarlyStopping
+from src.vae.training_callbacks import EarlyStopping
 
 
 class Trainer():

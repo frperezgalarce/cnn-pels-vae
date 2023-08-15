@@ -1,7 +1,7 @@
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from src.tcn import TemporalConvNet
+from src.vae.tcn import TemporalConvNet
 
 
 class VAE_TCN(nn.Module):

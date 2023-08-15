@@ -3,13 +3,10 @@ from sklearn.mixture import BayesianGaussianMixture
 import pickle
 import pandas as pd
 import matplotlib.pyplot as plt 
+from src.utils import load_yaml_priors, extract_midpoints
 
+PATH_PRIOS = 'src/gmm/priors.yaml'
 PATH_PP = '/home/franciscoperez/Documents/GitHub/CNN-PELSVAE2/cnn-pels-vae/data/inter/definite_matches.csv'
-
-
-mean_prior_dict = {'RRLYR':{'components':2,'mean_priors':[[1.0, 3.0, 4.9],[1.0, 3.0, 4.9]]}, 
-                   'CEP':{'components':2,'mean_priors':[[1.0, 3.0, 4.9],[1.0, 3.0, 4.9]]}}
-                #TODO: complete with expert knowledge this dictionary
 
 class BayesianGaussianMixtureModel:
     def __init__(self, n_components=2, random_state=None):
@@ -77,19 +74,28 @@ class BayesianGaussianMixtureModel:
         samples, _ = self.bgm.sample(n_samples)
         return samples
 
-def train_and_save(components=3):
+def train_and_save(components=3, priors=True):
     data = pd.read_csv(PATH_PP)
     df_selected_columns = data[['Type','teff_val','Period','abs_Imag']]
     classes = df_selected_columns.Type.unique()
-
+    mean_prior_dict = load_yaml_priors(PATH_PRIOS)
     for star_class in classes:
-        print(star_class)
         df_filtered_by_class = df_selected_columns[df_selected_columns.Type==star_class]
         X = df_filtered_by_class[['teff_val','Period','abs_Imag']]
         X = X.dropna()
         if X.shape[0] > 30:
             bgmm = BayesianGaussianMixtureModel(n_components=components, random_state=42)
-            bgmm.train(X, mean_prior=None)
+            if priors:
+                try:
+                    array_midpoints = extract_midpoints(mean_prior_dict['StarTypes'][star_class])
+                    print('array_midpoints: ', array_midpoints)
+                    bgmm.train(X, mean_prior=array_midpoints)
+                    #TODO: check changes due to priors incorporations
+                except Exception as error:
+                    print(error)
+                    bgmm.train(X, mean_prior=None)
+            else: 
+                bgmm.train(X, mean_prior=None)
             bgmm.save_model('models/bgm_model_'+str(star_class)+'.pkl')
             bgmm.plot_2d_bgmm(bgmm, X, star_class, feature1 = 'teff_val', feature2='Period')
 

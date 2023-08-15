@@ -71,7 +71,9 @@ class CNN(nn.Module):
         x = nn.functional.softmax(x, dim=1)
         return x
 
-def run_cnn():
+def run_cnn(create_samples, mode_running='load'):
+    'mode_running: load or create, load take a training set and create considers a new dataset'
+    #TODO: ensure good performance of get data method
     wandb.init(project='cnn-pelsvae', entity='fjperez10')
     # Define the input shape of the data
     light_curve_lenght = 100
@@ -91,11 +93,7 @@ def run_cnn():
     out_size = ((in_size - kernel_size)/stride) + 1
     print(out_size)
 
-
-
-    x_train, x_test,  y_train, y_test, x_val, y_val, label_encoder = get_data(sample_size=300000, mode='load')
-
-
+    x_train, x_test,  y_train, y_test, x_val, y_val, label_encoder = get_data(sample_size=400000, mode='create')
 
     label_encode = label_encoder.classes_
 
@@ -105,8 +103,6 @@ def run_cnn():
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     print('cuda active: ', torch.cuda.is_available())
 
-
-
     # Create an instance of the CNN model
     model = CNN(num_classes=num_classes)
 
@@ -115,7 +111,6 @@ def run_cnn():
 
     class_weights =  torch.tensor(class_weights)
     class_weights = class_weights.to(device, dtype=x_train.dtype)
-
 
     print(class_weights)
     # Define your loss function with class weights

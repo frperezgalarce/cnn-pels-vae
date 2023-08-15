@@ -18,10 +18,10 @@ import argparse
 import torch
 import torch.optim as optim
 import numpy as np
-from src.datasets import *
+from vae.datasets import *
 from src.utils import *
-from src.vae_models import *
-from src.vae_training import Trainer
+from vae.vae_models import *
+from vae.vae_training import Trainer
 
 import wandb
 

@@ -1,20 +1,29 @@
-
-import pandas as pd
-import scipy.signal as signal
-import numpy as np
+import os, re, glob
+import socket
+import yaml
+import datetime
 import torch
-import torch.nn as nn
-import torch.optim as optim
-from sklearn.model_selection import train_test_split
+import numpy as np
+import pandas as pd
+import matplotlib
+if socket.gethostname() == 'exalearn':
+    matplotlib.use('agg')
 import matplotlib.pyplot as plt
+import seaborn as sb
+import matplotlib.cm as cm
+import random
+from tqdm import tqdm_notebook
+from collections import OrderedDict
+from src.vae.vae_models import *
+import wandb
+from sklearn.model_selection import train_test_split
 import itertools
 from sklearn.preprocessing import LabelEncoder
 from sklearn.metrics import recall_score
-import seaborn as sns
 
+PATH_LIGHT_CURVES_OGLE = '/home/franciscoperez/Desktop/Code/FATS/LCsOGLE/data/'
 PATH_FEATURES_TRAIN = '/home/franciscoperez/Documents/GitHub/data/BIASEDFATS/Train_rrlyr-1.csv'
 PATH_FEATURES_TEST = '/home/franciscoperez/Documents/GitHub/data/BIASEDFATS/Test_rrlyr-1.csv'
-PATH_LIGHT_CURVES_OGLE = '/home/franciscoperez/Desktop/Code/FATS/LCsOGLE/data/'
 
 def plot_training(epochs_range, train_loss_values, val_loss_values,train_accuracy_values,  val_accuracy_values):
     plt.figure(figsize=(12, 4))
@@ -62,7 +71,6 @@ def load_light_curve_ogle():
     numpy_y_test = np.load('data/np_array_y.npy', allow_pickle=True) #TODO: modify
     numpy_y_train = np.load('data/np_array_y.npy', allow_pickle=True)
     return numpy_array_lcus_train, numpy_array_lcus_test, numpy_y_test, numpy_y_train
-
 
 def insert_lc(examples, np_array, np_array_y, lenght_lc = 0, signal_noise=3):
     counter = 0
@@ -168,7 +176,10 @@ def get_ids(n=1):
     lc_train = pd.read_table(path_train, sep= ',')
     #lc_train = lc_train[lc_train.label=='ClassA']
     example_test  = lc_test[['ID']]
-    example_train = lc_train.sample(n)[['ID']]
+    if n>=lc_train.shape[0]:
+        example_train =lc_train[['ID']]
+    else:
+        example_train = lc_train.sample(n)[['ID']]
     print(example_test)
 
 
@@ -256,51 +267,29 @@ def export_recall_latex(true_labels, predicted_labels, label_encoder):
     # Print the LaTeX table
     print(latex_table)
 
-"""Utility functions
-
-This file contains utility functions used during training and/or evaluation.
-
-functions:
-
-    * plot_wall_time_series - creates a wall plot of real an reconstrute LCs, used during model training
-    * count_parameters      - return number of model's trainable parameters
-    * days_hours_minutes    - return number of days, hours, and minutes from a date/time string
-    * normalize_each        - normalize light curves 
-    * normalize_glob        - globally normalize light curves 
-    * return_dt             - return delta fimes from a sequential time array
-    * plot_latent_space     - creates a figure with latent distributions during model training
-    * perceptive_field      - calculates the perceptive field of a TCN net
-    * str2bool              - convert Y/N string to bool
-    * load_model_list       - load VAE model and config file
-    * evaluate_encoder      - evaluate VAE-encoder, returns latent variables
-    * plot_wall_lcs         - creates an article-ready LC plot
-    * scatter_hue           - creates a color-codded scatter plot
-"""
-
-import os, re, glob
-import socket
-import yaml
-import datetime
-import torch
-import numpy as np
-import pandas as pd
-import matplotlib
-if socket.gethostname() == 'exalearn':
-    matplotlib.use('agg')
-import matplotlib.pyplot as plt
-import seaborn as sb
-import matplotlib.cm as cm
-import random
-from tqdm import tqdm_notebook
-from collections import OrderedDict
-from src.vae_models import *
-import wandb
-
-PATH_FEATURES_TRAIN = '/home/franciscoperez/Documents/GitHub/data/BIASEDFATS/Train_rrlyr-1.csv'
-PATH_LIGHT_CURVES_OGLE = '/home/franciscoperez/Desktop/Code/FATS/LCsOGLE/data/'
-
 path = os.path.dirname(os.getcwd())+'/cnn-pels-vae'
 
+def load_yaml_priors(file_path):
+    with open(file_path, 'r') as file:
+        return yaml.safe_load(file)
+
+
+def extract_midpoints(class_data):
+    # Initialize the result list
+    result = []
+
+    # Iterate through the subclasses and extract midpoints
+    for subclass_name, subclass_data in class_data.items():
+        if subclass_name == "CompleteName":
+            continue
+        teff_mid = subclass_data['Midpoints']['Teff']
+        period_mid = subclass_data['Midpoints']['Period']
+        admagg_mid = subclass_data['Midpoints']['ADBMagG']
+
+        result.append([teff_mid, period_mid, admagg_mid])
+
+    return result
+    
 # Create a wall of generated time series
 def plot_wall_time_series(generated_lc, cls=[], data_real=None, color='vlue',
                           dim=(2, 4), figsize=(16, 4), title=None):

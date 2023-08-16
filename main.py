@@ -17,16 +17,16 @@ def main(train_gmm = False, create_samples=True):
         bgmm.train_and_save()
 
     if create_samples:
-        '''print(len(mean_prior_dict['StarTypes'][CLASSES[0]].keys())-1)
+        print(len(mean_prior_dict['StarTypes'][CLASSES[0]].keys())-1)
         components = 3 # len(mean_prior_dict['StarTypes'][CLASSES[0]].keys())-1 TODO: check number of components
         sampler = mgmm.ModifiedGaussianSampler(b=0.5, components = components)
         model_name = PATH_MODELS+'bgm_model_'+str(CLASSES[0])+'.pkl'
         samples = sampler.modify_and_sample(model_name)
-        z_hat = reg.main(samples)'''
+        z_hat = reg.main(samples)
         samples, z_hat = None, None
         creator.main(samples, z_hat) #TODO: check error
 
-    cnn.run_cnn(create_samples, mode_running='create')
+    cnn.run_cnn(create_samples, mode_running='load')
     
 if __name__ == "__main__":
     main()

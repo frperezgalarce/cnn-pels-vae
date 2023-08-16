@@ -1,6 +1,4 @@
 import pickle
-from scipy.stats import multivariate_normal
-from scipy.integrate import nquad
 import numpy as np
 
 class ModifiedGaussianSampler:

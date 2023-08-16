@@ -1,5 +1,5 @@
 # Use the official PyTorch Docker image as the base
-FROM pytorch/pytorch:1.9.0-cuda11.1-cudnn8-runtime
+FROM pytorch/pytorch:1.9.0-cuda9.1-cudnn8-runtime
 
 # Set the working directory inside the container
 WORKDIR /app

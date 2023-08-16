@@ -3,10 +3,12 @@ from sklearn.mixture import BayesianGaussianMixture
 import pickle
 import pandas as pd
 import matplotlib.pyplot as plt 
-from src.utils import load_yaml_priors, extract_midpoints
+from src.utils import load_yaml_priors, extract_midpoints, load_yaml
 
-PATH_PRIOS = 'src/gmm/priors.yaml'
-PATH_PP = '/home/franciscoperez/Documents/GitHub/CNN-PELSVAE2/cnn-pels-vae/data/inter/definite_matches.csv'
+
+PATHS = load_yaml('paths.yaml')['paths']
+PATH_PRIOS = PATHS['PATH_PRIOS']
+PATH_PP = PATHS['PATH_PP']
 
 class BayesianGaussianMixtureModel:
     def __init__(self, n_components=2, random_state=None):

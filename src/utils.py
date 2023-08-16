@@ -20,10 +20,18 @@ from sklearn.model_selection import train_test_split
 import itertools
 from sklearn.preprocessing import LabelEncoder
 from sklearn.metrics import recall_score
+from src.utils import load_yaml
 
-PATH_LIGHT_CURVES_OGLE = '/home/franciscoperez/Desktop/Code/FATS/LCsOGLE/data/'
-PATH_FEATURES_TRAIN = '/home/franciscoperez/Documents/GitHub/data/BIASEDFATS/Train_rrlyr-1.csv'
-PATH_FEATURES_TEST = '/home/franciscoperez/Documents/GitHub/data/BIASEDFATS/Test_rrlyr-1.csv'
+
+PATHS = load_yaml('paths.yaml')['paths']
+PATH_LIGHT_CURVES_OGLE = PATHS['PATH_LIGHT_CURVES_OGLE']
+PATH_FEATURES_TRAIN = PATHS['PATH_FEATURES_TRAIN']
+PATH_FEATURES_TEST = PATHS['PATH_FEATURES_TEST']
+PATH_NUMPY_DATA_X_TRAIN = PATHS['PATH_NUMPY_DATA_X_TRAIN']
+PATH_NUMPY_DATA_X_TEST = PATHS['PATH_NUMPY_DATA_X_TEST']
+PATH_NUMPY_DATA_Y_TRAIN = PATHS['PATH_NUMPY_DATA_Y_TRAIN']
+PATH_NUMPY_DATA_Y_TEST = PATHS['PATH_NUMPY_DATA_Y_TEST'] #TODO: apply differences
+PATH_SUBCLASSES = PATHS["PATH_SUBCLASSES"]
 
 def plot_training(epochs_range, train_loss_values, val_loss_values,train_accuracy_values,  val_accuracy_values):
     plt.figure(figsize=(12, 4))
@@ -66,15 +74,15 @@ def read_light_curve_ogle(example_test, example_train, lenght_lc=100):
     return numpy_array_lcus_train, numpy_array_lcus_test, numpy_y_test, numpy_y_train
 
 def load_light_curve_ogle():
-    numpy_array_lcus_train = np.load('data/np_array.npy', allow_pickle=True)
-    numpy_array_lcus_test = np.load('data/np_array.npy', allow_pickle=True)
-    numpy_y_test = np.load('data/np_array_y.npy', allow_pickle=True) #TODO: modify
-    numpy_y_train = np.load('data/np_array_y.npy', allow_pickle=True)
+    numpy_array_lcus_train = np.load(PATH_NUMPY_DATA_X_TRAIN, allow_pickle=True)
+    numpy_array_lcus_test = np.load(PATH_NUMPY_DATA_X_TEST, allow_pickle=True)
+    numpy_y_train = np.load(PATH_NUMPY_DATA_Y_TRAIN, allow_pickle=True)
+    numpy_y_test = np.load(PATH_NUMPY_DATA_Y_TEST, allow_pickle=True) #TODO: modify
     return numpy_array_lcus_train, numpy_array_lcus_test, numpy_y_test, numpy_y_train
 
 def insert_lc(examples, np_array, np_array_y, lenght_lc = 0, signal_noise=3):
     counter = 0
-    subclasses = pd.read_csv('/home/franciscoperez/Documents/GitHub/vsbms_multiple_classes/bayesianMLP/src/data/all_subclasses')
+    subclasses = pd.read_csv(PATH_SUBCLASSES)
     for lc in examples.ID.unique():
         path_lc = PATH_LIGHT_CURVES_OGLE+lc.split('-')[1].lower()+'/'+lc.split('-')[2].lower()+'/phot/I/'+lc
         lcu = pd.read_table(path_lc, sep=" ", names=['time', 'magnitude', 'error'])
@@ -272,6 +280,11 @@ path = os.path.dirname(os.getcwd())+'/cnn-pels-vae'
 def load_yaml_priors(file_path):
     with open(file_path, 'r') as file:
         return yaml.safe_load(file)
+
+def load_yaml(file_path):
+    with open(file_path, 'r') as file:
+        return yaml.safe_load(file)
+
 
 
 def extract_midpoints(class_data):

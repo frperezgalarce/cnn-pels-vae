@@ -4,11 +4,14 @@ import gzip
 from torch.utils.data import DataLoader, Dataset
 from torch.utils.data.sampler import SubsetRandomSampler
 from sklearn import preprocessing
-from src.utils import normalize_each, return_dt
+from src.utils import normalize_each, return_dt, load_yaml
 
-local_root = '/home/franciscoperez/Documents/GitHub/CNN-PELSVAE2/cnn-pels-vae/data'
-colab_root = '/content/drive/My Drive/Colab_Notebooks/data'
-exalearn_root = '/home/jorgemarpa/data'
+
+PATHS = load_yaml('paths.yaml')['paths']
+
+local_root = PATHS["PATH_DATA_FOLDER"]
+colab_root = PATHS["PATH_COLAB_ROOT"]
+exalearn_root = PATHS["PATH_EXALEARN_ROOT"]
 
 ## load pkl synthetic light-curve files to numpy array
 class Astro_lightcurves(Dataset):

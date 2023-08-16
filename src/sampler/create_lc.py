@@ -10,7 +10,8 @@ import warnings
 warnings.filterwarnings('ignore')
 
 main_path = os.path.dirname(os.getcwd())
-PATH_DATA = "/home/franciscoperez/Documents/GitHub/CNN-PELSVAE2/cnn-pels-vae/data"
+PATHS = load_yaml('paths.yaml')['paths']
+PATH_DATA = PATHS["PATH_DATA_FOLDER"]
 save_plots = False
 save_tables = False
 ID = 'b68z1hwo'  #'7q2bduwv' #'b68z1hwo''yp4qdw1r'

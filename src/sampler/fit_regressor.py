@@ -170,6 +170,7 @@ def main(samples):
 
         print_metrics_regression(z, z_hat)
         plot_figures(z, z_hat)
+    return z_hat
         
 if __name__ == "__main__":
     main()

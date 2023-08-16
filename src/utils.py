@@ -595,7 +595,6 @@ def perceptive_field(k=None, n=None):
                     print('num_blocks : ', n)
                     print('perc_field : ', pf)
                     print('######################')
-
                 
 def str2bool(v):
     """Convert strings (y,yes, true, t, 1,n, no,false, f,0) 
@@ -619,8 +618,7 @@ def str2bool(v):
         return False
     else:
         raise argparse.ArgumentTypeError('Boolean value expected.')
-        
-        
+               
 def load_model_list(ID='zg3r4orb', device='cpu'):
     """Load a Python VAE model from file stored in a W&B archive
 
@@ -692,7 +690,6 @@ def load_model_list(ID='zg3r4orb', device='cpu'):
     print('Is model in cuda? ', next(vae.parameters()).is_cuda)
     
     return vae, conf
-
 
 def evaluate_encoder(model, dataloader, params, 
                      n_classes=5, force=False, device='cpu'):
@@ -773,8 +770,7 @@ params['date'], params['ID'])
     std_df['class'] = labels
     
     return mu_df, std_df
-
-    
+   
 def plot_wall_synthetic_lcs(lc_gen, cls=[], lc_gen2=None, save=False, wandb_active=False):
     """Creates a wall of light curves plot with real and reconstruction
     sequences, paper-ready.
@@ -1003,7 +999,7 @@ def add_perturbation(array, scale=0.01):
         pass
     elif isinstance(perturbed_array, (np.ndarray)):
         perturbed_array = perturbed_array.astype(np.float32)
-
+    print('perturbation added')
     return perturbed_array
 
 def get_time_sequence(n=1, star_class='RRLYR'):

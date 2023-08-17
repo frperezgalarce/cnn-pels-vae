@@ -151,7 +151,10 @@ def run_cnn(create_samples: Any, mode_running: str = 'load') -> None:  # Adjust 
     class_weights = compute_class_weight('balanced', classes, y_train.numpy())
     class_weights = torch.tensor(class_weights).to(device, dtype=x_train.dtype)
     criterion = nn.CrossEntropyLoss(weight=class_weights)
+
+    #TODO: create method to define to optimizers and masks, this should consider a cnn.
     optimizer = optim.Adam(model.parameters(), lr=nn_config['training']['lr'], weight_decay=nn_config['training']['weight_decay'])
+    
     training_data = move_data_to_device((x_train, y_train), device)
     val_data = move_data_to_device((x_val, y_val), device)
     test_data = move_data_to_device((x_test, y_test), device)
@@ -170,8 +173,10 @@ def run_cnn(create_samples: Any, mode_running: str = 'load') -> None:  # Adjust 
 
     for epoch in range(epochs):
         running_loss = train_one_epoch(model, criterion, optimizer, train_dataloader, device)
+
         val_loss, accuracy_val = evaluate(model, val_data, criterion, device)
-        train_loss, accuracy_train = evaluate(model, training_data, criterion, device)
+        _, accuracy_train = evaluate(model, training_data, criterion, device)
+
         train_loss_values.append(running_loss)
         val_loss_values.append(val_loss.item())
         train_accuracy_values.append(accuracy_train)

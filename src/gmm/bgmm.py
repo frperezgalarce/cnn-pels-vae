@@ -1,50 +1,57 @@
 import numpy as np
-from sklearn.mixture import BayesianGaussianMixture
 import pickle
 import pandas as pd
-import matplotlib.pyplot as plt 
-from src.utils import load_yaml_priors, extract_midpoints, load_yaml
+import matplotlib.pyplot as plt
+from sklearn.mixture import BayesianGaussianMixture
+from typing import Optional, Dict, Union, Tuple, ClassVar
+from src.utils import load_yaml_priors, extract_midpoints
+import yaml
 
+with open('src/paths.yaml', 'r') as file:
+    YAML_FILE: str = yaml.safe_load(file)
 
-PATHS = load_yaml('paths.yaml')['paths']
-PATH_PRIOS = PATHS['PATH_PRIOS']
-PATH_PP = PATHS['PATH_PP']
+PATHS: str = YAML_FILE['paths']
+PATH_PRIOS: str = PATHS['PATH_PRIOS']
+PATH_PP: str = PATHS['PATH_PP']
 
 class BayesianGaussianMixtureModel:
-    def __init__(self, n_components=2, random_state=None):
+    def __init__(self, n_components: int = 2, random_state: Optional[int] = None):
         self.n_components = n_components
         self.random_state = random_state
         self.bgm = BayesianGaussianMixture(n_components=self.n_components, random_state=self.random_state)
         self.object = None
         self.mean_prior = None
 
-    def train(self, X, mean_prior=None):
+    def train(self, X: pd.DataFrame, mean_prior: Optional[np.array] = None) -> None:
         self.mean_prior = mean_prior
         if mean_prior is not None:
             self.bgm.mean_prior_ = mean_prior
         self.bgm.fit(X)
         self.object = self.bgm  # Saving the trained model as the object attribute
 
-    def save_model(self, filename):
+    def save_model(self, filename: str) -> None:
         with open(filename, 'wb') as file:
-            pickle.dump({'n_components': self.n_components,
-                         'random_state': self.random_state,
-                         'mean_prior': self.mean_prior,
-                         'model': self.bgm},
-                        file)
+            pickle.dump({
+                'n_components': self.n_components,
+                'random_state': self.random_state,
+                'mean_prior': self.mean_prior,
+                'model': self.bgm
+            }, file)
 
     @classmethod
-    def load_model(cls, filename):
+    def load_model(cls, filename: str) -> "BayesianGaussianMixtureModel":
         with open(filename, 'rb') as file:
-            model_data = pickle.load(file)
-        instance = cls(n_components=model_data['n_components'],
-                       random_state=model_data['random_state'])
+            model_data: Dict = pickle.load(file)
+        instance = cls(n_components=model_data['n_components'], random_state=model_data['random_state'])
         instance.mean_prior = model_data['mean_prior']
         instance.bgm = model_data['model']
         instance.object = instance.bgm  # Save the loaded model as the object attribute
         return instance
 
-    def plot_2d_bgmm(self, bgmm, X, starClass, feature1 = 'abs_Imag', feature2='teff_val'):
+    def plot_2d_bgmm(self, bgmm: "BayesianGaussianMixtureModel", 
+                           X: pd.DataFrame, starClass: str, feature1: str = 'abs_Imag', 
+                           feature2: str = 'teff_val') -> None:
+        
         # Plotting the data points
         plt.scatter(X[feature1], X[feature2], c='blue', alpha=0.5, label='Data Points')
         plt.xlabel(feature1)
@@ -72,11 +79,11 @@ class BayesianGaussianMixtureModel:
         plt.colorbar(label='Log Probability')
         plt.show()
 
-    def generate_samples(self, n_samples=1):
+    def generate_samples(self, n_samples: int = 1) -> np.array:
         samples, _ = self.bgm.sample(n_samples)
         return samples
 
-def train_and_save(components=3, priors=True):
+def train_and_save(components: int = 3, priors: bool = True) -> None:
     data = pd.read_csv(PATH_PP)
     df_selected_columns = data[['Type','teff_val','Period','abs_Imag']]
     classes = df_selected_columns.Type.unique()
@@ -101,9 +108,8 @@ def train_and_save(components=3, priors=True):
             bgmm.save_model('models/bgm_model_'+str(star_class)+'.pkl')
             bgmm.plot_2d_bgmm(bgmm, X, star_class, feature1 = 'teff_val', feature2='Period')
 
-def get_load_and_sample(star_class='RRLYR'):
+def get_load_and_sample(star_class: str = 'RRLYR') -> None:
     # Load the model and generate samples
     train_and_save(components=2)
     loaded_bgmm = BayesianGaussianMixtureModel.load_model('bgm_model_'+str(star_class)+'.pkl')
     generated_samples = loaded_bgmm.generate_samples(n_samples=5)
-    print(generated_samples)

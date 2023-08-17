@@ -11,6 +11,7 @@ import warnings
 import matplotlib.pyplot as plt
 import yaml
 import os
+from typing import Tuple, Any, Dict, Type, Union, List
 
 #sys.path.append('./')
 from src.vae.datasets import Astro_lightcurves
@@ -19,15 +20,15 @@ warnings.filterwarnings('ignore')
 
 # Read configurations from a YAML file
 with open('src/regressor.yaml', 'r') as file:
-    config_file = yaml.safe_load(file)
+    config_file: Dict[str, Any] = yaml.safe_load(file)
 
 # Extracting path configurations
-PATH_DATA = config_file['PATH_DATA']
-save_plots = config_file['save_plots']
-save_tables = config_file['save_tables']
+PATH_DATA: str = config_file['PATH_DATA']
+save_plots: bool = config_file['save_plots']
+save_tables: bool = config_file['save_tables']
 
 # Function to set up environment and download model weights if not available
-def setup_environment(ID, gpu=False):
+def setup_environment(ID: str, gpu: bool = False) -> Tuple[Any, Dict[str, Any], torch.device]:
     main_path = os.path.dirname(os.getcwd())
     print(main_path)
     '''
@@ -44,7 +45,7 @@ def setup_environment(ID, gpu=False):
     return vae, config, device
 
 # Function to prepare the dataset
-def prepare_dataset(config):
+def prepare_dataset(config: Dict[str, Any]) -> Astro_lightcurves:
     dataset = Astro_lightcurves(survey=config['data'],
                             band='I' if config['data'] else 'B',
                             use_time=True,
@@ -62,14 +63,14 @@ def prepare_dataset(config):
     return dataset
 
 # Function to print regression metrics
-def print_metrics_regression(y_test, y_pred):
+def print_metrics_regression(y_test: np.ndarray, y_pred: np.ndarray) -> None:
     print('Mean Squared Error (MSE): ', mean_squared_error(y_test, y_pred))
     print('Root Mean Squared Error (RMSE): ', sqrt(mean_squared_error(y_test, y_pred)))
     print('Mean Absolute Error (MAE): ', mean_absolute_error(y_test, y_pred))
     print('R^2 Score: ', r2_score(y_test, y_pred))
 
 # Functions to plot various diagnostic plots
-def scatter_plot(y_test, y_pred):
+def scatter_plot(y_test: np.ndarray, y_pred: np.ndarray) -> None:
     plt.scatter(y_test, y_pred, alpha=config_file['plotting']['scatter_plot_alpha'])
     plt.plot([y_test.min(), y_test.max()], [y_test.min(), y_test.max()], 'k--', lw=config_file['plotting']['scatter_plot_line_width'])
     plt.xlabel('True')
@@ -77,7 +78,7 @@ def scatter_plot(y_test, y_pred):
     plt.title('True vs Predicted Values')
     plt.show()
 
-def residual_plot(y_test, y_pred):
+def residual_plot(y_test: np.ndarray, y_pred: np.ndarray) -> None:
     residuals = y_test - y_pred
     plt.scatter(y_pred, residuals, alpha=config_file['plotting']['residual_plot_alpha'])
     plt.hlines(y=0, xmin=y_pred.min(), xmax=y_pred.max(), colors='k', linestyles='solid')
@@ -86,7 +87,7 @@ def residual_plot(y_test, y_pred):
     plt.title('Residual Plot')
     plt.show()
 
-def prediction_error_plot(y_test, y_pred):
+def prediction_error_plot(y_test: np.ndarray, y_pred: np.ndarray) -> None:
 
     residuals = y_test - y_pred
     sns.distplot(residuals)
@@ -94,23 +95,23 @@ def prediction_error_plot(y_test, y_pred):
     plt.xlabel('Prediction Error')
     plt.show()
 
-def plot_figures(y_test, y_pred):
+def plot_figures(y_test: np.ndarray, y_pred: np.ndarray) -> None:
     scatter_plot(y_test, y_pred)
     residual_plot(y_test, y_pred)
     prediction_error_plot(y_test, y_pred)
 
 # Function to load predictions from a saved model
-def load_predict(pp, filename = 'file.pkl'): 
+def load_predict(pp: np.ndarray, filename: str = 'file.pkl') -> np.ndarray: 
     loaded_model = pickle.load(open(filename, 'rb'))
     z = loaded_model.predict(pp)
     return z
 
 # Function to save trained model to disk
-def save_model(model, filename='filename_model.pkl'): 
+def save_model(model: Any, filename: str = 'filename_model.pkl') -> None:
     pickle.dump(model, open(filename, 'wb'))
 
 # Function to train the model using specified configurations
-def train_model(reg, config_dic, name, p, z):
+def train_model(reg: Type, config_dic: Dict[str, Any], name: str, p: np.ndarray, z: np.ndarray) -> Any:
     model = reg(**config_dic[name])
     
     try:
@@ -120,7 +121,7 @@ def train_model(reg, config_dic, name, p, z):
     return model
 
 # Main function to set up the model and training process
-def main(samples):
+def main(samples: Union[np.ndarray, List]) -> None:
     #TODO: incorporate samples in method, to generate latent space
 
     phys2 = ['abs_Gmag', 'teff_val', 'Period']

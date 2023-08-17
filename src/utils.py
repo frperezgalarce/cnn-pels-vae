@@ -20,10 +20,12 @@ from sklearn.model_selection import train_test_split
 import itertools
 from sklearn.preprocessing import LabelEncoder
 from sklearn.metrics import recall_score
-from src.utils import load_yaml
+#from src.utils import load_yaml
 
+with open('src/paths.yaml', 'r') as file:
+    YAML_FILE = yaml.safe_load(file)
 
-PATHS = load_yaml('paths.yaml')['paths']
+PATHS =YAML_FILE['paths']
 PATH_LIGHT_CURVES_OGLE = PATHS['PATH_LIGHT_CURVES_OGLE']
 PATH_FEATURES_TRAIN = PATHS['PATH_FEATURES_TRAIN']
 PATH_FEATURES_TEST = PATHS['PATH_FEATURES_TEST']
@@ -280,12 +282,6 @@ path = os.path.dirname(os.getcwd())+'/cnn-pels-vae'
 def load_yaml_priors(file_path):
     with open(file_path, 'r') as file:
         return yaml.safe_load(file)
-
-def load_yaml(file_path):
-    with open(file_path, 'r') as file:
-        return yaml.safe_load(file)
-
-
 
 def extract_midpoints(class_data):
     # Initialize the result list

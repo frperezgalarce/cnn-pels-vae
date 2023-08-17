@@ -4,11 +4,13 @@ import gzip
 from torch.utils.data import DataLoader, Dataset
 from torch.utils.data.sampler import SubsetRandomSampler
 from sklearn import preprocessing
-from src.utils import normalize_each, return_dt, load_yaml
+from src.utils import normalize_each, return_dt
+import yaml
 
+with open('src/paths.yaml', 'r') as file:
+    YAML_FILE = yaml.safe_load(file)
 
-PATHS = load_yaml('paths.yaml')['paths']
-
+PATHS: str = YAML_FILE['paths']
 local_root = PATHS["PATH_DATA_FOLDER"]
 colab_root = PATHS["PATH_COLAB_ROOT"]
 exalearn_root = PATHS["PATH_EXALEARN_ROOT"]

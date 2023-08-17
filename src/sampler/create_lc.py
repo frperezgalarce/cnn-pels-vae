@@ -2,25 +2,31 @@ import os, sys
 import socket
 import torch
 import pandas as pd
+from typing import List, Optional, Union, Dict, Tuple, Any
 sys.path.append('../')
 from src.vae.vae_models import *
 from src.utils import *
 from src.vae.datasets import Astro_lightcurves
 import warnings
 warnings.filterwarnings('ignore')
+import yaml
 
-main_path = os.path.dirname(os.getcwd())
-PATHS = load_yaml('paths.yaml')['paths']
-PATH_DATA = PATHS["PATH_DATA_FOLDER"]
-save_plots = False
-save_tables = False
-ID = 'b68z1hwo'  #'7q2bduwv' #'b68z1hwo''yp4qdw1r'
-gpu = True # fail when true is selected
+main_path: str = os.path.dirname(os.getcwd())
 
-device = torch.device("cuda:0" if torch.cuda.is_available() and gpu else "cpu")
+with open('src/paths.yaml', 'r') as file:
+    YAML_FILE: Dict[str, Any] = yaml.safe_load(file)
 
-def prepare_dataset(config):
-    dataset = Astro_lightcurves(survey=config['data'],
+PATHS: Dict[str, str] = YAML_FILE['paths']
+PATH_DATA: str = PATHS["PATH_DATA_FOLDER"]
+save_plots: bool = False
+save_tables: bool = False
+ID: str = 'b68z1hwo'  #'7q2bduwv' #'b68z1hwo''yp4qdw1r'
+gpu: bool = True # fail when true is selected
+
+device: torch.device = torch.device("cuda:0" if torch.cuda.is_available() and gpu else "cpu")
+
+def prepare_dataset(config: Dict[str, Union[str, bool, int]]) -> Astro_lightcurves:
+    dataset: Astro_lightcurves = Astro_lightcurves(survey=config['data'],
                                 band='I' if config['data'] else 'B',
                                 use_time=True,
                                 use_err=True,
@@ -38,7 +44,7 @@ def prepare_dataset(config):
     return dataset
 
 #Incorporate samples for pp and latent space to generate light curves
-def main(samples, z_hat):
+def main(samples: np.ndarray, z_hat: np.ndarray) -> None:
     print('cuda: ', torch.cuda.is_available())
     print('create main 1')
     vae, config = load_model_list(ID=ID, device=device)

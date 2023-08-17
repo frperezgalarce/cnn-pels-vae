@@ -3,53 +3,36 @@ import numpy as np
 import torch
 import torch.nn as nn
 import torch.optim as optim
+from torch.utils.data import DataLoader
+from torch.optim import Optimizer
+from torch.nn import Module  # Use nn.Module instead of _Loss
 import numpy as np
 from src.utils import *
 from sklearn.metrics import confusion_matrix
 from sklearn.utils.class_weight import compute_class_weight
 from torch.utils.data import DataLoader, TensorDataset
 import wandb
+from typing import Union, Tuple, Optional, Any
+import yaml 
+
+with open('src/nn_config.yaml', 'r') as file:
+    nn_config = yaml.safe_load(file)
 
 # Define the number of classes
-def print_grad_norm(grad):
+def print_grad_norm(grad: torch.Tensor) -> None:
     if (param.grad is not None) and torch.isnan(param.grad).any():
                 print(f"NaN value in gradient of {grad}")
 
-def get_data_fake():
-    # Generate some random data for training and validation
-    x_train = np.random.rand(1000, 100, 2)
-    y_train = np.random.randint(num_classes, size=(1000,))
-    x_val = np.random.rand(200, 100, 2)
-    y_val = np.random.randint(num_classes, size=(200,))
-
-    # Convert the data to PyTorch tensors
-    x_train = torch.from_numpy(x_train).float()
-    y_train = torch.from_numpy(y_train).long()
-    x_val = torch.from_numpy(x_val).float()
-    y_val = torch.from_numpy(y_val).long()
-
-    # Permute the dimensions of the input tensor
-    x_train = x_train.permute(0, 2, 1)
-    x_val = x_val.permute(0, 2, 1)
-
-    # Print the shapes of the data
-    print("x_train shape:", x_train.shape)
-    print("y_train shape:", y_train.shape)
-    print("x_val shape:", x_val.shape)
-    print("y_val shape:", y_val.shape)
-
-    return x_train, y_train, x_val, y_val
-
 # Define the 1D CNN model
 class CNN(nn.Module):
-    def __init__(self, num_classes=2):
+    def __init__(self, num_classes: int = 2) -> None:
         super(CNN, self).__init__()
         self.conv1 = nn.Conv1d(in_channels=2, out_channels=128, kernel_size=6, stride=4, groups=1)
         self.conv2 = nn.Conv1d(in_channels=128, out_channels=64, kernel_size=6, stride=4, groups=1)
         self.fc1 = nn.Linear(64*5, 100)
         self.fc2 = nn.Linear(100, num_classes)
 
-    def forward(self, x, verbose=False):
+    def forward(self, x: torch.Tensor, verbose: bool = False) -> torch.Tensor:
         if verbose:
             print('forward')
         x = self.conv1(x)
@@ -71,173 +54,154 @@ class CNN(nn.Module):
         x = nn.functional.softmax(x, dim=1)
         return x
 
-def run_cnn(create_samples, mode_running='load'):
-    'mode_running: load or create, load take a training set and create considers a new dataset'
-    #TODO: ensure good performance of get data method
-    wandb.init(project='cnn-pelsvae', entity='fjperez10')
-    # Define the input shape of the data
-    light_curve_lenght = 100
-    input_shape = (light_curve_lenght, 2)
-    epochs = 10000
-    # Define the early stopping criteria
-    patience = 200
-    min_delta = 0.00
-    best_val_loss = float('inf')
-    best_model = None
-    no_improvement_count = 0
-    batch_size = 256
-    kernel_size=8
-    stride=1
-    out_channels=64
-    in_size= out_channels*light_curve_lenght
-    out_size = ((in_size - kernel_size)/stride) + 1
-    print(out_size)
-
-    x_train, x_test,  y_train, y_test, x_val, y_val, label_encoder = get_data(sample_size=400000, mode='create')
-
-    label_encode = label_encoder.classes_
-
-
-    classes = np.unique(y_train.numpy())
-    num_classes = len(classes) 
+def setup_environment() -> torch.device:
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    print('cuda active: ', torch.cuda.is_available())
-
-    # Create an instance of the CNN model
-    model = CNN(num_classes=num_classes)
-
-    # Define the class weights
-    class_weights = compute_class_weight('balanced', classes, y_train.numpy())
-
-    class_weights =  torch.tensor(class_weights)
-    class_weights = class_weights.to(device, dtype=x_train.dtype)
-
-    print(class_weights)
-    # Define your loss function with class weights
-
-    # Define the loss function and optimizer
-    criterion = nn.CrossEntropyLoss(weight=class_weights)
-    optimizer = optim.Adam(model.parameters(), lr=0.001, weight_decay=0.0001)
-
     if torch.cuda.is_available():
-        device = torch.device("cuda")  # Use CUDA device
-        torch.cuda.set_device(0)  # Set the GPU device index
-
-        # Move your model to the device
-        model = model.to(device)
-
-        # Move your data to the device
-        x_train = x_train.to(device)
-        y_train = y_train.to(device)
-        x_test = x_test.to(device)
-        y_test = y_test.to(device)
-        x_val = x_val.to(device)
-        y_val = y_val.to(device)
-
-        # Enable CUDA for computations
         torch.backends.cudnn.benchmark = True
+        torch.cuda.set_device(0)  # Set the GPU device index
+    print('CUDA active:', torch.cuda.is_available())
+    return device
 
 
+def setup_model(num_classes: int, device: torch.device) -> nn.Module:
+    model = CNN(num_classes=num_classes)
+    if torch.cuda.is_available():
+        model = model.to(device)
     if torch.cuda.device_count() > 1:
         print("Using", torch.cuda.device_count(), "GPUs!")
         model = nn.DataParallel(model)
+    return model
 
-    # Create a TensorDataset for your training data
-    train_dataset = TensorDataset(x_train, y_train)
 
-    # Create a DataLoader for your training data
-    train_dataloader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True)
+def move_data_to_device(data: Tuple, device: torch.device) -> Tuple:
+    return tuple(d.to(device) for d in data)
 
-    # Enable CUDA for computations
-    torch.backends.cudnn.benchmark = True
+def train_one_epoch(
+        model: torch.nn.Module, 
+        criterion: Module,  # Here
+        optimizer: Optimizer, 
+        dataloader: DataLoader, 
+        device: torch.device, 
+        mode: str = 'oneloss', 
+        criterion_2: Optional[Module] = None,  # And here
+        dataloader_2: Optional[DataLoader] = None, 
+        optimizer_2: Optional[Optimizer] = None
+    ) -> float:    
+    
+    running_loss = 0.0
+    if mode=='oneloss':
+        for inputs, labels in dataloader:
+            inputs, labels = inputs.to(device), labels.to(device)
+            optimizer.zero_grad()
+            outputs = model(inputs)
+            loss = criterion(outputs, labels)
+            loss.backward()
+            optimizer.step()
+            running_loss += loss.item()
+
+    elif mode=='twolosses':
+        if criterion_2 is None or dataloader_2 is None or optimizer_2 is None:
+            raise ValueError("For 'twolosses' mode, criterion_2, dataloader_2, and optimizer_2 must be provided.") 
+
+        for (inputs_1, labels_1), (inputs_2, labels_2) in zip(dataloader, dataloader_2):
+            
+            # Forward pass for dataloader 1
+            inputs_1, labels_1 = inputs_1.to(device), labels_1.to(device)
+            outputs_1 = model(inputs_1)
+            loss_1 = criterion(outputs_1, labels_1)
+            
+            # Forward pass for dataloader 2
+            inputs_2, labels_2 = inputs_2.to(device), labels_2.to(device)
+            outputs_2 = model(inputs_2)
+            loss_2 = criterion_2(outputs_2, labels_2)
+            
+            # Backward pass and optimization for parameters designated to loss_1
+            optimizer.zero_grad()
+            loss_1.backward(retain_graph=True)
+            optimizer.step()
+
+            # Backward pass and optimization for parameters designated to loss_2
+            optimizer_2.zero_grad()
+            loss_2.backward()
+            optimizer_2.step()
+
+            running_loss += loss_1.item() + loss_2.item()
+
+    return running_loss
+
+    return running_loss
+
+def evaluate(model, data, criterion, device):
+    inputs, labels = data
+    with torch.no_grad():
+        outputs = model(inputs)
+        loss = criterion(outputs, labels)
+        predicted = torch.max(outputs, 1)[1]
+        accuracy = (predicted == labels).sum().item() / len(labels)
+    return loss, accuracy
+
+def run_cnn(create_samples: Any, mode_running: str = 'load') -> None:  # Adjust the type of create_samples if known
+    # Initialization
+    wandb.init(project='cnn-pelsvae', entity='fjperez10')
+    device = setup_environment()
+    x_train, x_test, y_train, y_test, x_val, y_val, label_encoder = get_data(sample_size=nn_config['data']['sample_size'], mode=mode_running)
+    classes = np.unique(y_train.numpy())
+    num_classes = len(classes)
+    model = setup_model(num_classes, device)
+    class_weights = compute_class_weight('balanced', classes, y_train.numpy())
+    class_weights = torch.tensor(class_weights).to(device, dtype=x_train.dtype)
+    criterion = nn.CrossEntropyLoss(weight=class_weights)
+    optimizer = optim.Adam(model.parameters(), lr=nn_config['training']['lr'], weight_decay=nn_config['training']['weight_decay'])
+    training_data = move_data_to_device((x_train, y_train), device)
+    val_data = move_data_to_device((x_val, y_val), device)
+    test_data = move_data_to_device((x_test, y_test), device)
+    train_dataset = TensorDataset(*training_data)
+    train_dataloader = DataLoader(train_dataset, batch_size=nn_config['training']['batch_size'], shuffle=True)
+
+    # Main training loop
+    best_val_loss = float('inf')
+    no_improvement_count = 0
     train_loss_values = []
     val_loss_values = []
     train_accuracy_values = []
     val_accuracy_values = []
+    epochs = nn_config['training']['epochs']
+    patience =  nn_config['training']['patience']
 
     for epoch in range(epochs):
-        running_loss = 0.0
-        for i, (inputs, labels) in enumerate(train_dataloader):
-            # Move the batch to the device
-            inputs = inputs.to(device)
-            labels = labels.to(device)
-
-            # Zero the gradients
-            optimizer.zero_grad()
-
-            # Forward pass
-            outputs = model(inputs)
-            loss = criterion(outputs, labels)
-
-            # Backward pass and optimize
-            loss.backward()
-            optimizer.step()
-
-            # Print statistics
-            running_loss += loss.item()
-
-        # Evaluate the model on the validation set
-        with torch.no_grad():
-            val_outputs = model(x_val)
-            val_loss = criterion(val_outputs, y_val)
-            predicted = torch.max(val_outputs, 1)[1]        
-            accuracy_val = (predicted == y_val).sum().item() / len(y_val)
-
-            train_outputs = model(x_train)
-            train_loss = criterion(train_outputs, y_train)
-            predicted = torch.max(train_outputs, 1)[1]        
-            accuracy = (predicted == y_train).sum().item() / len(y_train)
-
-            # Check if the validation loss has improved
-            if val_loss < best_val_loss - min_delta:
-                best_val_loss = val_loss
-                best_model = model.state_dict()
-                no_improvement_count = 0
-            else:
-                no_improvement_count += 1
-
-            # Check if we should stop early
-            if no_improvement_count >= patience:
-                print(f"Stopping early after {epoch + 1} epochs")
-                break
-        
-        print(val_loss.cpu().item())
-
-        # Append the values to the lists
+        running_loss = train_one_epoch(model, criterion, optimizer, train_dataloader, device)
+        val_loss, accuracy_val = evaluate(model, val_data, criterion, device)
+        train_loss, accuracy_train = evaluate(model, training_data, criterion, device)
         train_loss_values.append(running_loss)
-        val_loss_values.append(val_loss.cpu().item())
-        train_accuracy_values.append(accuracy)
+        val_loss_values.append(val_loss.item())
+        train_accuracy_values.append(accuracy_train)
         val_accuracy_values.append(accuracy_val)
-        # Plot the training and validation behavior
-        epochs_range = range(0, epoch+1)
 
-        print(f"Epoch {epoch + 1}, loss: {running_loss:.4f}, val_loss: {val_loss:.4f}, accuracy: {accuracy:.4f}, accuracy_val: {accuracy_val:.4f}")
-        wandb.log({'epoch': epoch, 'loss': running_loss, 'val_loss':val_loss, 'val_accu': accuracy_val})
+        # Early stopping criteria
+        if val_loss < best_val_loss:
+            best_val_loss = val_loss
+            best_model = model.state_dict()
+            no_improvement_count = 0
+        else:
+            no_improvement_count += 1
+        if no_improvement_count >= patience:
+            print(f"Stopping early after {epoch + 1} epochs")
+            break
 
-    # Load the best model state
+        wandb.log({'epoch': epoch, 'loss': running_loss, 'val_loss': val_loss.item(), 'val_accu': accuracy_val})
+
+    # Post-training tasks
     model.load_state_dict(best_model)
-    model = model.to(device)
-
-    plot_training(epochs_range, train_loss_values, val_loss_values,train_accuracy_values,  val_accuracy_values)
-
-    # Move testing data to GPU if not already on GPU
-    x_test = x_test.to(device)
-    y_test = y_test.to(device)
+    plot_training(range(len(train_loss_values)), train_loss_values, val_loss_values, train_accuracy_values, val_accuracy_values)
 
     train_outputs = model(x_train)
     _, predicted_train = torch.max(train_outputs.data.cpu(), 1)
-    cm = confusion_matrix(y_train.cpu(), predicted_train.cpu(), normalize='true')
-    plot_cm(cm, label_encode, title='Confusion Matrix - Training set')
-
-    torch.cuda.empty_cache()
+    cm_train = confusion_matrix(y_train.cpu(), predicted_train.cpu(), normalize='true')
+    plot_cm(cm_train, label_encoder.classes_, title='Confusion Matrix - Training set')
 
     test_outputs = model(x_test)
     _, predicted_test = torch.max(test_outputs.data.cpu(), 1)
-    cm = confusion_matrix(y_test.cpu(), predicted_test.cpu(), normalize='true')
-    plot_cm(cm, label_encode, title='Confusion Matrix - Testing set')
-
-    torch.cuda.empty_cache()
-
-    export_recall_latex(y_train.cpu(),  predicted_train.cpu(), label_encoder)
-
-    export_recall_latex(y_test.cpu(), predicted_test.cpu(), label_encoder)
+    cm_test = confusion_matrix(y_test.cpu(), predicted_test.cpu(), normalize='true')
+    plot_cm(cm_test, label_encoder.classes_, title='Confusion Matrix - Testing set')
+    export_recall_latex(y_train.cpu(), predicted_train, label_encoder)
+    export_recall_latex(y_test.cpu(), predicted_test, label_encoder)

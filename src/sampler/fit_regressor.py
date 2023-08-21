@@ -121,7 +121,7 @@ def train_model(reg: Type, config_dic: Dict[str, Any], name: str, p: np.ndarray,
     return model
 
 # Main function to set up the model and training process
-def main(samples: Union[np.ndarray, List]) -> None:
+def main(samples: Union[np.ndarray, List], train_rf: bool = True) -> None:
     #TODO: incorporate samples in method, to generate latent space
 
     phys2 = ['abs_Gmag', 'teff_val', 'Period']
@@ -159,13 +159,13 @@ def main(samples: Union[np.ndarray, List]) -> None:
         filename = 'models/'+ name + '.pkl'
         
         # Check if the model file exists
-        if os.path.exists(filename):
-            print(f"Loading existing model from {filename}")
-            model = pickle.load(open(filename, 'rb'))
-        else:
+        if train_rf:
             print(f"Training new model {name}")
             model = train_model(reg, config_dict, name, p, z)
             save_model(model, filename=filename)
+        else:
+            print(f"Loading existing model from {filename}")
+            model = pickle.load(open(filename, 'rb'))
 
         z_hat = model.predict(p) # Directly using the model for prediction
 

@@ -20,7 +20,7 @@ PATHS: Dict[str, str] = YAML_FILE['paths']
 PATH_DATA: str = PATHS["PATH_DATA_FOLDER"]
 save_plots: bool = False
 save_tables: bool = False
-ID: str = 'b68z1hwo'  #'7q2bduwv' #'b68z1hwo''yp4qdw1r'
+ID: str = '20twxmei' #'b68z1hwo'  #'7q2bduwv' #'b68z1hwo''yp4qdw1r'
 gpu: bool = True # fail when true is selected
 
 device: torch.device = torch.device("cuda:0" if torch.cuda.is_available() and gpu else "cpu")
@@ -66,7 +66,7 @@ def main(samples: np.ndarray, z_hat: np.ndarray) -> None:
     examples = []
     meta_aux = dataset.meta.reset_index()
 
-    objects_by_class = {'ACEP':3, 'CEP': 3,  'DSCT': 3,  'ECL':3,  'ELL': 3,  'LPV': 3,  'RRLYR':  3,  'T2CEP':3}
+    objects_by_class = {'ACEP':0, 'CEP': 0,  'DSCT': 0,  'ECL':0,  'ELL': 0,  'LPV': 0,  'RRLYR':  0,  'T2CEP':24}
     for i, cls in enumerate(dataset.label_onehot_enc.categories_[0]):
         aux = meta_aux.query('Type == "%s"' % (cls)).sample(objects_by_class[cls])
         examples.append(aux)

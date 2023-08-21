@@ -18,10 +18,10 @@ import argparse
 import torch
 import torch.optim as optim
 import numpy as np
-from vae.datasets import *
+from src.vae.datasets import *
 from src.utils import *
-from vae.vae_models import *
-from vae.vae_training import Trainer
+from src.vae.vae_models import *
+from src.vae.vae_training import Trainer
 
 import wandb
 
@@ -64,7 +64,7 @@ parser.add_argument('--beta', dest='beta', type=str, default='1',
 parser.add_argument('--batch-size', dest='batch_size', type=int, default=128,
                     help='batch size [128]')
 parser.add_argument('--num-epochs', dest='num_epochs', type=int, default=150,
-                    help='total number of training epochs [150]')
+                    help='total number of training epochs [150]') 
 
 parser.add_argument('--cond', dest='cond', type=str, default='T',
                     help='label conditional VAE (F,[T])')

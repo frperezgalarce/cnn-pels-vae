@@ -16,8 +16,9 @@ PATHS: Dict[str, str] = YAML_FILE['paths']
 PATH_PRIOS: str = PATHS['PATH_PRIOS']
 PATH_MODELS: str = PATHS['PATH_MODELS']
 mean_prior_dict: Dict[str, Any] = load_yaml_priors(PATH_PRIOS)
+vae_model: str = '20twxmei' #trained using TPM using GAIA3
 
-def main(train_gmm: Optional[bool] = False, create_samples: Optional[bool] = False) -> None:
+def main(train_gmm: Optional[bool] = True, create_samples: Optional[bool] = True) -> None:
     if train_gmm: 
         bgmm.train_and_save()
 
@@ -27,7 +28,7 @@ def main(train_gmm: Optional[bool] = False, create_samples: Optional[bool] = Fal
         sampler: mgmm.ModifiedGaussianSampler = mgmm.ModifiedGaussianSampler(b=0.5, components=components)
         model_name: str = PATH_MODELS+'bgm_model_'+str(CLASSES[0])+'.pkl'
         samples: np.ndarray = sampler.modify_and_sample(model_name)
-        z_hat: Any = reg.main(samples)
+        z_hat: Any = reg.main(samples, train_rf=True)
         samples, z_hat = None, None
         creator.main(samples, z_hat) #TODO: check error
 

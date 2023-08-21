@@ -645,6 +645,7 @@ def load_model_list(ID='zg3r4orb', device='cpu'):
     conf
         Dictionary with model hyperparameters and configuration values
     """
+    print(path, ID)
     fname = glob.glob('%s/wandb/run-*-%s/VAE_model_*.pt' % (path, ID))[0]
     print(fname)
     config_f = glob.glob('%s/wandb/run-*-%s/config.yaml' % (path, ID))[0]

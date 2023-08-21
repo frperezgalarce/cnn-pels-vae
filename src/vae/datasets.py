@@ -111,11 +111,13 @@ class Astro_lightcurves(Dataset):
                         % (survey, band, seq_len))
         else:
             data_path = ('%s/time_series/real' % (root) +
-                        '/%s_lcs_%s_meta_snr5_augmented_folded_trim%i.npy.gz'
+                        '/%s_lcs_%s_meta_snr5_augmented_folded_trim%i_GAIA3.npy.gz'
                         % (survey, band, seq_len))
         print('Loading from:\n', data_path)
         with gzip.open(data_path, 'rb') as f:
             self.aux = np.load(f, allow_pickle=True)
+
+        print(self.aux)
         self.lcs = self.aux.item()['lcs']
         self.meta = self.aux.item()['meta']
         del self.aux

@@ -2,6 +2,7 @@ import torch
 import gzip 
 import numpy as np
 import pandas as pd
+import matplotlib.pyplot as plt
 
 def test_gpus():
     print(torch.cuda.is_available())
@@ -12,16 +13,209 @@ def load_data_to_train():
     print('Loading from:\n', data_path)
     with gzip.open(data_path, 'rb') as f:
         np_data = np.load(f, allow_pickle=True)
-    print(type(np_data))
     print(print("Keys:", np_data.dtype.names))
+    print(type(np_data))
+    print('item: ', np_data.item())
     print('meta')
     print(np_data.item()['meta'])
     print('lcs')
     print(np_data.item()['lcs'])
+    return np_data.item()['meta'], np_data.item()['lcs'], np_data
+
+def save_data(meta, lcs, data):
+    data_path = 'data/time_series/real/OGLE3_lcs_I_meta_snr5_augmented_folded_trim600_GAIA3.npy.gz'
+    print('Saving to:\n', data_path)
+    data.item()['meta'] = meta
+    with gzip.open(data_path, 'wb') as f:
+        np.save(f, data)
+    
+    print('Data saved successfully.')
 
 def load_new_validated_pp():
     pp_path = 'data/inter/Validated_OGLExGaiaDR3.csv'
     df = pd.read_csv(pp_path)
-    print(df.head(50))
+    return df
 
-test_gpus()
+def remove_outliers(data):
+    Q1 = np.percentile(data, 25)
+    Q3 = np.percentile(data, 75)
+    IQR = Q3 - Q1
+    lower_bound = Q1 - 1.5 * IQR
+    upper_bound = Q3 + 1.5 * IQR
+    return [x for x in data if lower_bound <= x <= upper_bound]
+
+
+def compare_frequency(s1, s2, s3, feature = "Period", clean = True): 
+    
+    if clean:
+        s1 = remove_outliers(s1)
+        s2 = remove_outliers(s2)
+        s3 = remove_outliers(s3)
+
+    plt.figure(figsize=(10,6))
+
+    # Plot histograms
+    plt.hist(s1, bins=100, alpha=0.5, label=feature +' 1')
+    plt.hist(s2, bins=100, alpha=0.5, label= feature +' 2')
+    plt.hist(s3, bins=100, alpha=0.5, label='Final ' + feature)
+
+    plt.xlabel('Value')
+    plt.ylabel('Frequency')
+    plt.legend(loc='upper right')
+    plt.title('Comparison of Histograms')
+    plt.show()
+
+
+def basic_histogram(s1, title='Delta of Teff'): 
+    plt.figure(figsize=(10,6))
+
+    # Plot histograms
+    plt.hist(s1, bins=50, alpha=0.5)
+
+    plt.xlabel('Value')
+    plt.ylabel('Frequency')
+    plt.legend(loc='upper right')
+    plt.title(title)
+    plt.show()
+'''
+def update_values(df, feature="teff_val"):
+    df[feature] = df[feature+'_orig']
+    for j in range(df.shape[0]):
+        if np.isnan(df.iloc[j][feature+'_orig']):
+            df.at[j, feature] = df.iloc[j][feature+'_new']
+        else:
+            if not np.isnan(df.iloc[j][feature+'_new']):
+                df.at[j, feature] = df.iloc[j][feature+'_new']
+    return df
+'''
+def update_values(df, feature="teff_val"):
+    condition_orig_is_nan = df[feature+'_orig'].isna()
+    condition_new_is_nan = df[feature+'_new'].isna()
+
+    df[feature] = np.where(
+        condition_orig_is_nan, 
+        df[feature+'_new'],
+        np.where(condition_new_is_nan, df[feature+'_orig'], df[feature+'_new'])
+    )
+
+    return df
+
+meta1, lcs, data = load_data_to_train()
+meta2 = load_new_validated_pp()
+
+print(meta1.shape, meta2.shape)
+print(meta1.columns)
+print(meta2.columns)
+
+## Teff
+
+df1 = meta1[['OGLE_id', 'teff_val']]
+df2 = meta2[["OGLE-ID", "Teff"]]
+df1.columns = ['OGLE_id', 'teff_val']
+df2.columns = ['OGLE_id', 'teff_val']
+
+new_data = df1.merge(df2, on="OGLE_id", how="outer", suffixes=('_orig', '_new'))
+
+
+new_data['delta_Teff'] = new_data["teff_val_orig"] - new_data["teff_val_new"]
+
+new_data = update_values(new_data)
+
+print('missing origin: ', new_data.drop_duplicates('OGLE_id').teff_val_orig.isna().sum())
+print('missing new: ', new_data.drop_duplicates('OGLE_id').teff_val_new.isna().sum())
+print('missing final: ', new_data.drop_duplicates('OGLE_id').teff_val.isna().sum())
+
+basic_histogram(new_data.delta_Teff, title='Delta of Teff')
+
+compare_frequency(meta1.drop_duplicates('OGLE_id').teff_val, 
+                    meta2.drop_duplicates('OGLE-ID').Teff, 
+                    new_data.drop_duplicates('OGLE_id').teff_val, 
+                    feature="teff_val", clean=False)
+
+print(new_data.shape)
+print(meta1.shape)
+print(new_data.head(20))
+print(meta1.head(20))
+meta1 = meta1.merge(new_data.drop_duplicates('OGLE_id'), on="OGLE_id", how="left", suffixes=('_orig', ''))
+print(meta1.shape)
+
+print(meta1.columns)
+print('missing final: ', meta1.drop_duplicates('OGLE_id').teff_val.isna().sum())
+
+## Period
+
+df1 = meta1[['OGLE_id', 'Period']]
+df2 = meta2[["OGLE-ID", "Period"]]
+df1.columns = ['OGLE_id', 'Period']
+df2.columns = ['OGLE_id', 'Period']
+
+#del new_data
+
+print(meta1.shape)
+new_data = df1.merge(df2, on="OGLE_id", how="outer", suffixes=('_orig', '_new'))
+print(new_data.shape)
+
+new_data['delta_Period'] = new_data["Period_orig"] - new_data["Period_new"]
+
+new_data = update_values(new_data, feature="Period")
+
+print('missing origin: ', new_data.drop_duplicates('OGLE_id').Period_orig.isna().sum())
+print('missing new: ', new_data.drop_duplicates('OGLE_id').Period_new.isna().sum())
+print('missing final: ', new_data.drop_duplicates('OGLE_id').Period.isna().sum())
+
+basic_histogram(new_data.delta_Period, title='Delta of Period')
+
+basic_histogram(meta1.Period, title='Period 1')
+basic_histogram(meta2.Period, title='Period 2')
+basic_histogram(new_data.Period, title='Period 3')
+
+compare_frequency(meta1.drop_duplicates('OGLE_id').Period, meta2.drop_duplicates('OGLE-ID').Period, new_data.drop_duplicates('OGLE_id').Period, feature="Period")
+
+print(new_data.shape)
+print(meta1.shape)
+
+meta1 = meta1.merge(new_data.drop_duplicates('OGLE_id'), on="OGLE_id", how="left", suffixes=('_orig', ''))
+print(meta1.columns)
+print('missing final: ', meta1.drop_duplicates('OGLE_id').Period.isna().sum())
+
+
+## Abs Mag G
+
+df1 = meta1[['OGLE_id', 'abs_Gmag']]
+df2 = meta2[["OGLE-ID", "GMAG_x"]]
+df1.columns = ['OGLE_id', 'abs_Gmag']
+df2.columns = ['OGLE_id', 'abs_Gmag']
+
+#del new_data
+
+print(meta1.shape)
+new_data = df1.merge(df2, on="OGLE_id", how="outer", suffixes=('_orig', '_new'))
+print(new_data.shape)
+
+new_data['delta_abs_Gmag'] = new_data["abs_Gmag_orig"] - new_data["abs_Gmag_new"]
+
+new_data = update_values(new_data, feature="abs_Gmag")
+
+print('missing origin: ', new_data.drop_duplicates('OGLE_id').abs_Gmag_orig.isna().sum())
+print('missing new: ', new_data.drop_duplicates('OGLE_id').abs_Gmag_new.isna().sum())
+print('missing final: ', new_data.drop_duplicates('OGLE_id').abs_Gmag.isna().sum())
+
+basic_histogram(new_data.abs_Gmag, title='Delta of abs_Gmag')
+
+basic_histogram(meta1.abs_Gmag, title='abs_Gmag 1')
+basic_histogram(meta2.GMAG_x, title='abs_Gmag 2')
+basic_histogram(new_data.abs_Gmag, title='abs_Gmag 3')
+
+compare_frequency(meta1.drop_duplicates('OGLE_id').abs_Gmag, 
+                 meta2.drop_duplicates('OGLE-ID').GMAG_x, 
+                 new_data.drop_duplicates('OGLE_id').abs_Gmag, feature="abs_Gmag", clean=False)
+
+print(new_data.shape)
+print(meta1.shape)
+
+meta1 = meta1.merge(new_data.drop_duplicates('OGLE_id'), on="OGLE_id", how="left", suffixes=('_orig', ''))
+print(meta1.columns)
+print('missing final: ', meta1.drop_duplicates('OGLE_id').abs_Gmag.isna().sum())
+
+
+save_data(meta1, lcs, data)

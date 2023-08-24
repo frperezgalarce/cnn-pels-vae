@@ -42,6 +42,10 @@ def setup_environment(ID: str, gpu: bool = False) -> Tuple[Any, Dict[str, Any], 
         '''
     device = torch.device("cuda:0" if torch.cuda.is_available() and gpu else "cpu")
     vae, config = load_model_list(ID=ID)
+    config['phys_params'] = 'PTMAR'
+    config['physics_dim'] = 5
+    print(config)
+    print(device)
     return vae, config, device
 
 # Function to prepare the dataset
@@ -121,13 +125,13 @@ def train_model(reg: Type, config_dic: Dict[str, Any], name: str, p: np.ndarray,
     return model
 
 # Main function to set up the model and training process
-def main(samples: Union[np.ndarray, List], train_rf: bool = True) -> None:
+def main(samples: Union[np.ndarray, List], vae_model, train_rf: bool = True) -> None:
     #TODO: incorporate samples in method, to generate latent space
 
-    phys2 = ['abs_Gmag', 'teff_val', 'Period']
+    phys2 = ['abs_Gmag', 'teff_val', 'Period', 'radius_val', '[Fe/H]_J95']
     ID = config_file['model_parameters']['ID'] #'b68z1hwo'#'b68z1hwo' #'7q2bduwv'
     gpu = config_file['model_parameters']['gpu'] #True 
-    vae, config, _ = setup_environment(ID, gpu)
+    vae, config, _ = setup_environment(vae_model, gpu)
     dataset = prepare_dataset(config)
     dataloader, _ = dataset.get_dataloader(batch_size=100, test_split=0., shuffle=False)
     num_cls = dataset.labels_onehot.shape[1]
@@ -136,10 +140,14 @@ def main(samples: Union[np.ndarray, List], train_rf: bool = True) -> None:
                            n_classes=num_cls, force=False)
 
     meta_ = dataset.meta.dropna(subset=phys2)
+
+    '''
     if len(mu) > 30000:
         mu_ = mu.loc[meta_.index].values[:,:-1]
     else:
         mu_ = mu.iloc[:, :-1].values
+    '''
+    mu_ = mu.iloc[:, :-1].values
     mu_ = mu_.astype(np.float64)
 
     unique_idx = meta_.reset_index().drop_duplicates(subset=['OGLE_id']).index

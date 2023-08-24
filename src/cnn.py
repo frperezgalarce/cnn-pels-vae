@@ -12,11 +12,32 @@ from sklearn.metrics import confusion_matrix
 from sklearn.utils.class_weight import compute_class_weight
 from torch.utils.data import DataLoader, TensorDataset
 import wandb
-from typing import Union, Tuple, Optional, Any
+from typing import Union, Tuple, Optional, Any, Dict, List
 import yaml 
+import src.gmm.modifiedgmm as mgmm
+import src.sampler.fit_regressor as reg
+import src.sampler.create_lc as creator
 
 with open('src/nn_config.yaml', 'r') as file:
     nn_config = yaml.safe_load(file)
+
+
+with open('src/paths.yaml', 'r') as file:
+    YAML_FILE: Dict[str, Any] = yaml.safe_load(file)
+
+PATHS: Dict[str, str] = YAML_FILE['paths']
+PATH_PRIOS: str = PATHS['PATH_PRIOS']
+PATH_MODELS: str = PATHS['PATH_MODELS']
+CLASSES: List[str] = ['CEP']
+mean_prior_dict: Dict[str, Any] = load_yaml_priors(PATH_PRIOS)
+
+
+with open('src/regressor.yaml', 'r') as file:
+    config_file: Dict[str, Any] = yaml.safe_load(file)
+
+vae_model: str = config_file['model_parameters']['ID']
+
+#vae_model: str = '1pjeearx'#'20twxmei' trained using TPM using GAIA3 ... using 5 PP 1pjeearx
 
 # Define the number of classes
 def print_grad_norm(grad: torch.Tensor) -> None:
@@ -71,6 +92,17 @@ def setup_model(num_classes: int, device: torch.device) -> nn.Module:
         print("Using", torch.cuda.device_count(), "GPUs!")
         model = nn.DataParallel(model)
     return model
+
+def create_synthetic_batch(mean_prior_dict): 
+    #print(len(mean_prior_dict['StarTypes'][CLASSES[0]].keys())-1)
+    for star_class in CLASSES:
+        components: int = 3 # len(mean_prior_dict['StarTypes'][CLASSES[0]].keys())-1 TODO: check number of components
+        sampler: mgmm.ModifiedGaussianSampler = mgmm.ModifiedGaussianSampler(b=0.5, components=components)
+        model_name: str = PATH_MODELS+'bgm_model_'+str(star_class)+'.pkl'
+        samples: np.ndarray = sampler.modify_and_sample(model_name)
+        z_hat: Any = reg.main(samples, vae_model, train_rf=True)
+        samples, z_hat = None, None
+        creator.main(samples, z_hat) #TODO: check error
 
 
 def move_data_to_device(data: Tuple, device: torch.device) -> Tuple:
@@ -140,7 +172,7 @@ def evaluate(model, data, criterion, device):
         accuracy = (predicted == labels).sum().item() / len(labels)
     return loss, accuracy
 
-def run_cnn(create_samples: Any, mode_running: str = 'load') -> None:  # Adjust the type of create_samples if known
+def run_cnn(create_samples: Any, mode_running: str = 'load', mean_prior_dict) -> None:  # Adjust the type of create_samples if known
     # Initialization
     wandb.init(project='cnn-pelsvae', entity='fjperez10')
     device = setup_environment()
@@ -172,6 +204,9 @@ def run_cnn(create_samples: Any, mode_running: str = 'load') -> None:  # Adjust 
     patience =  nn_config['training']['patience']
 
     for epoch in range(epochs):
+        if create_samples:
+            create_synthetic_batch(mean_prior_dict) 
+
         running_loss = train_one_epoch(model, criterion, optimizer, train_dataloader, device)
 
         val_loss, accuracy_val = evaluate(model, val_data, criterion, device)

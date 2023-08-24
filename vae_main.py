@@ -68,7 +68,7 @@ parser.add_argument('--num-epochs', dest='num_epochs', type=int, default=150,
 
 parser.add_argument('--cond', dest='cond', type=str, default='T',
                     help='label conditional VAE (F,[T])')
-parser.add_argument('--phy', dest='phy', type=str, default='',
+parser.add_argument('--phy', dest='phy', type=str, default='PTMARG',
                     help='physical parameters to use for conditioning ([],[tm])')
 parser.add_argument('--latent-dim', dest='latent_dim', type=int, default=6,
                     help='dimension of latent space [6]')

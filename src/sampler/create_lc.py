@@ -20,7 +20,13 @@ PATHS: Dict[str, str] = YAML_FILE['paths']
 PATH_DATA: str = PATHS["PATH_DATA_FOLDER"]
 save_plots: bool = False
 save_tables: bool = False
-ID: str = '20twxmei' #'b68z1hwo'  #'7q2bduwv' #'b68z1hwo''yp4qdw1r'
+
+with open('src/regressor.yaml', 'r') as file:
+    config_file: Dict[str, Any] = yaml.safe_load(file)
+
+ID: str = config_file['model_parameters']['ID']
+
+#ID: str = '1pjeearx' #'20twxmei' #'b68z1hwo'  #'7q2bduwv' #'b68z1hwo''yp4qdw1r'
 gpu: bool = True # fail when true is selected
 
 device: torch.device = torch.device("cuda:0" if torch.cuda.is_available() and gpu else "cpu")
@@ -48,8 +54,8 @@ def main(samples: np.ndarray, z_hat: np.ndarray) -> None:
     print('cuda: ', torch.cuda.is_available())
     print('create main 1')
     vae, config = load_model_list(ID=ID, device=device)
-    config['phys_params'] = 'PTA'
-    config['physics_dim'] = 3
+    config['phys_params'] = 'PTAMR'
+    config['physics_dim'] = 5
     print('create main 2')
 
     dataset = prepare_dataset(config)
@@ -66,7 +72,7 @@ def main(samples: np.ndarray, z_hat: np.ndarray) -> None:
     examples = []
     meta_aux = dataset.meta.reset_index()
 
-    objects_by_class = {'ACEP':0, 'CEP': 0,  'DSCT': 0,  'ECL':0,  'ELL': 0,  'LPV': 0,  'RRLYR':  0,  'T2CEP':24}
+    objects_by_class = {'ACEP':0, 'CEP': 0,  'DSCT': 0,  'ECL':0,  'ELL': 0,  'LPV': 0,  'RRLYR':  24,  'T2CEP':0}
     for i, cls in enumerate(dataset.label_onehot_enc.categories_[0]):
         aux = meta_aux.query('Type == "%s"' % (cls)).sample(objects_by_class[cls])
         examples.append(aux)
@@ -112,7 +118,6 @@ def main(samples: np.ndarray, z_hat: np.ndarray) -> None:
     data = data.cpu().detach().numpy()
 
     plot_wall_lcs(xhat_mu, data, cls=lb, save=save_plots) #data is real_lc
-
 
     plot_wall_lcs(xhat_mu, xhat_mu2, cls=lb, save=save_plots) #data is real_lc
 

@@ -23,7 +23,7 @@ def load_data_to_train():
     return np_data.item()['meta'], np_data.item()['lcs'], np_data
 
 def save_data(meta, lcs, data):
-    data_path = 'data/time_series/real/OGLE3_lcs_I_meta_snr5_augmented_folded_trim600_GAIA3.npy.gz'
+    data_path = 'data/time_series/real/OGLE3_lcs_I_meta_snr5_augmented_folded_trim600_GAIA3_6PP.npy.gz'
     print('Saving to:\n', data_path)
     data.item()['meta'] = meta
     with gzip.open(data_path, 'wb') as f:
@@ -77,17 +77,7 @@ def basic_histogram(s1, title='Delta of Teff'):
     plt.legend(loc='upper right')
     plt.title(title)
     plt.show()
-'''
-def update_values(df, feature="teff_val"):
-    df[feature] = df[feature+'_orig']
-    for j in range(df.shape[0]):
-        if np.isnan(df.iloc[j][feature+'_orig']):
-            df.at[j, feature] = df.iloc[j][feature+'_new']
-        else:
-            if not np.isnan(df.iloc[j][feature+'_new']):
-                df.at[j, feature] = df.iloc[j][feature+'_new']
-    return df
-'''
+
 def update_values(df, feature="teff_val"):
     condition_orig_is_nan = df[feature+'_orig'].isna()
     condition_new_is_nan = df[feature+'_new'].isna()
@@ -106,6 +96,7 @@ meta2 = load_new_validated_pp()
 print(meta1.shape, meta2.shape)
 print(meta1.columns)
 print(meta2.columns)
+
 
 ## Teff
 
@@ -180,7 +171,6 @@ print('missing final: ', meta1.drop_duplicates('OGLE_id').Period.isna().sum())
 
 
 ## Abs Mag G
-
 df1 = meta1[['OGLE_id', 'abs_Gmag']]
 df2 = meta2[["OGLE-ID", "GMAG_x"]]
 df1.columns = ['OGLE_id', 'abs_Gmag']
@@ -217,5 +207,79 @@ meta1 = meta1.merge(new_data.drop_duplicates('OGLE_id'), on="OGLE_id", how="left
 print(meta1.columns)
 print('missing final: ', meta1.drop_duplicates('OGLE_id').abs_Gmag.isna().sum())
 
+# Metallicity
+df1 = meta1[['OGLE_id', '[Fe/H]_J95']]
+df2 = meta2[["OGLE-ID", "[Fe/H]"]]
+df1.columns = ['OGLE_id', '[Fe/H]_J95']
+df2.columns = ['OGLE_id', '[Fe/H]_J95']
+
+new_data = df1.merge(df2, on="OGLE_id", how="outer", suffixes=('_orig', '_new'))
+
+
+new_data['delta_Teff'] = new_data["[Fe/H]_J95_orig"] - new_data["[Fe/H]_J95_new"]
+
+new_data = update_values(new_data, feature="[Fe/H]_J95")
+
+print('missing origin: ', new_data.drop_duplicates('OGLE_id')['[Fe/H]_J95_orig'].isna().sum())
+print('missing new: ', new_data.drop_duplicates('OGLE_id')['[Fe/H]_J95_new'].isna().sum())
+print('missing final: ', new_data.drop_duplicates('OGLE_id')['[Fe/H]_J95'].isna().sum())
+
+basic_histogram(new_data.delta_Teff, title='Delta of [Fe/H]_J95')
+
+compare_frequency(meta1.drop_duplicates('OGLE_id')['[Fe/H]_J95'], 
+                    meta2.drop_duplicates('OGLE-ID')['[Fe/H]'], 
+                    new_data.drop_duplicates('OGLE_id')['[Fe/H]_J95'], 
+                    feature="[Fe/H]_J95", clean=False)
+
+print(new_data.shape)
+print(meta1.shape)
+print(new_data.head(20))
+print(meta1.head(20))
+meta1 = meta1.merge(new_data.drop_duplicates('OGLE_id'), on="OGLE_id", how="left", suffixes=('_orig', ''))
+print(meta1.shape)
+
+print(meta1.columns)
+print('missing final: ', meta1.drop_duplicates('OGLE_id')['[Fe/H]_J95'].isna().sum())
+
+
+# radius_val
+df1 = meta1[['OGLE_id', 'radius_val']]
+df2 = meta2[["OGLE-ID", "Rad"]]
+df1.columns = ['OGLE_id', 'radius_val']
+df2.columns = ['OGLE_id', 'radius_val']
+
+new_data = df1.merge(df2, on="OGLE_id", how="outer", suffixes=('_orig', '_new'))
+
+new_data['delta_radius_val'] = new_data["radius_val_orig"] - new_data["radius_val_new"]
+
+new_data = update_values(new_data, feature="radius_val")
+
+print('missing origin: ', new_data.drop_duplicates('OGLE_id')['radius_val_orig'].isna().sum())
+print('missing new: ', new_data.drop_duplicates('OGLE_id')['radius_val_new'].isna().sum())
+print('missing final: ', new_data.drop_duplicates('OGLE_id')['radius_val'].isna().sum())
+
+basic_histogram(new_data.delta_radius_val, title='Delta of radius_val')
+
+compare_frequency(meta1.drop_duplicates('OGLE_id')['radius_val'], 
+                    meta2.drop_duplicates('OGLE-ID')['Rad'], 
+                    new_data.drop_duplicates('OGLE_id')['radius_val'], 
+                    feature="radius_val", clean=False)
+
+
+meta1 = meta1.merge(new_data.drop_duplicates('OGLE_id'), on="OGLE_id", how="left", suffixes=('_orig', ''))
+
+print('missing final: ', meta1.drop_duplicates('OGLE_id')['radius_val'].isna().sum())
+
+
+
+# Logg
+df2 = meta2[["OGLE-ID", "logg"]]
+df2.columns = ["OGLE_id", "logg"]
+print(df2.describe())
+
+basic_histogram(df2.logg, title='logg')
+meta1 = meta1.merge(df2.drop_duplicates('OGLE_id'), on="OGLE_id", how="left", suffixes=('_orig', ''))
+
+print(meta1[['OGLE_id','logg', '[Fe/H]_J95', 'abs_Gmag', 'teff_val', 'Period', 'abs_Gmag', 'radius_val']].head(50))
 
 save_data(meta1, lcs, data)

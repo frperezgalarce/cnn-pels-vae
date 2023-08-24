@@ -111,7 +111,7 @@ class Astro_lightcurves(Dataset):
                         % (survey, band, seq_len))
         else:
             data_path = ('%s/time_series/real' % (root) +
-                        '/%s_lcs_%s_meta_snr5_augmented_folded_trim%i_GAIA3.npy.gz'
+                        '/%s_lcs_%s_meta_snr5_augmented_folded_trim%i_GAIA3_6PP.npy.gz'
                         % (survey, band, seq_len))
         print('Loading from:\n', data_path)
         with gzip.open(data_path, 'rb') as f:
@@ -120,6 +120,9 @@ class Astro_lightcurves(Dataset):
         print(self.aux)
         self.lcs = self.aux.item()['lcs']
         self.meta = self.aux.item()['meta']
+
+        print(self.meta.columns)
+
         del self.aux
         if subsample:
             idx = np.random.randint(0, self.lcs.shape[0], 20000)
@@ -151,6 +154,7 @@ class Astro_lightcurves(Dataset):
                                       norm_time=use_time)
         
         self.phy_names = []
+        print('phy_params: ', phy_params)
         if len(phy_params) > 0:
             if 'p' in phy_params or 'P' in phy_params:
                 self.phy_names.append('Period')
@@ -166,12 +170,19 @@ class Astro_lightcurves(Dataset):
                 self.phy_names.append('radius_val')
             if 'l' in phy_params or 'L' in phy_params:
                 self.phy_names.append('lum_val')
+            if 'g' in phy_params or 'G' in phy_params: 
+                self.phy_names.append('logg')
             self.phy_aux = self.phy_names
         else:
             self.phy_aux = ['Period']
-            
+        print('phy_aux: ', self.phy_aux)
+        print('phy_names: ', self.phy_names)
+        print('phy_names type: ', type(self.phy_names))
+        print('meta columns: ', self.meta.columns)
+        print('meta type: ', type(self.meta))
         self.mm_scaler = preprocessing.MinMaxScaler()
-        self.mm_scaler.fit(self.meta.loc[:, self.phy_aux].values.astype(np.float32))
+        self.meta.logg = self.meta.logg.astype(np.float32).ffill().bfill()
+        self.mm_scaler.fit(self.meta[self.phy_aux].values.astype(np.float32))
         self.meta_p = self.mm_scaler.transform(
             self.meta.loc[:, self.phy_aux].values.astype(np.float32))
 

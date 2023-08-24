@@ -6,6 +6,8 @@ from sklearn.mixture import BayesianGaussianMixture
 from typing import Optional, Dict, Union, Tuple, ClassVar
 from src.utils import load_yaml_priors, extract_midpoints
 import yaml
+from itertools import combinations
+
 
 with open('src/paths.yaml', 'r') as file:
     YAML_FILE: str = yaml.safe_load(file)
@@ -13,6 +15,7 @@ with open('src/paths.yaml', 'r') as file:
 PATHS: str = YAML_FILE['paths']
 PATH_PRIOS: str = PATHS['PATH_PRIOS']
 PATH_PP: str = PATHS['PATH_PP']
+PATH_FIGURES: str = PATHS['PATH_FIGURES']
 
 class BayesianGaussianMixtureModel:
     def __init__(self, n_components: int = 2, random_state: Optional[int] = None):
@@ -50,7 +53,8 @@ class BayesianGaussianMixtureModel:
 
     def plot_2d_bgmm(self, bgmm: "BayesianGaussianMixtureModel", 
                            X: pd.DataFrame, starClass: str, feature1: str = 'abs_Imag', 
-                           feature2: str = 'teff_val') -> None:
+                           feature2: str = 'teff_val', 
+                           save=True) -> None:
         
         # Plotting the data points
         plt.scatter(X[feature1], X[feature2], c='blue', alpha=0.5, label='Data Points')
@@ -77,20 +81,26 @@ class BayesianGaussianMixtureModel:
         plt.title('Gaussian Mixture Model Components - ' + str(starClass))
         #plt.legend()
         plt.colorbar(label='Log Probability')
-        plt.show()
+        if save:
+            plt.savefig(PATH_FIGURES+feature1+'_'+feature2+'.png', dpi=300)
+            plt.savefig(PATH_FIGURES+feature1+'_'+feature2+'.svg')  # saves the figure in SVG format
+            plt.savefig(PATH_FIGURES+feature1+'_'+feature2+'.pdf')  # saves the figure in PDF format
+            plt.savefig(PATH_FIGURES+feature1+'_'+feature2+'.eps')  # saves the figure in EPS format
+        else: 
+            plt.show()
 
     def generate_samples(self, n_samples: int = 1) -> np.array:
         samples, _ = self.bgm.sample(n_samples)
         return samples
 
-def train_and_save(components: int = 3, priors: bool = True) -> None:
+def train_and_save(components: int = 3, priors: bool = True, columns=['Type','teff_val','Period','abs_Imag']) -> None:
     data = pd.read_csv(PATH_PP)
-    df_selected_columns = data[['Type','teff_val','Period','abs_Imag']]
+    df_selected_columns = data[columns]
     classes = df_selected_columns.Type.unique()
     mean_prior_dict = load_yaml_priors(PATH_PRIOS)
     for star_class in classes:
         df_filtered_by_class = df_selected_columns[df_selected_columns.Type==star_class]
-        X = df_filtered_by_class[['teff_val','Period','abs_Imag']]
+        X = df_filtered_by_class[columns]
         X = X.dropna()
         if X.shape[0] > 30:
             bgmm = BayesianGaussianMixtureModel(n_components=components, random_state=42)
@@ -106,7 +116,14 @@ def train_and_save(components: int = 3, priors: bool = True) -> None:
             else: 
                 bgmm.train(X, mean_prior=None)
             bgmm.save_model('models/bgm_model_'+str(star_class)+'.pkl')
-            bgmm.plot_2d_bgmm(bgmm, X, star_class, feature1 = 'teff_val', feature2='Period')
+
+            for col1, col2 in combinations(columns, 2):
+                bgmm.plot_2d_bgmm(bgmm, X, star_class, feature1 = col1, feature2= col2)
+
+
+def fit_gausians(priors_dict):
+    #TODO:refactor code in order to manage priors here and only fit in train and save
+    train_and_save(components = 3, priors = True, columns=['Type','teff_val','Period','abs_Imag'])
 
 def get_load_and_sample(star_class: str = 'RRLYR') -> None:
     # Load the model and generate samples

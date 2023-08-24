@@ -628,7 +628,7 @@ def str2bool(v):
     else:
         raise argparse.ArgumentTypeError('Boolean value expected.')
                
-def load_model_list(ID='zg3r4orb', device='cpu'):
+def load_model_list(ID='zg3r4orb', device='cuda:0'):
     """Load a Python VAE model from file stored in a W&B archive
 
     Parameters
@@ -702,7 +702,7 @@ def load_model_list(ID='zg3r4orb', device='cpu'):
     return vae, conf
 
 def evaluate_encoder(model, dataloader, params, 
-                     n_classes=5, force=False, device='cpu'):
+                     n_classes=5, force=False, device='cuda:0'):
     """Creates a joint plot of features, used during training, figures
     are W&B ready
 
@@ -744,28 +744,25 @@ params['date'], params['ID'])
         time_start = datetime.datetime.now()
         
         mu, logvar, xhat, labels = [], [], [], []
-        with tqdm_notebook(total=len(dataloader)) as pbar:
-            for i, (data, label, onehot, pp) in enumerate(dataloader):
-                data = data.to(device)
-                onehot = onehot.to(device)
-                pp = pp.to(device)
-                cc = torch.cat([onehot, pp], dim=1)
-                if params['label_dim'] > 0 and params['physics_dim'] > 0:
-                    mu_, logvar_ = model.encoder(data, label=onehot, phy=pp)
-                elif params['label_dim'] > 0 and params['physics_dim'] == 0:
-                    mu_, logvar_ = model.encoder(data, label=onehot)
-                elif params['label_dim'] == 0:
-                    mu_, logvar_ = model.encoder(data)
-                else:
-                    print('Check conditional dimension...')
-                mu.extend(mu_.data.cpu().numpy())
-                logvar.extend(logvar_.data.cpu().numpy())
-                labels.extend(label)
-                torch.cuda.empty_cache()
-                pbar.update()
+        for i, (data, label, onehot, pp) in enumerate(dataloader):
+            data = data.to(device)
+            onehot = onehot.to(device)
+            pp = pp.to(device)
+            cc = torch.cat([onehot, pp], dim=1)
+            if params['label_dim'] > 0 and params['physics_dim'] > 0:
+                mu_, logvar_ = model.encoder(data, label=onehot, phy=pp)
+            elif params['label_dim'] > 0 and params['physics_dim'] == 0:
+                mu_, logvar_ = model.encoder(data, label=onehot)
+            elif params['label_dim'] == 0:
+                mu_, logvar_ = model.encoder(data)
+            else:
+                print('Check conditional dimension...')
+            mu.extend(mu_.data.cpu().numpy())
+            logvar.extend(logvar_.data.cpu().numpy())
+            labels.extend(label)
+            torch.cuda.empty_cache()
         mu = np.array(mu)
         std = np.exp(0.5 * np.array(logvar))
-
         #np.savetxt(fname_mu, mu)
         #np.savetxt(fname_std, std)
         #np.savetxt(fname_lbs, np.asarray(labels), fmt='%s')

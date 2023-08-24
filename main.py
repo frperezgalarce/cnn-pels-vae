@@ -1,8 +1,5 @@
 import src.cnn as cnn
 import src.gmm.bgmm as bgmm 
-import src.sampler.fit_regressor as reg
-import src.sampler.create_lc as creator
-import src.gmm.modifiedgmm as mgmm
 from src.utils import load_yaml_priors
 import yaml
 from typing import List, Optional, Any, Dict
@@ -16,23 +13,14 @@ PATHS: Dict[str, str] = YAML_FILE['paths']
 PATH_PRIOS: str = PATHS['PATH_PRIOS']
 PATH_MODELS: str = PATHS['PATH_MODELS']
 mean_prior_dict: Dict[str, Any] = load_yaml_priors(PATH_PRIOS)
-vae_model: str = '20twxmei' #trained using TPM using GAIA3
+vae_model: str = '1pjeearx'#'20twxmei' trained using TPM using GAIA3 ... using 5 PP 1pjeearx
 
-def main(train_gmm: Optional[bool] = True, create_samples: Optional[bool] = True) -> None:
+def main(train_gmm: Optional[bool] = False, create_samples: Optional[bool] = True, train_classifier: Optional[bool]=False) -> None:
     if train_gmm: 
-        bgmm.train_and_save()
+        bgmm.fit_gausians(mean_prior_dict)
 
-    if create_samples:
-        print(len(mean_prior_dict['StarTypes'][CLASSES[0]].keys())-1)
-        components: int = 3 # len(mean_prior_dict['StarTypes'][CLASSES[0]].keys())-1 TODO: check number of components
-        sampler: mgmm.ModifiedGaussianSampler = mgmm.ModifiedGaussianSampler(b=0.5, components=components)
-        model_name: str = PATH_MODELS+'bgm_model_'+str(CLASSES[0])+'.pkl'
-        samples: np.ndarray = sampler.modify_and_sample(model_name)
-        z_hat: Any = reg.main(samples, train_rf=True)
-        samples, z_hat = None, None
-        creator.main(samples, z_hat) #TODO: check error
-
-    cnn.run_cnn(create_samples, mode_running='load')
+    if train_classifier: 
+        cnn.run_cnn(create_samples, mode_running='load')
     
 if __name__ == "__main__":
     main()

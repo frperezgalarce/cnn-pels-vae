@@ -28,7 +28,8 @@ with open('src/paths.yaml', 'r') as file:
 PATHS: Dict[str, str] = YAML_FILE['paths']
 PATH_PRIOS: str = PATHS['PATH_PRIOS']
 PATH_MODELS: str = PATHS['PATH_MODELS']
-CLASSES: List[str] = ['CEP']
+CLASSES: List[str] = ['LPV', 'RRLYR', 'ECL', 'CEP', 'ELL', 'T2CEP', 'DSCT']
+PATH_DATA_FOLDER: str =  PATHS['PATH_DATA_FOLDER']
 mean_prior_dict: Dict[str, Any] = load_yaml_priors(PATH_PRIOS)
 
 
@@ -83,6 +84,11 @@ def setup_environment() -> torch.device:
     print('CUDA active:', torch.cuda.is_available())
     return device
 
+def count_subclasses(star_type_data):
+    # Exclude the 'CompleteName' key and count the remaining keys as subclasses.
+    # This is because the main class key is also used as a subclass key.
+    return len([key for key in star_type_data.keys() if key != 'CompleteName'])
+ 
 
 def setup_model(num_classes: int, device: torch.device) -> nn.Module:
     model = CNN(num_classes=num_classes)
@@ -93,20 +99,59 @@ def setup_model(num_classes: int, device: torch.device) -> nn.Module:
         model = nn.DataParallel(model)
     return model
 
-def create_synthetic_batch(mean_prior_dict): 
+
+def construct_model_name(star_class, priors, PP, base_path=PATH_MODELS):
+    """Construct a model name given parameters."""
+    return base_path + 'bgm_model_' + str(star_class) + '_priors_' + str(priors) + '_PP_' + str(PP) + '.pkl'
+
+def attempt_sample_load(model_name, sampler):
+    """Attempt to load samples from a model name."""
+    try:
+        return sampler.modify_and_sample(model_name), None
+    except Exception as e:
+        return None, e
+
+def create_synthetic_batch(mean_prior_dict, priors: bool = True, PP: int = 3): 
     #print(len(mean_prior_dict['StarTypes'][CLASSES[0]].keys())-1)
     for star_class in CLASSES:
-        components: int = 3 # len(mean_prior_dict['StarTypes'][CLASSES[0]].keys())-1 TODO: check number of components
-        sampler: mgmm.ModifiedGaussianSampler = mgmm.ModifiedGaussianSampler(b=0.5, components=components)
-        model_name: str = PATH_MODELS+'bgm_model_'+str(star_class)+'.pkl'
-        samples: np.ndarray = sampler.modify_and_sample(model_name)
-        z_hat: Any = reg.main(samples, vae_model, train_rf=True)
-        samples, z_hat = None, None
-        creator.main(samples, z_hat) #TODO: check error
+        print(mean_prior_dict['StarTypes'])
+        components = count_subclasses(mean_prior_dict['StarTypes'][star_class])
+        print(star_class +': '+ str(components))
+        sampler: mgmm.ModifiedGaussianSampler = mgmm.ModifiedGaussianSampler(b=1.0, components=components, features=PP)
+        model_name = construct_model_name(star_class, priors, PP)
+        samples, error = attempt_sample_load(model_name, sampler)
+        # If we have priors and failed to load the model, try with priors=False
+        if priors and samples is None:
+            model_name = construct_model_name(star_class, False, PP)
+            samples, error = attempt_sample_load(model_name, sampler)
+        # If still not loaded, raise an error
+        if samples is None:
+            raise ValueError("The model can't be loaded." + str(error))
+
+        if 'all_classes_samples' in locals() and all_classes_samples is not None: 
+            all_classes_samples = np.vstack((samples, all_classes_samples))
+        else: 
+            all_classes_samples = samples
+
+        print(all_classes_samples)
+
+    z_hat: Any = reg.main(all_classes_samples, vae_model, train_rf=True)
+    raise
+
+    creator.main(samples, z_hat) #TODO: check error
+    
 
 
 def move_data_to_device(data: Tuple, device: torch.device) -> Tuple:
     return tuple(d.to(device) for d in data)
+
+def evaluate_and_plot_cm(model, x_data, y_data, label_encoder, title):
+    outputs = model(x_data)
+    _, predicted = torch.max(outputs.data.cpu(), 1)
+    cm = confusion_matrix(y_data.cpu(), predicted.cpu(), normalize='true')
+    plot_cm(cm, label_encoder.classes_, title=title)
+    export_recall_latex(y_data.cpu(), predicted, label_encoder)
+    return cm
 
 def train_one_epoch(
         model: torch.nn.Module, 
@@ -172,10 +217,12 @@ def evaluate(model, data, criterion, device):
         accuracy = (predicted == labels).sum().item() / len(labels)
     return loss, accuracy
 
-def run_cnn(create_samples: Any, mode_running: str = 'load', mean_prior_dict) -> None:  # Adjust the type of create_samples if known
+def run_cnn(create_samples: Any, mode_running: str = 'load', mean_prior_dict: Dict = None) -> None:  # Adjust the type of create_samples if known
     # Initialization
     wandb.init(project='cnn-pelsvae', entity='fjperez10')
     device = setup_environment()
+    #TODO: 
+
     x_train, x_test, y_train, y_test, x_val, y_val, label_encoder = get_data(sample_size=nn_config['data']['sample_size'], mode=mode_running)
     classes = np.unique(y_train.numpy())
     num_classes = len(classes)
@@ -190,8 +237,19 @@ def run_cnn(create_samples: Any, mode_running: str = 'load', mean_prior_dict) ->
     training_data = move_data_to_device((x_train, y_train), device)
     val_data = move_data_to_device((x_val, y_val), device)
     test_data = move_data_to_device((x_test, y_test), device)
+
+
+    batch_size = nn_config['training']['batch_size']
     train_dataset = TensorDataset(*training_data)
-    train_dataloader = DataLoader(train_dataset, batch_size=nn_config['training']['batch_size'], shuffle=True)
+    train_dataloader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True)
+
+    # For validation data
+    val_dataset = TensorDataset(*val_data)
+    val_dataloader = DataLoader(val_dataset, batch_size=batch_size, shuffle=False)  # Typically we don't shuffle validation data
+
+    # For test data
+    test_dataset = TensorDataset(*test_data)
+    test_dataloader = DataLoader(test_dataset, batch_size=batch_size, shuffle=False)  # Typically we don't shuffle test data
 
     # Main training loop
     best_val_loss = float('inf')
@@ -205,7 +263,7 @@ def run_cnn(create_samples: Any, mode_running: str = 'load', mean_prior_dict) ->
 
     for epoch in range(epochs):
         if create_samples:
-            create_synthetic_batch(mean_prior_dict) 
+            create_synthetic_batch(mean_prior_dict, PP = 3) #TODO:check
 
         running_loss = train_one_epoch(model, criterion, optimizer, train_dataloader, device)
 
@@ -234,14 +292,7 @@ def run_cnn(create_samples: Any, mode_running: str = 'load', mean_prior_dict) ->
     model.load_state_dict(best_model)
     plot_training(range(len(train_loss_values)), train_loss_values, val_loss_values, train_accuracy_values, val_accuracy_values)
 
-    train_outputs = model(x_train)
-    _, predicted_train = torch.max(train_outputs.data.cpu(), 1)
-    cm_train = confusion_matrix(y_train.cpu(), predicted_train.cpu(), normalize='true')
-    plot_cm(cm_train, label_encoder.classes_, title='Confusion Matrix - Training set')
-
-    test_outputs = model(x_test)
-    _, predicted_test = torch.max(test_outputs.data.cpu(), 1)
-    cm_test = confusion_matrix(y_test.cpu(), predicted_test.cpu(), normalize='true')
-    plot_cm(cm_test, label_encoder.classes_, title='Confusion Matrix - Testing set')
-    export_recall_latex(y_train.cpu(), predicted_train, label_encoder)
-    export_recall_latex(y_test.cpu(), predicted_test, label_encoder)
+    # Using the function
+    _ = evaluate_and_plot_cm(model, x_train, y_train, label_encoder, 'Confusion Matrix - Training set')
+    _ = evaluate_and_plot_cm(model, x_val, y_val, label_encoder, 'Confusion Matrix - Validation set')
+    _ = evaluate_and_plot_cm(model, x_test, y_test, label_encoder, 'Confusion Matrix - Testing set')

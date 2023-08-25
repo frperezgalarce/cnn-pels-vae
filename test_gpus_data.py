@@ -29,6 +29,8 @@ def save_data(meta, lcs, data):
     with gzip.open(data_path, 'wb') as f:
         np.save(f, data)
     
+    meta.to_csv('/home/franciscoperez/Documents/GitHub/CNN-PELSVAE2/cnn-pels-vae/data/metadata_updated_0823.csv')
+    
     print('Data saved successfully.')
 
 def load_new_validated_pp():

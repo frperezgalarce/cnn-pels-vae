@@ -34,6 +34,8 @@ PATH_NUMPY_DATA_X_TEST = PATHS['PATH_NUMPY_DATA_X_TEST'] #TODO: apply difference
 PATH_NUMPY_DATA_Y_TRAIN = PATHS['PATH_NUMPY_DATA_Y_TRAIN']
 PATH_NUMPY_DATA_Y_TEST = PATHS['PATH_NUMPY_DATA_Y_TEST'] #TODO: apply differences
 PATH_SUBCLASSES = PATHS["PATH_SUBCLASSES"]
+PATH_DATA_FOLDER = PATHS["PATH_DATA_FOLDER"]
+PATH_FIGURES: str = PATHS['PATH_FIGURES']
 
 def plot_training(epochs_range, train_loss_values, val_loss_values,train_accuracy_values,  val_accuracy_values):
     plt.figure(figsize=(12, 4))
@@ -70,8 +72,10 @@ def read_light_curve_ogle(example_test, example_train, lenght_lc=100):
     numpy_y_test =  np.empty((0, ), dtype=object) 
     numpy_y_train = np.empty((0, ), dtype=object)  
 
-    numpy_array_lcus_test, numpy_y_test = insert_lc(example_test, numpy_array_lcus_test,numpy_y_test, lenght_lc=lenght_lc)
-    numpy_array_lcus_train, numpy_y_train = insert_lc(example_train, numpy_array_lcus_train,numpy_y_train, lenght_lc=lenght_lc)
+    numpy_array_lcus_test, numpy_y_test = insert_lc(example_test, numpy_array_lcus_test,
+                                                    numpy_y_test, lenght_lc=lenght_lc)
+    numpy_array_lcus_train, numpy_y_train = insert_lc(example_train, numpy_array_lcus_train,
+                                            numpy_y_train, lenght_lc=lenght_lc)
 
     return numpy_array_lcus_train, numpy_array_lcus_test, numpy_y_test, numpy_y_train
 
@@ -79,10 +83,10 @@ def load_light_curve_ogle():
     numpy_array_lcus_train = np.load(PATH_NUMPY_DATA_X_TRAIN, allow_pickle=True)
     numpy_array_lcus_test = np.load(PATH_NUMPY_DATA_X_TEST, allow_pickle=True)
     numpy_y_train = np.load(PATH_NUMPY_DATA_Y_TRAIN, allow_pickle=True)
-    numpy_y_test = np.load(PATH_NUMPY_DATA_Y_TEST, allow_pickle=True) #TODO: modify
+    numpy_y_test = np.load(PATH_NUMPY_DATA_Y_TEST, allow_pickle=True)
     return numpy_array_lcus_train, numpy_array_lcus_test, numpy_y_test, numpy_y_train
 
-def insert_lc(examples, np_array, np_array_y, lenght_lc = 0, signal_noise=3):
+def insert_lc(examples, np_array, np_array_y, lenght_lc = 0, signal_noise=0, subclass=True):
     counter = 0
     subclasses = pd.read_csv(PATH_SUBCLASSES)
     for lc in examples.ID.unique():
@@ -92,45 +96,38 @@ def insert_lc(examples, np_array, np_array_y, lenght_lc = 0, signal_noise=3):
         lcu['delta_time'] = lcu['time'].diff()
         lcu['delta_mag'] = lcu['magnitude'].diff()
         lcu = lcu[lcu.magnitude/lcu.error>signal_noise] #Delete S/N greater than 3
-        lcu = lcu[lcu.delta_time<10] #Delete time between observations greater than 10 
-        lcu = lcu[lcu.delta_mag!=0]
+        #lcu = lcu[lcu.delta_time<10] #Delete time between observations greater than 10 
+        #lcu = lcu[lcu.delta_mag!=0]
         lcu = delete_by_std(lcu)
         lcu['delta_time'] = lcu['time'].diff()
         lcu['delta_mag'] = lcu['magnitude'].diff()
         lcu.dropna(axis=0, inplace=True)
 
         if lcu.shape[0]> lenght_lc:
-            if False:
-                lcu[['delta_time', 'delta_mag']].plot.scatter(x='delta_time', y='delta_mag')
-                plt.show()
-
-            lcu_data = np.asarray(lcu[['delta_time', 'delta_mag']].head(lenght_lc))
-
-            try:
-                new_element = str(subclasses.loc[subclasses.ID==lc.replace('.dat', ''),'sub_clase'].values[0])
-                np_array_y = np.append(np_array_y, new_element)
-                #print('label added', np_array_y.shape)
-                np_array = np.resize(np_array, (np_array.shape[0] + 1, lcu_data.shape[0], 2))
-                np_array[-1] = lcu_data
-                #print('data added', np_array.shape)
-            except Exception as error:
-                #print(error)
-                #print(lc.split('-')[2])
-                new_element = lc.split('-')[2]
-                if new_element not in ['LPV', 'RRLYR', 'ECL']:
+            if subclass:
+                lcu_data = np.asarray(lcu[['delta_time', 'delta_mag']].head(lenght_lc))
+                try:
+                    new_element = str(subclasses.loc[subclasses.ID==lc.replace('.dat', ''),'sub_clase'].values[0])
                     np_array_y = np.append(np_array_y, new_element)
-                    #print('label added', np_array_y.shape)
                     np_array = np.resize(np_array, (np_array.shape[0] + 1, lcu_data.shape[0], 2))
                     np_array[-1] = lcu_data
-                    #print('data added', np_array.shape)
-                #else: 
-                #    print('not added since there are subclasses for this class')
-            counter = counter + 1
+                except Exception as error:
+                    raise ValueError("The light curve {} was not loaded.".format(lc) + str(error))
+
+            else:
+                try: 
+                    new_element = lc.split('-')[2]
+                    if new_element  in ['LPV', 'RRLYR', 'ECL', 'CEP', 'ELL', 'T2CEP', 'DSCT']:
+                        np_array_y = np.append(np_array_y, new_element)
+                        np_array = np.resize(np_array, (np_array.shape[0] + 1, lcu_data.shape[0], 2))
+                        np_array[-1] = lcu_data
+                        counter = counter + 1
+                except Exception as error: 
+                    raise ValueError("The light curve {} was not loaded.".format(lc) + str(error))
 
     print('shape: ', np_array.shape, np_array_y.shape)
-    print(np_array_y)
-    np.save('/home/franciscoperez/Documents/GitHub/vsbms_multiple_classes/bayesianMLP/src/data/np_array_y.npy', np_array_y)
-    np.save('/home/franciscoperez/Documents/GitHub/vsbms_multiple_classes/bayesianMLP/src/data/np_array.npy', np_array)
+    np.save(PATH_DATA_FOLDER+'/np_array_y.npy', np_array_y)
+    np.save(PATH_DATA_FOLDER+'/np_array.npy', np_array)
     return np_array, np_array_y
 
 def delete_by_std(df): 
@@ -155,7 +152,7 @@ def delete_low_represented_classes(df, column='class', threshold=100):
     df_filtered = df[df[column].isin(categories_to_keep)]
     return df_filtered
 
-def plot_cm(cm, labels, title='Confusion matrix'):
+def plot_cm(cm, labels, title='Confusion matrix', save=True, filename=None):
     plt.figure(figsize=(8,8))
     plt.imshow(cm, cmap=plt.cm.Blues)
     plt.title(title)
@@ -176,7 +173,15 @@ def plot_cm(cm, labels, title='Confusion matrix'):
     plt.yticks(range(len(labels)), labels)
 
     plt.tight_layout()
-    plt.show()
+    
+    if save:
+        if filename is None:
+            current_date = datetime.now().strftime('%Y%m%d')
+            title_formatted = title.replace(' ', '_')
+            filename = PATH_FIGURES + f'{title_formatted}_confusion_matrix_{current_date}.png'
+        plt.savefig(filename)
+    else:
+        plt.show()
 
 def get_ids(n=1): 
     path_train = PATH_FEATURES_TRAIN
@@ -223,11 +228,10 @@ def get_ids(n=1):
 
 def get_data(sample_size=50000, mode='load'):
     if mode=='create':
-        x_test, x_train  = get_ids(n=sample_size) 
-        x_train, x_test, y_test, y_train  = read_light_curve_ogle(x_test, x_train)
+        id_test, id_train  = get_ids(n=sample_size) 
+        x_train, x_test, y_test, y_train  = read_light_curve_ogle(id_test, id_train)
     elif mode == 'load':
         x_train, x_test, y_test, y_train  = load_light_curve_ogle()
-
 
     # Create a label encoder
     label_encoder = LabelEncoder()
@@ -235,7 +239,6 @@ def get_data(sample_size=50000, mode='load'):
     # Encode the string labels to numerical values
     encoded_labels = label_encoder.fit_transform(y_train)
     encoded_labels_test = label_encoder.fit_transform(y_test)
-
 
     # Convert the encoded labels to a PyTorch tensor
     y_train = torch.from_numpy(encoded_labels).long()
@@ -572,8 +575,6 @@ def plot_latent_space(z, y=None):
     image = np.frombuffer(pp.fig.canvas.tostring_rgb(), dtype='uint8')
     image  = image.reshape(pp.fig.canvas.get_width_height()[::-1] + (3,))
     return pp.fig, image
-
-
 
 def perceptive_field(k=None, n=None):
     """Calculate the perceptive field of a TCN network with kernel size k

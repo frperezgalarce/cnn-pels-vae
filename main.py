@@ -15,12 +15,13 @@ PATH_MODELS: str = PATHS['PATH_MODELS']
 mean_prior_dict: Dict[str, Any] = load_yaml_priors(PATH_PRIOS)
 vae_model: str = '1pjeearx'#'20twxmei' trained using TPM using GAIA3 ... using 5 PP 1pjeearx
 
-def main(train_gmm: Optional[bool] = False, create_samples: Optional[bool] = True, train_classifier: Optional[bool]=False) -> None:
-    if train_gmm: 
+def main(train_gmm: Optional[bool] = False, create_samples: Optional[bool] = True, train_classifier: Optional[bool]=True) -> None:
+    if train_gmm:
+        print('Fitting Gaussian mixture models') 
         bgmm.fit_gausians(mean_prior_dict)
-
+        print('Gaussian were fitted')
     if train_classifier: 
-        cnn.run_cnn(create_samples, mode_running='load')
+        cnn.run_cnn(create_samples, mean_prior_dict=mean_prior_dict, mode_running='load')
     
 if __name__ == "__main__":
     main()

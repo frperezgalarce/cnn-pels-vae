@@ -7,7 +7,8 @@ from typing import Optional, Dict, Union, Tuple, ClassVar
 from src.utils import load_yaml_priors, extract_midpoints
 import yaml
 from itertools import combinations
-
+import warnings
+warnings.filterwarnings('ignore')
 
 with open('src/paths.yaml', 'r') as file:
     YAML_FILE: str = yaml.safe_load(file)
@@ -54,7 +55,7 @@ class BayesianGaussianMixtureModel:
     def plot_2d_bgmm(self, bgmm: "BayesianGaussianMixtureModel", 
                            X: pd.DataFrame, starClass: str, feature1: str = 'abs_Imag', 
                            feature2: str = 'teff_val', 
-                           save=True) -> None:
+                           save=True, priors: bool =False) -> None:
         
         # Plotting the data points
         plt.scatter(X[feature1], X[feature2], c='blue', alpha=0.5, label='Data Points')
@@ -82,10 +83,11 @@ class BayesianGaussianMixtureModel:
         #plt.legend()
         plt.colorbar(label='Log Probability')
         if save:
-            plt.savefig(PATH_FIGURES+feature1+'_'+feature2+'.png', dpi=300)
-            plt.savefig(PATH_FIGURES+feature1+'_'+feature2+'.svg')  # saves the figure in SVG format
-            plt.savefig(PATH_FIGURES+feature1+'_'+feature2+'.pdf')  # saves the figure in PDF format
-            plt.savefig(PATH_FIGURES+feature1+'_'+feature2+'.eps')  # saves the figure in EPS format
+            fig_name = PATH_FIGURES+feature1+'_'+feature2+'_priors_'+str(priors)+'_PP_'+str(X.shape[1])
+            plt.savefig(fig_name+'.png', dpi=300)
+            plt.savefig(fig_name+'.svg')  # saves the figure in SVG format
+            plt.savefig(fig_name+'.pdf')  # saves the figure in PDF format
+            #plt.savefig(fig_name+'.eps')  # saves the figure in EPS format
         else: 
             plt.show()
 
@@ -93,37 +95,43 @@ class BayesianGaussianMixtureModel:
         samples, _ = self.bgm.sample(n_samples)
         return samples
 
-def train_and_save(components: int = 3, priors: bool = True, columns=['Type','teff_val','Period','abs_Imag']) -> None:
+def train_and_save(priors: bool = True, columns=['Type','teff_val','Period','abs_Imag']) -> None:
     data = pd.read_csv(PATH_PP)
+    print(data.columns)
     df_selected_columns = data[columns]
     classes = df_selected_columns.Type.unique()
+    print(classes)
+    columns.remove('Type')
     mean_prior_dict = load_yaml_priors(PATH_PRIOS)
     for star_class in classes:
+        print(star_class)
+        star_type_data = mean_prior_dict['StarTypes'][star_class]
+        components = len([key for key in star_type_data.keys() if key != 'CompleteName'])
         df_filtered_by_class = df_selected_columns[df_selected_columns.Type==star_class]
         X = df_filtered_by_class[columns]
         X = X.dropna()
         if X.shape[0] > 30:
             bgmm = BayesianGaussianMixtureModel(n_components=components, random_state=42)
             if priors:
+                array_midpoints = extract_midpoints(mean_prior_dict['StarTypes'][star_class])
                 try:
                     array_midpoints = extract_midpoints(mean_prior_dict['StarTypes'][star_class])
                     print('array_midpoints: ', array_midpoints)
                     bgmm.train(X, mean_prior=array_midpoints)
-                    #TODO: check changes due to priors incorporations
                 except Exception as error:
                     print(error)
                     bgmm.train(X, mean_prior=None)
             else: 
                 bgmm.train(X, mean_prior=None)
-            bgmm.save_model('models/bgm_model_'+str(star_class)+'.pkl')
+            bgmm.save_model('models/bgm_model_'+str(star_class)+'_priors_'+str(priors)+'_PP_'+str(len(columns))+'.pkl')
 
             for col1, col2 in combinations(columns, 2):
-                bgmm.plot_2d_bgmm(bgmm, X, star_class, feature1 = col1, feature2= col2)
+                bgmm.plot_2d_bgmm(bgmm, X, star_class, feature1 = col1, feature2= col2, priors=priors)
 
 
 def fit_gausians(priors_dict):
     #TODO:refactor code in order to manage priors here and only fit in train and save
-    train_and_save(components = 3, priors = True, columns=['Type','teff_val','Period','abs_Imag'])
+    train_and_save(priors = True, columns=['Type','teff_val','Period','abs_Imag'])
 
 def get_load_and_sample(star_class: str = 'RRLYR') -> None:
     # Load the model and generate samples

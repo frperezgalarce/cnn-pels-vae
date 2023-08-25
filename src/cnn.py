@@ -36,7 +36,7 @@ mean_prior_dict: Dict[str, Any] = load_yaml_priors(PATH_PRIOS)
 with open('src/regressor.yaml', 'r') as file:
     config_file: Dict[str, Any] = yaml.safe_load(file)
 
-vae_model: str = config_file['model_parameters']['ID']
+#vae_model: str = config_file['model_parameters']['ID']
 
 #vae_model: str = '1pjeearx'#'20twxmei' trained using TPM using GAIA3 ... using 5 PP 1pjeearx
 
@@ -89,7 +89,6 @@ def count_subclasses(star_type_data):
     # This is because the main class key is also used as a subclass key.
     return len([key for key in star_type_data.keys() if key != 'CompleteName'])
  
-
 def setup_model(num_classes: int, device: torch.device) -> nn.Module:
     model = CNN(num_classes=num_classes)
     if torch.cuda.is_available():
@@ -102,6 +101,8 @@ def setup_model(num_classes: int, device: torch.device) -> nn.Module:
 
 def construct_model_name(star_class, priors, PP, base_path=PATH_MODELS):
     """Construct a model name given parameters."""
+    file_name =  base_path + 'bgm_model_' + str(star_class) + '_priors_' + str(priors) + '_PP_' + str(PP) + '.pkl'
+    print(file_name)
     return base_path + 'bgm_model_' + str(star_class) + '_priors_' + str(priors) + '_PP_' + str(PP) + '.pkl'
 
 def attempt_sample_load(model_name, sampler):
@@ -111,18 +112,17 @@ def attempt_sample_load(model_name, sampler):
     except Exception as e:
         return None, e
 
-def create_synthetic_batch(mean_prior_dict, priors: bool = True, PP: int = 3): 
-    #print(len(mean_prior_dict['StarTypes'][CLASSES[0]].keys())-1)
+def create_synthetic_batch(mean_prior_dict, priors: bool = True, PP: int = [], vae_model = None):
     for star_class in CLASSES:
         print(mean_prior_dict['StarTypes'])
         components = count_subclasses(mean_prior_dict['StarTypes'][star_class])
-        print(star_class +': '+ str(components))
+        print(star_class +' includes '+ str(components) +' components ')
         sampler: mgmm.ModifiedGaussianSampler = mgmm.ModifiedGaussianSampler(b=1.0, components=components, features=PP)
-        model_name = construct_model_name(star_class, priors, PP)
+        model_name = construct_model_name(star_class, priors, len(PP))
         samples, error = attempt_sample_load(model_name, sampler)
         # If we have priors and failed to load the model, try with priors=False
         if priors and samples is None:
-            model_name = construct_model_name(star_class, False, PP)
+            model_name = construct_model_name(star_class, False, len(PP))
             samples, error = attempt_sample_load(model_name, sampler)
         # If still not loaded, raise an error
         if samples is None:
@@ -135,13 +135,11 @@ def create_synthetic_batch(mean_prior_dict, priors: bool = True, PP: int = 3):
 
         print(all_classes_samples)
 
-    z_hat: Any = reg.main(all_classes_samples, vae_model, train_rf=True)
+    z_hat: Any = reg.main(all_classes_samples, vae_model, assess_regressor=True, train_rf=True, phys2=PP)
     raise
 
     creator.main(samples, z_hat) #TODO: check error
     
-
-
 def move_data_to_device(data: Tuple, device: torch.device) -> Tuple:
     return tuple(d.to(device) for d in data)
 
@@ -217,11 +215,12 @@ def evaluate(model, data, criterion, device):
         accuracy = (predicted == labels).sum().item() / len(labels)
     return loss, accuracy
 
-def run_cnn(create_samples: Any, mode_running: str = 'load', mean_prior_dict: Dict = None) -> None:  # Adjust the type of create_samples if known
+def run_cnn(create_samples: Any, mode_running: str = 'load', 
+            mean_prior_dict: Dict = None, vae_model = None, PP=[]) -> None:  # Adjust the type of create_samples if known
+
     # Initialization
     wandb.init(project='cnn-pelsvae', entity='fjperez10')
     device = setup_environment()
-    #TODO: 
 
     x_train, x_test, y_train, y_test, x_val, y_val, label_encoder = get_data(sample_size=nn_config['data']['sample_size'], mode=mode_running)
     classes = np.unique(y_train.numpy())
@@ -263,7 +262,7 @@ def run_cnn(create_samples: Any, mode_running: str = 'load', mean_prior_dict: Di
 
     for epoch in range(epochs):
         if create_samples:
-            create_synthetic_batch(mean_prior_dict, PP = 3) #TODO:check
+            create_synthetic_batch(mean_prior_dict, priors=True, PP = PP, vae_model=vae_model) #TODO:check
 
         running_loss = train_one_epoch(model, criterion, optimizer, train_dataloader, device)
 

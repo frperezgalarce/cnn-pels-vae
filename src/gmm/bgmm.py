@@ -55,7 +55,7 @@ class BayesianGaussianMixtureModel:
     def plot_2d_bgmm(self, bgmm: "BayesianGaussianMixtureModel", 
                            X: pd.DataFrame, starClass: str, feature1: str = 'abs_Imag', 
                            feature2: str = 'teff_val', 
-                           save=True, priors: bool =False) -> None:
+                           save=True, priors: bool =False, number_of_features: int = 3) -> None:
         
         # Plotting the data points
         plt.scatter(X[feature1], X[feature2], c='blue', alpha=0.5, label='Data Points')
@@ -73,7 +73,7 @@ class BayesianGaussianMixtureModel:
         xy = np.dstack((x_mesh, y_mesh, np.zeros_like(x_mesh)))
 
         # Calculate the log-probability of the points on the meshgrid
-        z = -bgmm.bgm.score_samples(xy.reshape(-1, 3))
+        z = -bgmm.bgm.score_samples(xy.reshape(-1, number_of_features))
         z = z.reshape(x_mesh.shape)
 
         # Plotting the contour plots of the Gaussian components
@@ -126,12 +126,12 @@ def train_and_save(priors: bool = True, columns=['Type','teff_val','Period','abs
             bgmm.save_model('models/bgm_model_'+str(star_class)+'_priors_'+str(priors)+'_PP_'+str(len(columns))+'.pkl')
 
             for col1, col2 in combinations(columns, 2):
-                bgmm.plot_2d_bgmm(bgmm, X, star_class, feature1 = col1, feature2= col2, priors=priors)
+                bgmm.plot_2d_bgmm(bgmm, X, star_class, feature1 = col1, feature2= col2, priors=priors, number_of_features=len(columns))
 
 
-def fit_gausians(priors_dict):
+def fit_gausians(priors_dict, columns = ['Type','teff_val','Period','abs_Imag']):
     #TODO:refactor code in order to manage priors here and only fit in train and save
-    train_and_save(priors = True, columns=['Type','teff_val','Period','abs_Imag'])
+    train_and_save(priors = True, columns= columns)
 
 def get_load_and_sample(star_class: str = 'RRLYR') -> None:
     # Load the model and generate samples

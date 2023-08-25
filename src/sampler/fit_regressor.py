@@ -115,6 +115,7 @@ def main(samples: Union[np.ndarray, List], vae_model, assess_regressor: bool = F
 
     if assess_regressor:
         gpu = config_file['model_parameters']['gpu'] #True 
+        print(vae_model)
         vae, config, _ = setup_environment(vae_model, gpu)
         dataset = prepare_dataset(config)
         dataloader, _ = dataset.get_dataloader(batch_size=100, test_split=0.2, shuffle=False)
@@ -122,26 +123,29 @@ def main(samples: Union[np.ndarray, List], vae_model, assess_regressor: bool = F
         mu, _ = evaluate_encoder(vae, dataloader, config, 
                            n_classes=num_cls, force=False)
         print(mu.shape)
-    else: 
-        mu = transform_samples(samples) 
+        print(samples.shape)
+    
+    if assess_regressor:
+        meta_ = dataset.meta.dropna(subset=phys2)
 
-    meta_ = dataset.meta.dropna(subset=phys2)
+        mu_ = mu.iloc[:, :-1].values
+        mu_ = mu_.astype(np.float64)
 
-    mu_ = mu.iloc[:, :-1].values
-    mu_ = mu_.astype(np.float64)
+        unique_idx = meta_.reset_index().drop_duplicates(subset=['OGLE_id']).index
+        meta_u = meta_.iloc[unique_idx]
+        mu_u = mu_[unique_idx]
 
-    unique_idx = meta_.reset_index().drop_duplicates(subset=['OGLE_id']).index
-    meta_u = meta_.iloc[unique_idx]
-    mu_u = mu_[unique_idx]
-
-    meta_ = meta_u.copy()
-    mu_ = mu_u.copy()
+        meta_ = meta_u.copy()
+        mu_ = mu_u.copy()
 
     regressors = {'RFR': RandomForestRegressor}
 
     config_dict = dict(config_file['regressors'])
-    p = meta_.loc[:, phys2].values
-    z = mu_.copy()
+    if assess_regressor:
+        p = meta_.loc[:, phys2].values
+        z = mu_.copy()
+    else: 
+        p = samples
 
     for name, reg in regressors.items():
         filename = 'models/'+ name + '.pkl'
@@ -157,8 +161,10 @@ def main(samples: Union[np.ndarray, List], vae_model, assess_regressor: bool = F
 
         z_hat = model.predict(p) # Directly using the model for prediction
 
+    if assess_regressor: 
         print_metrics_regression(z, z_hat)
         plot_figures(z, z_hat)
+
     return z_hat
         
 if __name__ == "__main__":

@@ -18,7 +18,6 @@ with open('src/paths.yaml', 'r') as file:
 
 PATHS: Dict[str, str] = YAML_FILE['paths']
 PATH_DATA: str = PATHS["PATH_DATA_FOLDER"]
-save_plots: bool = False
 save_tables: bool = False
 
 with open('src/regressor.yaml', 'r') as file:
@@ -50,44 +49,49 @@ def prepare_dataset(config: Dict[str, Union[str, bool, int]]) -> Astro_lightcurv
     return dataset
 
 #Incorporate samples for pp and latent space to generate light curves
-def main(samples: np.ndarray, z_hat: np.ndarray) -> None:
+def main(samples: np.ndarray, z_hat: np.ndarray, training_cnn: bool = False, 
+        plot:bool = False, save_plot:bool = False, 
+        objects_by_class: Dict = {'ACEP':12,  'RRLYR':  12}, 
+        plot_reverted: bool = False) -> None:
+    
     print('cuda: ', torch.cuda.is_available())
-    print('create main 1')
     vae, config = load_model_list(ID=ID, device=device)
-    config['phys_params'] = 'PTAMR'
-    config['physics_dim'] = 5
-    print('create main 2')
 
-    dataset = prepare_dataset(config)
-    print('create main 3')
-
-    num_cls = dataset.labels_onehot.shape[1]
-
-    dataloader, _ = dataset.get_dataloader(batch_size=100, 
-                                        test_split=0., shuffle=False)
+    print(config)
+    
+    if training_cnn:
+        pass
+    else:
+        dataset = prepare_dataset(config)
+        num_cls = dataset.labels_onehot.shape[1]
+        dataloader, _ = dataset.get_dataloader(batch_size=100, 
+                                            test_split=0., shuffle=False)
 
     #mu, std = evaluate_encoder(vae, dataloader, config, 
     #                        n_classes=num_cls, force=False)       
-
-    examples = []
-    meta_aux = dataset.meta.reset_index()
-
-    objects_by_class = {'ACEP':0, 'CEP': 0,  'DSCT': 0,  'ECL':0,  'ELL': 0,  'LPV': 0,  'RRLYR':  24,  'T2CEP':0}
-    for i, cls in enumerate(dataset.label_onehot_enc.categories_[0]):
-        aux = meta_aux.query('Type == "%s"' % (cls)).sample(objects_by_class[cls])
+    if training_cnn: 
+        pass
+    else:
+        examples = []
+        meta_aux = dataset.meta.reset_index()
+        first_key = list(objects_by_class.keys())[0]
+        first_value = objects_by_class[first_key]
+        aux = meta_aux.query('Type == "%s"' % first_key).sample(first_value)        
         examples.append(aux)
 
-    examples = pd.concat(examples, axis=0)
-    sample_period = np.round(examples['Period'].to_list(),2)
+        examples = pd.concat(examples, axis=0)
+        sample_period = np.round(examples['Period'].to_list(),2)
 
-    data, lb, onehot, pp = dataset[examples.index]
+        data, lb, onehot, pp = dataset[examples.index]
 
-    pp2 = add_perturbation(pp, scale=5.0)
+        #TODO: dataset.phy_names contains the column names, so we have to sample only one object, 
+        # replicate it 24 times and add a linear increase from -q% to q%. This function should receive the pp to modify
+        pp2 = add_perturbation(pp, scale=5.0)
 
-    data = torch.from_numpy(data).to(device)
-    onehot = torch.from_numpy(onehot).to(device)
-    pp = torch.from_numpy(pp).to(device)
-    pp2 = torch.from_numpy(pp2).to(device)
+        data = torch.from_numpy(data).to(device)
+        onehot = torch.from_numpy(onehot).to(device)
+        pp = torch.from_numpy(pp).to(device)
+        #pp2 = torch.from_numpy(pp2).to(device)
 
     print('device: ', device)
 
@@ -97,8 +101,8 @@ def main(samples: np.ndarray, z_hat: np.ndarray) -> None:
     if config['label_dim'] > 0 and config['physics_dim'] > 0:
         xhat_z, mu_, logvar_, z_ = vae(data, label=onehot, phy=pp)
         xhat_mu = vae.decoder(mu_, data[:,:,0], label=onehot, phy=pp)
-        xhat_z2, mu_2, logvar_2, z_2 = vae(data, label=onehot, phy=pp2)
-        xhat_mu2 = vae.decoder(mu_2, data[:,:,0], label=onehot, phy=pp2)
+        #xhat_z2, mu_2, logvar_2, z_2 = vae(data, label=onehot, phy=pp2)
+        #xhat_mu2 = vae.decoder(mu_2, data[:,:,0], label=onehot, phy=pp2)
     elif config['label_dim'] > 0 and config['physics_dim'] == 0:
         print('path 2')
         xhat_z, mu_, logvar_, z_ = vae(data, label=onehot)
@@ -111,24 +115,28 @@ def main(samples: np.ndarray, z_hat: np.ndarray) -> None:
         print('Check conditional dimension...')
 
     print('z hat extracted')
-    xhat_z = torch.cat([data[:,:,0].unsqueeze(-1), xhat_z], dim=-1).cpu().detach().numpy()
+    #xhat_z = torch.cat([data[:,:,0].unsqueeze(-1), xhat_z], dim=-1).cpu().detach().numpy()
     xhat_mu = torch.cat([data[:,:,0].unsqueeze(-1), xhat_mu], dim=-1).cpu().detach().numpy()
-    xhat_mu2 = torch.cat([data[:,:,0].unsqueeze(-1), xhat_mu2], dim=-1).cpu().detach().numpy()
+    
+    #if plot:
+    #    xhat_mu2 = torch.cat([data[:,:,0].unsqueeze(-1), xhat_mu2], dim=-1).cpu().detach().numpy()
 
     data = data.cpu().detach().numpy()
 
-    plot_wall_lcs(xhat_mu, data, cls=lb, save=save_plots) #data is real_lc
+    if plot:
+        plot_wall_lcs(xhat_mu, data, cls=lb, save=save_plot) #data is real_lc
 
-    plot_wall_lcs(xhat_mu, xhat_mu2, cls=lb, save=save_plots) #data is real_lc
+        #plot_wall_lcs(xhat_mu, xhat_mu2, cls=lb, save=save_plot) #data is real_lc
 
-    plot_wall_synthetic_lcs(xhat_mu,  cls=lb,  save=save_plots)
+        #plot_wall_synthetic_lcs(xhat_mu,  cls=lb,  save=save_plot)
 
     lc_reverted = revert_light_curve(sample_period, xhat_mu, classes = lb)
 
     print('lc_reverted: ', lc_reverted.shape)
     print('xhat_mu: ', xhat_mu.shape)
 
-    compare_folded_crude_lc(xhat_mu, lc_reverted, cls=lb, period=sample_period)
+    if plot_reverted: 
+        compare_folded_crude_lc(xhat_mu, lc_reverted, cls=lb, period=sample_period)
 
     save_arrays_to_folder(lc_reverted, lb, PATH_DATA)
 

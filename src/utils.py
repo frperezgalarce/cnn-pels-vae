@@ -833,8 +833,7 @@ def plot_wall_synthetic_lcs(lc_gen, cls=[], lc_gen2=None, save=False, wandb_acti
     #plt.tight_layout()
     ID = 0
     if save:
-        plt.savefig('%s/paper_figures/real_lc_examples_%s.pdf' % 
-                    (path, ID), format='pdf', bbox_inches='tight')
+        plt.savefig(PATH_FIGURES+'/real_lc_examples.pdf', format='pdf', bbox_inches='tight')
     if wandb_active: 
         wandb.init(project="cnn-pelsvae")
         wandb.log({"test": plt})
@@ -899,8 +898,7 @@ def plot_wall_lcs(lc_gen, lc_real, cls=[], lc_gen2=None, save=False, wandb_activ
     #    ax.invert_yaxis()
     #plt.tight_layout()
     if save:
-        plt.savefig('%s/paper_figures/recon_lc_examples_%s.pdf' % 
-                    (path, ID), format='pdf', bbox_inches='tight')
+        plt.savefig(PATH_FIGURES+'/recon_lc_examples.pdf', format='pdf', bbox_inches='tight')
     if wandb_active:
         wandb.init(project="cnn-pelsvae")
         wandb.log({"test": plt})
@@ -999,6 +997,8 @@ def add_perturbation(array, scale=0.01):
     Returns:
         numpy.ndarray: A new array with perturbation added.
     """
+    print(array)
+    raise
     perturbation = (1.0+scale) * np.random.randn(*array.shape).astype(np.float32)
     print('Perturbation mean: ', perturbation.mean())
     perturbed_array = array + perturbation

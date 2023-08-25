@@ -12,6 +12,7 @@ class ModifiedGaussianSampler:
         self.features: int = features
 
     def load_p(self, filename: str) -> None:
+        print('loading model: ', filename)
         with open(filename, 'rb') as file:
             params = pickle.load(file)
             self.model = params['model']
@@ -22,11 +23,13 @@ class ModifiedGaussianSampler:
 
     def metropolis_hasting(self, n_samples: int = 5, iterations: int = 1000, burn_in: int = 500) -> np.ndarray:
         # Metropolis-Hastings to sample from q(x)
+        print('In MH')
+        print(self.features)
         samples: List[np.ndarray] = []
-        current_x = np.random.randn(self.features)  # Start from a random point
+        current_x = np.random.randn(len(self.features))  # Start from a random point
         print(current_x)
         for i in range(iterations):
-            proposal_x = current_x + np.random.normal(0, 0.5, size=self.features) # Random walk proposal
+            proposal_x = current_x + np.random.normal(0, 0.5, size=len(self.features)) # Random walk proposal
             acceptance_ratio = (self.p(proposal_x)**self.b) / (self.p(current_x)**self.b)
             if np.random.rand() < acceptance_ratio:
                 current_x = proposal_x
@@ -38,5 +41,6 @@ class ModifiedGaussianSampler:
 
     def modify_and_sample(self, path: str) -> np.ndarray:
         self.load_p(path)
+        print('Model loaded: ', self.model)
         samples = self.metropolis_hasting(n_samples=5, iterations=1000, burn_in=500 )
         return samples

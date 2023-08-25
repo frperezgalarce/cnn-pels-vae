@@ -108,7 +108,9 @@ def construct_model_name(star_class, priors, PP, base_path=PATH_MODELS):
 def attempt_sample_load(model_name, sampler):
     """Attempt to load samples from a model name."""
     try:
-        return sampler.modify_and_sample(model_name), None
+        samples = sampler.modify_and_sample(model_name)
+        print(samples)
+        return samples, True
     except Exception as e:
         return None, e
 
@@ -135,10 +137,14 @@ def create_synthetic_batch(mean_prior_dict, priors: bool = True, PP: int = [], v
 
         print(all_classes_samples)
 
-    z_hat: Any = reg.main(all_classes_samples, vae_model, assess_regressor=True, train_rf=True, phys2=PP)
-    raise
+    z_hat: Any = reg.main(all_classes_samples, vae_model, assess_regressor=False, train_rf=False, phys2=PP)
 
-    creator.main(samples, z_hat) #TODO: check error
+    print(z_hat.shape)
+    print(all_classes_samples.shape) 
+    
+    #TODO: cuál es la forma de cada uno de estos objetos y meterlo al flujo de create... testing to here and code next function
+    creator.main(samples, z_hat,  training_cnn = True) 
+    raise
     
 def move_data_to_device(data: Tuple, device: torch.device) -> Tuple:
     return tuple(d.to(device) for d in data)

@@ -702,8 +702,7 @@ def load_model_list(ID='zg3r4orb', device='cuda:0'):
     
     return vae, conf
 
-def evaluate_encoder(model, dataloader, params, 
-                     n_classes=5, force=False, device='cuda:0'):
+def evaluate_encoder(model, dataloader, params, force=False, device='cuda:0'):
     """Creates a joint plot of features, used during training, figures
     are W&B ready
 
@@ -715,8 +714,6 @@ def evaluate_encoder(model, dataloader, params,
         dataloader object with data to be evaluated with model
     params     : dictionary
         dictionary of model configuration parameters
-    n_classes  : int
-        number of unique classes/labels availables in the data
     force      : bool, optional
         wheather to force model evaluation or load values from file archive
     device     : str, optional
@@ -739,7 +736,6 @@ params['date'], params['ID'])
         mu = np.loadtxt(fname_mu)
         std = np.loadtxt(fname_std)
         labels = np.loadtxt(fname_lbs, dtype=np.str)
-    
     else:
         print('Evaluating Encoder...')
         time_start = datetime.datetime.now()
@@ -749,7 +745,7 @@ params['date'], params['ID'])
             data = data.to(device)
             onehot = onehot.to(device)
             pp = pp.to(device)
-            cc = torch.cat([onehot, pp], dim=1)
+            #cc = torch.cat([onehot, pp], dim=1)
             if params['label_dim'] > 0 and params['physics_dim'] > 0:
                 mu_, logvar_ = model.encoder(data, label=onehot, phy=pp)
             elif params['label_dim'] > 0 and params['physics_dim'] == 0:
@@ -758,15 +754,13 @@ params['date'], params['ID'])
                 mu_, logvar_ = model.encoder(data)
             else:
                 print('Check conditional dimension...')
+            
             mu.extend(mu_.data.cpu().numpy())
             logvar.extend(logvar_.data.cpu().numpy())
             labels.extend(label)
             torch.cuda.empty_cache()
         mu = np.array(mu)
         std = np.exp(0.5 * np.array(logvar))
-        #np.savetxt(fname_mu, mu)
-        #np.savetxt(fname_std, std)
-        #np.savetxt(fname_lbs, np.asarray(labels), fmt='%s')
         elap_time = datetime.datetime.now() - time_start
         print('Elapsed time  : %.2f s' % (elap_time.seconds))
         print('##'*20)
@@ -777,6 +771,8 @@ params['date'], params['ID'])
     mu_df['class'] = labels
     std_df['class'] = labels
     
+    print('mu_df.shape: ', mu_df.shape)
+    print('std_df.shape: ', std_df.shape)
     return mu_df, std_df
    
 def plot_wall_synthetic_lcs(lc_gen, cls=[], lc_gen2=None, save=False, wandb_active=False):
@@ -842,7 +838,8 @@ def plot_wall_synthetic_lcs(lc_gen, cls=[], lc_gen2=None, save=False, wandb_acti
         plt.show()
     return 
 
-def plot_wall_lcs(lc_gen, lc_real, cls=[], lc_gen2=None, save=False, wandb_active=False):
+def plot_wall_lcs(lc_gen, lc_real, cls=[], lc_gen2=None, save=False, wandb_active=False, 
+                to_title=None, sensivity=None):
     """Creates a wall of light curves plot with real and reconstruction
     sequences, paper-ready.
 
@@ -887,10 +884,21 @@ def plot_wall_lcs(lc_gen, lc_real, cls=[], lc_gen2=None, save=False, wandb_activ
                         fmt='.', c='g', alpha=.7)
         if cls[0] != '':
             ax.legend(loc='lower left')
-    
+        
+        try:
+            # Add title to the plot in the upper left corner
+            ax.set_title(sensivity+': '+str(to_title[i]), loc='upper left')
+        except Exception as error: 
+            print(error)
+
+
     axis[-1,1].set_xlabel('Phase', fontsize=20)
     axis[4,0].set_ylabel('Normalized Magnitude', fontsize=20)
     #mytitle = fig.suptitle('', fontsize=20, y=1.05)
+    if cls[0] != '':
+        ax.legend(loc='lower left')
+    
+
 
     fig.subplots_adjust(hspace=0, wspace=0)
     axis[0,0].invert_yaxis()
@@ -898,7 +906,7 @@ def plot_wall_lcs(lc_gen, lc_real, cls=[], lc_gen2=None, save=False, wandb_activ
     #    ax.invert_yaxis()
     #plt.tight_layout()
     if save:
-        plt.savefig(PATH_FIGURES+'/recon_lc_examples.pdf', format='pdf', bbox_inches='tight')
+        plt.savefig(PATH_FIGURES+'/recon_lc_examples'+str(sensivity)+'.pdf', format='pdf', bbox_inches='tight')
     if wandb_active:
         wandb.init(project="cnn-pelsvae")
         wandb.log({"test": plt})
@@ -986,7 +994,27 @@ def revert_light_curve(period, folded_normed_light_curve, faintness=1.0, classes
 
     return reverted_light_curves
 
-def add_perturbation(array, scale=0.01):
+def apply_sensitivity(array, column, a_percentage=20):
+    """
+    Apply sensitivity analysis on a specified column of a NumPy array.
+
+    Parameters:
+        array (numpy.ndarray): The input 2D NumPy array.
+        column (int): The column on which sensitivity is applied.
+        a_percentage (float): Percentage for linear increment, range will be [-a%, a%].
+
+    Returns:
+        numpy.ndarray: A new array after applying sensitivity on the specified column.
+    """
+    assert len(array.shape) == 2, "Array should be 2-dimensional."
+    num_rows = array.shape[0]
+    increment_values = np.linspace(-a_percentage/100, a_percentage/100, num_rows)
+    # Adjust values in the specified column based on the linear increment
+    array[:, column] += array[0, column] * increment_values
+    print('array pp in sensitive: ', array)
+    return array
+
+def add_perturbation(array, column = 0, scale=0.01):
     """
     Add perturbation to a NumPy array.
 
@@ -998,7 +1026,6 @@ def add_perturbation(array, scale=0.01):
         numpy.ndarray: A new array with perturbation added.
     """
     print(array)
-    raise
     perturbation = (1.0+scale) * np.random.randn(*array.shape).astype(np.float32)
     print('Perturbation mean: ', perturbation.mean())
     perturbed_array = array + perturbation

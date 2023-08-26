@@ -117,11 +117,9 @@ class Astro_lightcurves(Dataset):
         with gzip.open(data_path, 'rb') as f:
             self.aux = np.load(f, allow_pickle=True)
 
-        print(self.aux)
         self.lcs = self.aux.item()['lcs']
         self.meta = self.aux.item()['meta']
 
-        print(self.meta.columns)
 
         del self.aux
         if subsample:
@@ -175,11 +173,6 @@ class Astro_lightcurves(Dataset):
             self.phy_aux = self.phy_names
         else:
             self.phy_aux = ['Period']
-        print('phy_aux: ', self.phy_aux)
-        print('phy_names: ', self.phy_names)
-        print('phy_names type: ', type(self.phy_names))
-        print('meta columns: ', self.meta.columns)
-        print('meta type: ', type(self.meta))
         self.mm_scaler = preprocessing.MinMaxScaler()
         self.meta.logg = self.meta.logg.astype(np.float32).ffill().bfill()
         self.mm_scaler.fit(self.meta[self.phy_aux].values.astype(np.float32))
@@ -267,6 +260,13 @@ class Astro_lightcurves(Dataset):
         self.meta_p = self.meta_p[idx]
         self.labels_onehot = self.labels_onehot[idx]
         self.labels_int = self.labels_int[idx]
+
+        print('lcs shape: ', self.lcs.shape)
+        print('labels shape: ', self.labels.shape)
+        print('meta shape: ', self.meta.shape)
+        print('meta_p shape: ', self.meta_p.shape)
+        print('labels one hot shape: ', self.labels_onehot.shape)
+        print('labels int shape: ', self.labels_int.shape)
 
 
     def class_value_counts(self):

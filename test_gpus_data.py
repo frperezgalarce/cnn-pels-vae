@@ -13,13 +13,6 @@ def load_data_to_train():
     print('Loading from:\n', data_path)
     with gzip.open(data_path, 'rb') as f:
         np_data = np.load(f, allow_pickle=True)
-    print(print("Keys:", np_data.dtype.names))
-    print(type(np_data))
-    print('item: ', np_data.item())
-    print('meta')
-    print(np_data.item()['meta'])
-    print('lcs')
-    print(np_data.item()['lcs'])
     return np_data.item()['meta'], np_data.item()['lcs'], np_data
 
 def save_data(meta, lcs, data):
@@ -95,11 +88,6 @@ def update_values(df, feature="teff_val"):
 meta1, lcs, data = load_data_to_train()
 meta2 = load_new_validated_pp()
 
-print(meta1.shape, meta2.shape)
-print(meta1.columns)
-print(meta2.columns)
-
-
 ## Teff
 
 df1 = meta1[['OGLE_id', 'teff_val']]
@@ -125,14 +113,9 @@ compare_frequency(meta1.drop_duplicates('OGLE_id').teff_val,
                     new_data.drop_duplicates('OGLE_id').teff_val, 
                     feature="teff_val", clean=False)
 
-print(new_data.shape)
-print(meta1.shape)
-print(new_data.head(20))
-print(meta1.head(20))
-meta1 = meta1.merge(new_data.drop_duplicates('OGLE_id'), on="OGLE_id", how="left", suffixes=('_orig', ''))
-print(meta1.shape)
 
-print(meta1.columns)
+meta1 = meta1.merge(new_data.drop_duplicates('OGLE_id'), on="OGLE_id", how="left", suffixes=('_orig', ''))
+
 print('missing final: ', meta1.drop_duplicates('OGLE_id').teff_val.isna().sum())
 
 ## Period
@@ -144,9 +127,7 @@ df2.columns = ['OGLE_id', 'Period']
 
 #del new_data
 
-print(meta1.shape)
 new_data = df1.merge(df2, on="OGLE_id", how="outer", suffixes=('_orig', '_new'))
-print(new_data.shape)
 
 new_data['delta_Period'] = new_data["Period_orig"] - new_data["Period_new"]
 
@@ -164,11 +145,9 @@ basic_histogram(new_data.Period, title='Period 3')
 
 compare_frequency(meta1.drop_duplicates('OGLE_id').Period, meta2.drop_duplicates('OGLE-ID').Period, new_data.drop_duplicates('OGLE_id').Period, feature="Period")
 
-print(new_data.shape)
-print(meta1.shape)
+
 
 meta1 = meta1.merge(new_data.drop_duplicates('OGLE_id'), on="OGLE_id", how="left", suffixes=('_orig', ''))
-print(meta1.columns)
 print('missing final: ', meta1.drop_duplicates('OGLE_id').Period.isna().sum())
 
 
@@ -180,9 +159,7 @@ df2.columns = ['OGLE_id', 'abs_Gmag']
 
 #del new_data
 
-print(meta1.shape)
 new_data = df1.merge(df2, on="OGLE_id", how="outer", suffixes=('_orig', '_new'))
-print(new_data.shape)
 
 new_data['delta_abs_Gmag'] = new_data["abs_Gmag_orig"] - new_data["abs_Gmag_new"]
 
@@ -202,11 +179,8 @@ compare_frequency(meta1.drop_duplicates('OGLE_id').abs_Gmag,
                  meta2.drop_duplicates('OGLE-ID').GMAG_x, 
                  new_data.drop_duplicates('OGLE_id').abs_Gmag, feature="abs_Gmag", clean=False)
 
-print(new_data.shape)
-print(meta1.shape)
 
 meta1 = meta1.merge(new_data.drop_duplicates('OGLE_id'), on="OGLE_id", how="left", suffixes=('_orig', ''))
-print(meta1.columns)
 print('missing final: ', meta1.drop_duplicates('OGLE_id').abs_Gmag.isna().sum())
 
 # Metallicity
@@ -233,10 +207,6 @@ compare_frequency(meta1.drop_duplicates('OGLE_id')['[Fe/H]_J95'],
                     new_data.drop_duplicates('OGLE_id')['[Fe/H]_J95'], 
                     feature="[Fe/H]_J95", clean=False)
 
-print(new_data.shape)
-print(meta1.shape)
-print(new_data.head(20))
-print(meta1.head(20))
 meta1 = meta1.merge(new_data.drop_duplicates('OGLE_id'), on="OGLE_id", how="left", suffixes=('_orig', ''))
 print(meta1.shape)
 
@@ -277,7 +247,6 @@ print('missing final: ', meta1.drop_duplicates('OGLE_id')['radius_val'].isna().s
 # Logg
 df2 = meta2[["OGLE-ID", "logg"]]
 df2.columns = ["OGLE_id", "logg"]
-print(df2.describe())
 
 basic_histogram(df2.logg, title='logg')
 meta1 = meta1.merge(df2.drop_duplicates('OGLE_id'), on="OGLE_id", how="left", suffixes=('_orig', ''))

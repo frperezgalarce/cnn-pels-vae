@@ -143,7 +143,7 @@ def create_synthetic_batch(mean_prior_dict, priors: bool = True, PP: int = [], v
     print(all_classes_samples.shape) 
     
     #TODO: cuál es la forma de cada uno de estos objetos y meterlo al flujo de create... testing to here and code next function
-    creator.main(samples, z_hat,  training_cnn = True) 
+    creator.get_synthetic_light_curves(samples, z_hat,  training_cnn = True) 
     raise
     
 def move_data_to_device(data: Tuple, device: torch.device) -> Tuple:

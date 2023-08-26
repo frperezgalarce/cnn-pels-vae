@@ -1,6 +1,7 @@
 import src.cnn as cnn
 import src.gmm.bgmm as bgmm 
 import src.sampler.create_lc as creator
+import src.sampler.fit_regressor as reg
 from src.utils import load_yaml_priors
 import yaml
 from typing import List, Optional, Any, Dict
@@ -26,15 +27,19 @@ PP_list_3 = ['abs_Gmag', 'teff_val', 'Period']
 
 
 def main(train_gmm: Optional[bool] = False, create_samples: Optional[bool] = True, train_classifier: Optional[bool]=True) -> None:
-    
+    samples = None
+
+    reg.main(samples, vae_model, assess_regressor= True, train_rf= True, phys2 = PP_list_5)
+
     objects_by_class = {'ACEP':24, 'CEP': 24,  'DSCT': 24,  'ECL':24,  'ELL': 24,  'LPV': 24,  'RRLYR':  24,  'T2CEP':24}
+    #TODO: save figure for each model and pp
     for key, value in objects_by_class.items():
         temp_dict = {key: value}
         print(temp_dict)
-        creator.main(None, None, training_cnn=False, plot=True, save_plot=True, objects_by_class=temp_dict)
+        creator.get_synthetic_light_curves(None, None, training_cnn=False, plot=True, save_plot=True,
+                                          objects_by_class=temp_dict, sensivity='teff_val')
         del temp_dict
     raise
-
     if train_gmm:
         print('Fitting Gaussian mixture models') 
         bgmm.fit_gausians(mean_prior_dict, columns=PP_list_6)

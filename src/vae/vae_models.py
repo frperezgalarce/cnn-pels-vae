@@ -200,6 +200,8 @@ class VAE_TCN(nn.Module):
         xhat
             reconstructed light curve
         """
+        z = z.float()
+        label = label.float()
         if self.lab_dim > 0 and label is not None:
             z = torch.cat([z, label], dim=1)
         if self.phy_dim > 0 and phy is not None and self.feed_pp:

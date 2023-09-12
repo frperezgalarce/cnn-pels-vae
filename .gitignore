@@ -1,0 +1,86 @@
+# Byte-compiled / optimized files
+__pycache__/
+*.py[cod]
+*$py.class
+
+# C extensions
+*.so
+
+#numpy files
+*.npy
+*.gz
+# Distribution / packaging
+dist/
+build/
+*.egg-info/
+*.egg
+
+# Virtual environment
+venv/
+env/
+ENV/
+
+# macOS related
+.DS_Store
+
+# Jupyter Notebook temporary files
+.ipynb_checkpoints/
+
+# Other environment specific files
+*.env
+*.log
+
+# IDE-related files (change this based on your IDE)
+.vscode/
+.idea/
+*.pydevproject
+
+# Environment variable files
+.env
+
+# Compiled Python files
+*.pyc
+
+# Local development files
+db.sqlite3
+db.sqlite3-journal
+
+# Log files
+*.log
+
+# Compiled source
+__pycache__/
+
+# Python egg metadata
+*.egg-info/
+
+# Pipenv
+Pipfile.lock
+
+# JSON
+*.json
+*.txt
+*.png
+*.yaml
+*.csv
+*.ipynbsrc/PELS-VAE/data/time_series/real/OGLE3_lcs_I_meta_snr5_augmented_folded_trim600.npy.gz
+wandb/
+*.pkl
+*.pdf
+*.svg
+*.pkl
+*.eps
+*.zip
+
+# ignore folders
+data/bkp/
+data/inter/OGLE3_x_GaiaDR2_to_validate.csv
+data/OGLE3/
+notebooks/bkps/
+.ipynb_checkpoints/
+.DS_Store
+src/__pycache__/
+wandb/debug.log
+figures/
+# .gitignore
+figures/Gaussians/*.svg

@@ -1,0 +1,67 @@
+import pickle
+import numpy as np
+from typing import Any, List
+np.set_printoptions(precision=4)
+
+class ModifiedGaussianSampler:
+    def __init__(self, b: float = 0.5, components: int = 3, features: int = 3) -> None:
+        self.model: Any = None
+        self.b: float = b
+        self.Z: Any = None
+        self.q: Any = None
+        self.components: int = components
+        self.features: int = features
+
+    def load_p(self, filename: str) -> None:
+        print('loading model: ', filename)
+        with open(filename, 'rb') as file:
+            params = pickle.load(file)
+            self.model = params['model']
+            print(self.model)
+
+    def p(self, x: np.ndarray) -> np.float64:
+        return np.exp(self.model.score_samples(x.reshape(1, -1)))
+
+    def randomly_select_component(self) -> int:
+        """Randomly select a component based on weights and return its index."""
+        weights = self.model.weights_
+        selected_component_index = np.random.choice(np.arange(len(weights)), p=weights)
+        return selected_component_index
+    
+
+    def metropolis_hasting(self, n_samples: int = 5, iterations: int = 1000, burn_in: int = 500) -> np.ndarray:
+        """
+        Metropolis-Hastings algorithm for sampling from a distribution q(x).
+    
+        Parameters:
+        n_samples (int): The number of samples to return.
+        iterations (int): The total number of iterations to perform.
+        burn_in (int): The number of initial samples to discard.
+
+        Returns:
+        np.ndarray: An array of samples from the distribution.
+        """
+        samples: List[np.ndarray] = []
+        selected_component_index = self.randomly_select_component()
+        selected_mean = self.model.means_[selected_component_index] + np.random.normal(0, 0.1, size=len(self.features))
+        current_x = selected_mean
+        sample_interval = (iterations - burn_in) // n_samples
+        
+        for i in range(iterations):
+            proposal_x = current_x + np.random.normal(0, 0.5, size=len(self.features)) 
+            acceptance_ratio = (self.p(proposal_x) ** self.b) / (self.p(current_x) ** self.b)           
+            if np.random.rand() < acceptance_ratio:
+                current_x = proposal_x
+            if i > burn_in and (i - burn_in) % sample_interval == 0:
+                samples.append(current_x.copy())
+        print('#'*50)
+        print('Samples: ')
+        print(samples)
+        return np.array(samples)
+
+    def modify_and_sample(self, path: str, n_samples=5) -> np.ndarray:
+        self.load_p(path)
+        print('Model loaded: ', self.model)
+        samples = self.metropolis_hasting(n_samples=n_samples, iterations=100000, burn_in=500 )
+        return samples
+

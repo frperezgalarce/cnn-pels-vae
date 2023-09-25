@@ -59,7 +59,7 @@ parser.add_argument('--lr', dest='lr', type=float, default=1e-3,
 parser.add_argument('--lr-sch', dest='lr_sch', type=str, default='cos',
                     help='learning rate shceduler '+
                     '([None], step, exp,cosine, plateau)')
-parser.add_argument('--beta', dest='beta', type=str, default='0.75',
+parser.add_argument('--beta', dest='beta', type=str, default='4',
                     help='beta factor for latent KL div ([1],step)')
 parser.add_argument('--batch-size', dest='batch_size', type=int, default=128,
                     help='batch size [128]')
@@ -89,7 +89,7 @@ parser.add_argument('--dropout', dest='dropout', type=float, default=0.2,
 parser.add_argument('--kernel-size', dest='kernel_size', type=int, default=4,
                     help='kernel size for tcn conv, use odd ints [5]')
 
-parser.add_argument('--comment', dest='comment', type=str, default='BASE GAIA 3 - 6 latent variables',
+parser.add_argument('--comment', dest='comment', type=str, default='GAIA3_LOG_IMPUTED_BY_CLASS_6PP - log_cosh_loss',
                     help='extra comments')
 args = parser.parse_args()
 

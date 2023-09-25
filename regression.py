@@ -120,7 +120,6 @@ for i, cls in enumerate(dataset.label_onehot_enc.categories_[0]):
     aux = meta_aux.query('Type == "%s"' % (cls)).sample(3)
     examples.append(aux)
 examples = pd.concat(examples, axis=0)
-print(examples.index)
 
 
 data, lb, onehot, pp = dataset[examples.index]
@@ -152,7 +151,6 @@ mu_ = mu.iloc[:, :-1].values
 std_ = std.iloc[:, :-1].values
 mu_ = mu_.astype(np.float64)
 std_ = std_.astype(np.float64)
-print(meta_.shape, mu_.shape)
 
 unique_idx = meta_.reset_index().drop_duplicates(subset=['OGLE_id']).index
 meta_u = meta_.iloc[unique_idx]
@@ -186,14 +184,12 @@ all_lcs = []
 
 for name, reg in regressors.items():
     if name == 'GPR': continue
-    print(name)
     
     model = reg(**config_dict[name])
     try:
         model.fit(p, z)
         #model, _ = train_rf_with_gs(p, z)
     except MemoryError:
-        print('Fail')
         continue
     mse = metrics.mean_squared_error(z, model.predict(p))
     print_metrics_regression(z, model.predict(p))

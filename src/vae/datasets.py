@@ -6,6 +6,7 @@ from torch.utils.data.sampler import SubsetRandomSampler
 from sklearn import preprocessing
 from src.utils import normalize_each, return_dt
 import yaml
+import pickle
 
 with open('src/paths.yaml', 'r') as file:
     YAML_FILE = yaml.safe_load(file)
@@ -14,6 +15,8 @@ PATHS: str = YAML_FILE['paths']
 local_root = PATHS["PATH_DATA_FOLDER"]
 colab_root = PATHS["PATH_COLAB_ROOT"]
 exalearn_root = PATHS["PATH_EXALEARN_ROOT"]
+PATH_MODELS = PATHS["PATH_MODELS"]
+
 
 with open('src/regressor.yaml', 'r') as file:
     config_file = yaml.safe_load(file)
@@ -135,6 +138,8 @@ class Astro_lightcurves(Dataset):
         ## integer encoding of labels
         self.label_int_enc = preprocessing.LabelEncoder()
         self.label_int_enc.fit(self.labels)
+        with open(PATH_MODELS+'label_encoder_vae.pkl', 'wb') as f:
+            pickle.dump(self.label_int_enc, f)
         self.labels_int = self.label_int_enc.transform(self.labels)
         ## one-hot encoding of labels
         self.label_onehot_enc = preprocessing.OneHotEncoder(sparse=False,

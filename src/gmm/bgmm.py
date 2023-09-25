@@ -161,7 +161,7 @@ class BayesianGaussianMixtureModel:
         samples, _ = self.bgm.sample(n_samples)
         return samples
 
-def train_and_save(priors: bool = True, columns=['Type','teff_val','Period','abs_Imag'], plot_or_save_figs=False) -> None:
+def train_and_save(priors: bool = True, columns=['Type','Period', 'teff_val', '[Fe/H]_J95', 'abs_Gmag', 'radius_val', 'logg'], plot_or_save_figs=False) -> None:
     data = pd.read_csv(PATH_PP)
     df_selected_columns = data[columns]
     classes = df_selected_columns.Type.unique()
@@ -198,7 +198,7 @@ def train_and_save(priors: bool = True, columns=['Type','teff_val','Period','abs
                                     number_of_features=len(columns), save=False)
 
 
-def fit_gausians(priors_dict, columns = ['Type','teff_val','Period','abs_Imag']):
+def fit_gausians(priors_dict, columns = ['Type','Period', 'teff_val', '[Fe/H]_J95', 'abs_Gmag', 'radius_val', 'logg']):
     #TODO:refactor code in order to manage priors here and only fit in train and save
     train_and_save(priors = False, columns= columns)
 

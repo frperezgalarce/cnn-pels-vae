@@ -165,8 +165,10 @@ class Trainer():
 
 
         #TODO: assess new loss functions
-        
         mse = F.mse_loss(xhat[:, :, 0], x[:, :, 0], reduction='mean')
+        #mse = self.log_cosh_loss(xhat[:, :, 0], x[:, :, 0])
+        #mse = F.binary_cross_entropy(xhat[:, :, 0], x[:, :, 0], reduction='mean')
+        
         # weighted mse
         # mse = torch.sum((xhat[:,:,0] - x[:,:,0]) ** 2 / x[:,:,-1]**2) / \
         #       (x.shape[0] * x.shape[1])
@@ -218,6 +220,10 @@ class Trainer():
         return loss
 
     # function that does the in-epoch training
+
+    def log_cosh_loss(self, y_pred, y_true):
+        loss = torch.log(torch.cosh(y_pred - y_true))
+        return loss.mean()
 
     def _train_epoch(self, data_loader, epoch):
         """Training loop for a given epoch. Triningo goes over

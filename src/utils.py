@@ -11,8 +11,8 @@ if socket.gethostname() == 'exalearn':
 import matplotlib.pyplot as plt
 import seaborn as sb
 import matplotlib.cm as cm
-import random
-from tqdm import tqdm_notebook
+#import random
+from tqdm import tqdm
 from collections import OrderedDict
 from src.vae.vae_models import *
 import wandb
@@ -22,7 +22,9 @@ from sklearn.preprocessing import LabelEncoder
 from sklearn.metrics import recall_score
 import pickle
 from typing import Tuple, Any, Dict, Type, Union, List
+import logging
 
+logging.basicConfig(filename='error_log.txt', level=logging.ERROR)
 #from src.utils import load_yaml
 
 with open('src/paths.yaml', 'r') as file:
@@ -39,6 +41,7 @@ PATH_NUMPY_DATA_Y_TEST = PATHS['PATH_NUMPY_DATA_Y_TEST'] #TODO: apply difference
 PATH_SUBCLASSES = PATHS["PATH_SUBCLASSES"]
 PATH_DATA_FOLDER = PATHS["PATH_DATA_FOLDER"]
 PATH_FIGURES: str = PATHS['PATH_FIGURES']
+PATH_MODELS: str = PATHS["PATH_MODELS"]
 
 # Read configurations from a YAML file
 with open('src/regressor.yaml', 'r') as file:
@@ -49,9 +52,6 @@ def plot_training(epochs_range, train_loss_values, val_loss_values,train_accurac
     plt.figure(figsize=(12, 4))
     # Plot the loss values
     plt.subplot(1, 2, 1)
-    print(epochs_range)
-    print(np.unique(train_loss_values))
-    print(val_loss_values)
     plt.plot(train_loss_values, label='Training Loss')
     plt.plot(val_loss_values, label='Validation Loss')
     plt.xlabel('Epochs')
@@ -61,8 +61,6 @@ def plot_training(epochs_range, train_loss_values, val_loss_values,train_accurac
 
     # Plot the accuracy values
     plt.subplot(1, 2, 2)
-    print(train_accuracy_values)
-    print(val_accuracy_values)
     plt.plot(train_accuracy_values, label='Training Accuracy')
     plt.plot(val_accuracy_values, label='Validation Accuracy')
     plt.xlabel('Epochs')
@@ -80,63 +78,75 @@ def read_light_curve_ogle(example_test, example_train, lenght_lc=100):
     numpy_y_test =  np.empty((0, ), dtype=object) 
     numpy_y_train = np.empty((0, ), dtype=object)  
 
-    numpy_array_lcus_test, numpy_y_test = insert_lc(example_test, numpy_array_lcus_test,
-                                                    numpy_y_test, lenght_lc=lenght_lc)
     numpy_array_lcus_train, numpy_y_train = insert_lc(example_train, numpy_array_lcus_train,
-                                            numpy_y_train, lenght_lc=lenght_lc)
+                                            numpy_y_train, lenght_lc=lenght_lc, train_set=True, train_classes=[], file_name='train')
+
+    print(np.unique(numpy_y_train))
+    numpy_array_lcus_test, numpy_y_test = insert_lc(example_test, numpy_array_lcus_test,
+                                                    numpy_y_test, lenght_lc=lenght_lc, train_set=False, train_classes=np.unique(numpy_y_train), file_name='test')
 
     return numpy_array_lcus_train, numpy_array_lcus_test, numpy_y_test, numpy_y_train
 
 def load_light_curve_ogle():
+    print('Loading light curves')
+    #Implement concurrent process
+
     numpy_array_lcus_train = np.load(PATH_NUMPY_DATA_X_TRAIN, allow_pickle=True)
     numpy_array_lcus_test = np.load(PATH_NUMPY_DATA_X_TEST, allow_pickle=True)
     numpy_y_train = np.load(PATH_NUMPY_DATA_Y_TRAIN, allow_pickle=True)
     numpy_y_test = np.load(PATH_NUMPY_DATA_Y_TEST, allow_pickle=True)
+    print('loaded files')
+    print('training data shape: ', numpy_array_lcus_train.shape)
+    print('testing data shape: ', numpy_array_lcus_test.shape)
     return numpy_array_lcus_train, numpy_array_lcus_test, numpy_y_test, numpy_y_train
 
-def insert_lc(examples, np_array, np_array_y, lenght_lc = 0, signal_noise=0, subclass=True):
+def insert_lc(examples, np_array, np_array_y, lenght_lc = 0, signal_noise=3, subclass=False, train_set=True, train_classes=[], file_name='train'):
     counter = 0
     subclasses = pd.read_csv(PATH_SUBCLASSES)
-    for lc in examples.ID.unique():
+    for lc in tqdm(examples.ID.unique(), desc='Processing Light Curves'):
         path_lc = PATH_LIGHT_CURVES_OGLE+lc.split('-')[1].lower()+'/'+lc.split('-')[2].lower()+'/phot/I/'+lc
         lcu = pd.read_table(path_lc, sep=" ", names=['time', 'magnitude', 'error'])
-        #print(lcu.dtypes)
         lcu['delta_time'] = lcu['time'].diff()
         lcu['delta_mag'] = lcu['magnitude'].diff()
-        lcu = lcu[lcu.magnitude/lcu.error>signal_noise] #Delete S/N greater than 3
-        #lcu = lcu[lcu.delta_time<10] #Delete time between observations greater than 10 
-        #lcu = lcu[lcu.delta_mag!=0]
+        lcu = lcu[lcu.magnitude/lcu.error>signal_noise] #Delete S/N greater than 0
         lcu = delete_by_std(lcu)
         lcu['delta_time'] = lcu['time'].diff()
         lcu['delta_mag'] = lcu['magnitude'].diff()
         lcu.dropna(axis=0, inplace=True)
 
         if lcu.shape[0]> lenght_lc:
+            lcu_data = np.asarray(lcu[['delta_time', 'delta_mag']].head(lenght_lc))
             if subclass:
-                lcu_data = np.asarray(lcu[['delta_time', 'delta_mag']].head(lenght_lc))
                 try:
                     new_element = str(subclasses.loc[subclasses.ID==lc.replace('.dat', ''),'sub_clase'].values[0])
                     np_array_y = np.append(np_array_y, new_element)
                     np_array = np.resize(np_array, (np_array.shape[0] + 1, lcu_data.shape[0], 2))
                     np_array[-1] = lcu_data
                 except Exception as error:
-                    print(error)
-                    #raise ValueError("The light curve {} was not loaded.".format(lc) + str(error))
-
+                    logging.error(f"The light curve {lc} was not loaded: {error}")
+                    raise ValueError("The light curve {} was not loaded.".format(lc) + str(error))
             else:
                 try: 
                     new_element = lc.split('-')[2]
-                    if new_element  in ['ACEP','CEP', 'DSCT', 'ECL',  'ELL', 'LPV',  'RRLYR', 'T2CEP']:
-                        np_array_y = np.append(np_array_y, new_element)
-                        np_array = np.resize(np_array, (np_array.shape[0] + 1, lcu_data.shape[0], 2))
-                        np_array[-1] = lcu_data
-                        counter = counter + 1
+                    if train_set:
+                        if new_element  in ['ACEP','CEP', 'DSCT', 'ECL',  'ELL', 'LPV',  'RRLYR', 'T2CEP']:
+                            np_array_y = np.append(np_array_y, new_element)
+                            np_array = np.resize(np_array, (np_array.shape[0] + 1, lcu_data.shape[0], 2))
+                            np_array[-1] = lcu_data
+                            counter = counter + 1
+                    else:
+                        if new_element  in train_classes:
+                            np_array_y = np.append(np_array_y, new_element)
+                            np_array = np.resize(np_array, (np_array.shape[0] + 1, lcu_data.shape[0], 2))
+                            np_array[-1] = lcu_data
+                            counter = counter + 1
                 except Exception as error: 
+                    logging.error(f"The light curve {lc} was not loaded: {error}")
                     raise ValueError("The light curve {} was not loaded.".format(lc) + str(error))
 
     print('shape: ', np_array.shape, np_array_y.shape)
-    np.save(PATH_DATA_FOLDER+'/np_array_y.npy', np_array_y)
-    np.save(PATH_DATA_FOLDER+'/np_array.npy', np_array)
+    np.save(PATH_DATA_FOLDER+'/'+file_name+'_np_array_y.npy', np_array_y)
+    np.save(PATH_DATA_FOLDER+'/'+file_name+'_np_array.npy', np_array)
     return np_array, np_array_y
 
 def delete_by_std(df): 
@@ -161,33 +171,65 @@ def delete_low_represented_classes(df, column='class', threshold=100):
     df_filtered = df[df[column].isin(categories_to_keep)]
     return df_filtered
 
-def plot_cm(cm, labels, title='Confusion matrix', save=True, filename=None):
-    plt.figure(figsize=(8,8))
+def plot_cm(cm: np.ndarray,
+            labels: List[str],
+            title: str = 'Confusion Matrix',
+            save: bool = False,
+            filename: Optional[str] = None,
+            normed: bool = False) -> None:
+    """
+    Plots a confusion matrix using Matplotlib.
+
+    Parameters:
+    -----------
+    cm : np.ndarray
+        The confusion matrix to be plotted.
+    labels : List[str]
+        List of class labels for annotation.
+    title : str, optional
+        Title of the plot. Default is 'Confusion Matrix'.
+    save : bool, optional
+        Whether to save the plot to a file. Default is False.
+    filename : str, optional
+        File name for saving the plot. If None, a default name will be generated. 
+        Default is None.
+    normed : bool, optional
+        Whether to normalize the values. Default is False.
+
+    Returns:
+    --------
+    None
+    """
+    
+    plt.figure(figsize=(8, 8))
     plt.imshow(cm, cmap=plt.cm.Blues)
     plt.title(title)
     plt.colorbar()
     plt.xlabel('Predicted label')
     plt.ylabel('True label')
-
-    # Add text annotations
+    
     thresh = cm.max() / 2
+    
     for i, j in itertools.product(range(cm.shape[0]), range(cm.shape[1])):
-        value = int(np.round(cm[i, j],2)*100)  # Convert float to integer
+        if normed:
+            value = int(np.round(cm[i, j], 2) * 100)  # Convert float to integer
+        else:
+            value = int(np.round(cm[i, j], 2))
+        
         plt.text(j, i, format(value, 'd'),
-                horizontalalignment="center",
-                color="white" if cm[i, j] > thresh else "black")
-
-    # Add labels to the x-axis and y-axis
+                 horizontalalignment="center",
+                 color="white" if cm[i, j] > thresh else "black")
+        
     plt.xticks(range(len(labels)), labels)
     plt.yticks(range(len(labels)), labels)
-
+    
     plt.tight_layout()
     
     if save:
         if filename is None:
             current_date = datetime.datetime.now().strftime('%Y%m%d')
             title_formatted = title.replace(' ', '_')
-            filename = PATH_FIGURES + f'{title_formatted}_confusion_matrix_{current_date}.png'
+            filename = f"{title_formatted}_confusion_matrix_{current_date}.png"
         plt.savefig(filename)
     else:
         plt.show()
@@ -204,14 +246,13 @@ def get_ids(n=1):
         example_train =lc_train[['ID']]
     else:
         example_train = lc_train.sample(n)[['ID']]
-    print(example_test)
 
 
     new_cols_test = example_test.ID.str.split("-", n = 3, expand = True)
     new_cols_test.columns = ['survey', 'field', 'class', 'number']
     # concatenate the new columns with the original DataFrame
     example_test = pd.concat([new_cols_test, example_test], axis=1)
-    example_test = delete_low_represented_classes(example_test, column='class', threshold=100)
+    example_test = delete_low_represented_classes(example_test, column='class', threshold=50)
 
     new_cols_train = example_train.ID.str.split("-", n = 3, expand = True)
     new_cols_train.columns = ['survey', 'field', 'class', 'number']
@@ -220,7 +261,7 @@ def get_ids(n=1):
 
     example_train = pd.concat([new_cols_train, example_train], axis=1)
 
-    example_train = delete_low_represented_classes(example_train, column='class', threshold=100)
+    example_train = delete_low_represented_classes(example_train, column='class', threshold=50)
 
     print('clases: ', example_train['class'].unique())
     example_test['class'] = pd.factorize(example_test['class'])[0]
@@ -230,7 +271,16 @@ def get_ids(n=1):
 
     return example_test, example_train
 
-def get_data(sample_size=50000, mode='load'):
+def transform_to_consecutive(input_list, label_encoder):
+    unique_elements = sorted(set(input_list))
+    modified_labelencoder_classes = [element for idx, element in enumerate(label_encoder.classes_) if idx in unique_elements]
+    mapping = {value: index for index, value in enumerate(unique_elements)}
+    modified_labels = np.array([mapping[element] for element in input_list])
+    return modified_labels, modified_labelencoder_classes
+
+def get_data(sample_size, mode):
+    print('-'*50)
+    print('MODE DATA: ', mode)
     if mode=='create':
         id_test, id_train  = get_ids(n=sample_size) 
         x_train, x_test, y_test, y_train  = read_light_curve_ogle(id_test, id_train)
@@ -238,15 +288,45 @@ def get_data(sample_size=50000, mode='load'):
         x_train, x_test, y_test, y_train  = load_light_curve_ogle()
 
     # Create a label encoder
-    label_encoder = LabelEncoder()
+    #label_encoder = LabelEncoder()
+    with open(PATH_MODELS+'label_encoder_vae.pkl', 'rb') as f:
+            label_encoder = pickle.load(f)
+    # Fit the encoder using only the training set
+    #label_encoder.fit(y_train)
 
-    # Encode the string labels to numerical values
-    encoded_labels = label_encoder.fit_transform(y_train)
-    encoded_labels_test = label_encoder.fit_transform(y_test)
+    # Transform both the training and test sets
+    encoded_labels = label_encoder.transform(y_train)
+    encoded_labels_test = label_encoder.transform(y_test)
+    #TODO: return final list of labels to show confusion matrix
+    encoded_labels, modified_labelencoder_classes = transform_to_consecutive(encoded_labels, label_encoder)
+    encoded_labels_test, modified_labelencoder_classes = transform_to_consecutive(encoded_labels_test, label_encoder)
+    n_values = len(np.unique(encoded_labels))
+    y_train = np.eye(n_values)[encoded_labels]
+    y_test = np.eye(n_values)[encoded_labels_test]
+
+    # Save the encoder
+    with open(PATH_MODELS+'label_encoder.pkl', 'wb') as f:
+        pickle.dump(label_encoder, f)
+
+
+    print("Label to Number Mapping:")
+    for index, label in enumerate(modified_labelencoder_classes):
+        print(f"{label}: {index}")
+
+    with open('src/nn_config.yaml', 'r') as file:
+        nn_config = yaml.safe_load(file)
+
+    nn_config['data']['classes'] = modified_labelencoder_classes
+    # Save the updated config back to the file
+
+    with open('src/nn_config.yaml', 'w') as file:
+        yaml.safe_dump(nn_config, file)
 
     # Convert the encoded labels to a PyTorch tensor
-    y_train = torch.from_numpy(encoded_labels).long()
-    y_test = torch.from_numpy(encoded_labels_test).long()
+    y_train_labels = torch.from_numpy(encoded_labels).long()
+    y_test_labels = torch.from_numpy(encoded_labels_test).long()
+    y_train_onehot = torch.from_numpy(y_train).long()
+    y_test_onehot = torch.from_numpy(y_test).long()
 
     # Convert the data to PyTorch tensors
     x_train = torch.from_numpy(x_train).float()
@@ -256,17 +336,11 @@ def get_data(sample_size=50000, mode='load'):
     x_train = x_train.permute(0, 2, 1)
     x_test = x_test.permute(0, 2, 1)
 
-    # Print the shapes of the data
-    print("x_train shape:", x_train.shape)
-    print("y_train shape:", y_train.shape)
-    print("x_test shape:", x_test.shape)
-    print("y_test shape:", y_test.shape)
+    y_train, y_test = torch.from_numpy(np.asarray(y_train_onehot)), torch.from_numpy(np.asarray(y_test_onehot))
 
-    y_train, y_test = torch.from_numpy(np.asarray(y_train)), torch.from_numpy(np.asarray(y_test))
+    x_train, x_val, y_train, y_val = train_test_split(x_train, y_train, test_size=0.2, random_state=42)
 
-    x_train, x_val, y_train, y_val = train_test_split(x_train, y_train, test_size=0.3, random_state=42)
-
-    return x_train, x_test,  y_train, y_test, x_val, y_val, label_encoder
+    return x_train, x_test,  y_train, y_test, x_val, y_val, modified_labelencoder_classes, y_train_labels
 
 def export_recall_latex(true_labels, predicted_labels, label_encoder): 
     # Calculate the recall for each class
@@ -276,7 +350,7 @@ def export_recall_latex(true_labels, predicted_labels, label_encoder):
     latex_table = "\\begin{tabular}{|c|c|}\n\\hline\nClass & Recall \\\\\n\\hline\n"
 
     for i, recall in enumerate(recall_values):
-        class_decoded = label_encoder.inverse_transform([i])
+        class_decoded = label_encoder([i])
         latex_table += f"Class {class_decoded} & {recall:.2f} \\\\\n"
 
     latex_table += "\\hline\n\\end{tabular}"
@@ -384,7 +458,6 @@ def plot_wall_time_series(generated_lc, cls=[], data_real=None, color='vlue',
     image  = image.reshape(fig.canvas.get_width_height()[::-1] + (3,))
     return fig, image
 
-
 ## return number of trainable parameters in the model
 def count_parameters(model):
     """Calculate the number of trainable parameters of a Pytorch moel.
@@ -400,7 +473,6 @@ def count_parameters(model):
         Number of trainable parameters
     """
     return sum(p.numel() for p in model.parameters() if p.requires_grad)
-
 
 ## convert time delta to days, hors and minuts
 def days_hours_minutes(dt):
@@ -428,7 +500,6 @@ def days_hours_minutes(dt):
     m = (totsec%3600) // 60
     sec =(totsec%3600)%60 #just for reference
     return d, h, m, sec
-
 
 ## normalize light curves
 def normalize_each(data, norm_time=False, scale_to=[0, 1], n_feat=3):
@@ -475,7 +546,6 @@ def normalize_each(data, norm_time=False, scale_to=[0, 1], n_feat=3):
                     normed[i, :, f] = normed[i, :, f] * \
                         (scale_to[1] - scale_to[0]) + scale_to[0]
     return normed
-
 
 
 ## normalize light curves
@@ -526,7 +596,6 @@ def normalize_glob(data, norm_time=False, scale_to=[0, 1], n_feat=3):
                         (scale_to[1] - scale_to[0]) + scale_to[0]
     return normed
 
-
 ## convert MJD to delta t
 def return_dt(data, n_feat=3):
     """Return delta times from a sequence of observation times. 
@@ -547,7 +616,6 @@ def return_dt(data, n_feat=3):
     data[:,:,0] = [x-z for x, z in zip(data[:,:,0],
                                        np.min(data[:,:,0], axis=1))]
     return data
-
 
 def plot_latent_space(z, y=None):
     """Creates a joint plot of features, used during training, figures
@@ -658,7 +726,6 @@ def load_model_list(ID='zg3r4orb', device='cuda:0'):
     fname = glob.glob('%s/wandb/run-*-%s/VAE_model_*.pt' % (path, ID))[0]
     print(fname)
     config_f = glob.glob('%s/wandb/run-*-%s/config.yaml' % (path, ID))[0]
-    #print(config_f)
     with open(config_f, 'r') as f:
         conf = yaml.safe_load(f)
     conf = {k: v['value'] for k,v in conf.items() if 'wandb' not in k}
@@ -668,7 +735,6 @@ def load_model_list(ID='zg3r4orb', device='cuda:0'):
     conf['date']   = aux[0] if len(aux) != 0 else ''
     conf['ID'] = ID
     
-    #print('Loading from... \n', fname)
     
     if conf['architecture'] == 'tcn':
         vae = VAE_TCN(latent_dim  = conf['latent_dim'],
@@ -778,9 +844,7 @@ params['date'], params['ID'])
         
     mu_df['class'] = labels
     std_df['class'] = labels
-    
-    print('mu_df.shape: ', mu_df.shape)
-    print('std_df.shape: ', std_df.shape)
+
     return mu_df, std_df
    
 def plot_wall_synthetic_lcs(lc_gen, cls=[], lc_gen2=None, save=False, wandb_active=False):
@@ -873,11 +937,8 @@ def plot_wall_lcs(lc_gen, lc_real, cls=[], lc_gen2=None, save=False, wandb_activ
     #    loaded_scaler = pickle.load(file)
 
     #original_data = loaded_scaler.inverse_transform(to_title.cpu().numpy())
-    print(column_to_sensivity)
     to_title_one = to_title[:,column_to_sensivity].cpu().numpy()
     to_title = to_title.cpu().numpy()
-    print(to_title_one)
-    print(sensivity)
 
     if len(cls) == 0:
         cls = [''] * len(lc_gen)
@@ -903,9 +964,7 @@ def plot_wall_lcs(lc_gen, lc_real, cls=[], lc_gen2=None, save=False, wandb_activ
         if cls[0] != '':
             ax.legend(loc='lower left')
         
-        print(to_title_one)
         try:
-            print(sensivity + ': ' + str(np.round(to_title_one[i],2)))
             ax.text(0.05, 0.95, sensivity + ': ' + str(np.round(to_title_one[i],3)),
             verticalalignment='top', horizontalalignment='left',
             transform=ax.transAxes, fontsize=10)
@@ -922,8 +981,7 @@ def plot_wall_lcs(lc_gen, lc_real, cls=[], lc_gen2=None, save=False, wandb_activ
 
     title = ", ".join([f"{all_columns[i]}: {np.round(to_title[0, i], 2)}" 
                    for i in range(len(all_columns)) if i != column_to_sensivity])
-    print(title)
-    print(to_title)
+
     fig.suptitle(title, fontsize=20, y=0.9)
     fig.subplots_adjust(hspace=0, wspace=0)
     axis[0,0].invert_yaxis()
@@ -931,6 +989,97 @@ def plot_wall_lcs(lc_gen, lc_real, cls=[], lc_gen2=None, save=False, wandb_activ
     if save:
         feature = str(sensivity).replace('[', '').replace(']','').replace('_','').replace('/','')
         plt.savefig(PATH_FIGURES+'/recon_lc_'+reg_conf_file['model_parameters']['ID']+'_'+str(cls[0])+'_'+feature+'.pdf', format='pdf', bbox_inches='tight')
+    elif wandb_active:
+        wandb.init(project="cnn-pelsvae")
+        wandb.log({"test": plt})
+        wandb.finish()
+    else: 
+        plt.show()
+    return 
+
+def plot_wall_lcs_sampling(lc_gen, lc_real, cls=[], lc_gen2=None, save=False, wandb_active=False, 
+                to_title=None, sensivity=None, column_to_sensivity=None, all_columns=[]):
+    """Creates a wall of light curves plot with real and reconstruction
+    sequences, paper-ready.
+
+    Parameters
+    ----------
+    lc_gen  : numpy array
+        light curves generated by the VAE model
+    lc_real : numpy array
+        real light curves overlayed in the plot
+    cls     : list, optional
+        list with corresponding lables to be displayed as legends
+    lc_gen2 : numpy array, optional
+        array with second set of generated light curves if desired
+    save    : bool, optional
+        wheather to save or not the figure
+        
+    Returns
+    -------
+        display figure
+    """
+
+    #with open('models/' + reg_conf_file['model_parameters']['ID']+'_minmax_scaler.pkl', 'rb') as file:
+    #    loaded_scaler = pickle.load(file)
+
+    #original_data = loaded_scaler.inverse_transform(to_title.cpu().numpy())
+    to_title_one = to_title[:,column_to_sensivity].cpu().numpy()
+    to_title = to_title.cpu().numpy()
+
+
+    if len(cls) == 0:
+        cls = [''] * len(lc_gen)
+    plt.close()
+    fig, axis = plt.subplots(nrows=8, ncols=3, 
+                             figsize=(16,14),
+                             sharex=True, sharey=True)
+    
+    for i, ax in enumerate(axis.flat):
+        ax.errorbar(lc_real[i, :, 0],
+                    lc_real[i, :, 1],
+                    fmt='.', c='gray', alpha=.5)
+
+        ax.errorbar(lc_gen[i, :, 0],
+                    lc_gen[i, :, 1], 
+                    yerr=None,
+                    fmt='.', c='royalblue', label=cls[i])
+        if lc_gen2 is not None:
+            ax.errorbar(lc_gen2[i, :, 0],
+                        lc_gen2[i, :, 1], 
+                        yerr=None,
+                        fmt='.', c='g', alpha=.7)
+        if cls[0] != '':
+            ax.legend(loc='lower left')
+        
+        try:
+            #print(sensivity + ': ' + str(np.round(to_title_one[i],2)))
+            title = ", ".join([f"{all_columns[j]}: {np.round(to_title[i, j], 2)}" 
+                   for j in range(len(all_columns))])
+
+            ax.text(0.05, 0.95, title,
+            verticalalignment='top', horizontalalignment='left',
+            transform=ax.transAxes, fontsize=6)
+        except Exception as error:
+            raise(error)
+
+
+    axis[-1,1].set_xlabel('Phase', fontsize=20)
+    axis[4,0].set_ylabel('Normalized Magnitude', fontsize=20)
+    #mytitle = fig.suptitle('', fontsize=20, y=1.05)
+    if cls[0] != '':
+        ax.legend(loc='lower left')
+    
+
+    title = " Epoch"
+
+    fig.suptitle(title, fontsize=20, y=0.9)
+    fig.subplots_adjust(hspace=0, wspace=0)
+    axis[0,0].invert_yaxis()
+    print('saving: ', save)
+    if save:
+        feature = str(sensivity).replace('[', '').replace(']','').replace('_','').replace('/','')
+        plt.savefig(PATH_FIGURES+'/epoch_recon_lc_'+reg_conf_file['model_parameters']['ID']+'_'+str(cls[0])+'_'+feature+'.pdf', format='pdf', bbox_inches='tight')
     elif wandb_active:
         wandb.init(project="cnn-pelsvae")
         wandb.log({"test": plt})
@@ -994,7 +1143,6 @@ def revert_light_curve(period, folded_normed_light_curve, faintness=1.0, classes
     num_sequences = folded_normed_light_curve.shape[0]
     reverted_light_curves = []
     time_sequences = get_time_sequence(n=num_sequences)
-
     for i in range(num_sequences):
         # Extract the time (period) and magnitude values from the folded and normed light curve
         time = folded_normed_light_curve[i,:,0]
@@ -1033,11 +1181,8 @@ def revert_light_curve(period, folded_normed_light_curve, faintness=1.0, classes
     
     reverted_light_curves = np.stack(reverted_light_curves)
 
-    print(reverted_light_curves.shape)
     reverted_light_curves = np.swapaxes(reverted_light_curves, 1, 2)
-    print(reverted_light_curves.shape)
-    reverted_light_curves = reverted_light_curves[:, :, :100]
-    print(reverted_light_curves.shape)
+    reverted_light_curves = reverted_light_curves[:, :, :200]
     return reverted_light_curves
 
 def apply_sensitivity(array, column, a_percentage=20):
@@ -1071,7 +1216,7 @@ def add_perturbation(array, column = 0, scale=0.01):
     Returns:
         numpy.ndarray: A new array with perturbation added.
     """
-    print(array)
+
     perturbation = (1.0+scale) * np.random.randn(*array.shape).astype(np.float32)
     print('Perturbation mean: ', perturbation.mean())
     perturbed_array = array + perturbation
@@ -1097,13 +1242,11 @@ def get_time_sequence(n=1, star_class='RRLYR'):
     path_train = PATH_FEATURES_TRAIN
     # Read the light curve data from the file
     lc_train = pd.read_table(path_train, sep=',')
-    # Sample 'n' objects randomly from the data
-    # Convert 'filename' column into four separate columns
+
     lc_train[['SURVEY', 'FIELD', 'CLASS', 'NUMBER']] = lc_train['ID'].str.split('-', expand=True)
     lc_train['NUMBER'] = lc_train['NUMBER'].str.replace('.dat', '')
 
     base_lcs = lc_train[lc_train.CLASS==star_class].sample(n)['ID'].to_list()    
-
     # Initialize an empty list to store time sequences
     time_sequences = []
     # Loop through each sampled object to read its light curve data
@@ -1113,7 +1256,6 @@ def get_time_sequence(n=1, star_class='RRLYR'):
                    '/' + lc.split('-')[2].lower() + '/phot/I/' + lc)
         # Read the light curve data from the file
         lcu = pd.read_table(path_lc, sep=" ", names=['time', 'magnitude', 'error'])
-        
         # Check if the time sequence is monotonic increasing
         if not lcu['time'].is_monotonic_increasing:
             # If not, remove problematic elements to make it monotonically increasing
@@ -1174,7 +1316,9 @@ def get_time_from_period(period, phased_time,  example_sequence, sequence_length
         k_min = np.min(example_sequence) / period
         k_max = np.max(example_sequence) / period
     else:
-        raise ValueError("example_sequence is empty, cannot perform min/max operations.")
+        k_min =  450
+        k_max =  3000
+        #raise ValueError("example_sequence is empty, cannot perform min/max operations.")
 
     if isinstance(k_min, np.ndarray):
         k_min = torch.tensor(k_min).to(period.device)
@@ -1254,6 +1398,14 @@ def save_arrays_to_folder(array1, array2, folder_path):
     """
     if not os.path.exists(folder_path):
         raise ValueError("The folder_path is not a valid directory.")
+
+
+    if isinstance(array1, torch.Tensor):
+        if array1.is_cuda:
+           array1 = array1.cpu()
+    if isinstance(array2, torch.Tensor):
+        if array2.is_cuda:
+           array2 = array2.cpu()  
 
     # Create filenames for the two arrays
     array1_filename = os.path.join(folder_path, "x_batch_pelsvae.npy")

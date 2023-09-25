@@ -52,13 +52,11 @@ def main(train_gmm: Optional[bool] = False, create_samples: Optional[bool] = Tru
     if train_gmm:
         print('Fitting Gaussian mixture models') 
         #TODO: adapt to consider different lenth of features
-        bgmm.fit_gausians(mean_prior_dict, columns=PP_list+['Type'])
+        bgmm.fit_gausians(mean_prior_dict, columns= ['Type','Period', 'teff_val', '[Fe/H]_J95', 'abs_Gmag', 'radius_val', 'logg'])
         print('Gaussian were fitted')
 
     if train_classifier: 
-        #TODO  create a dict to link model with set of parameters
-        cnn.run_cnn(create_samples, mean_prior_dict=mean_prior_dict, 
-                    mode_running='load', vae_model=vae_model, PP=PP_list)
+        cnn.run_cnn(create_samples, mean_prior_dict=mean_prior_dict, vae_model=vae_model, PP=PP_list, opt_method='twolosses')
     
 if __name__ == "__main__": 
     main(train_gmm = False, create_samples = True, 

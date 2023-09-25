@@ -195,7 +195,7 @@ class VAE_TCN(nn.Module):
         Then, the resulting vector is expanded to match the sequence length,
         there are three methods to do this, using a linear layer, transpose
         convolutions, or repeat vetor (recommended).
-
+False
         Parameters
         ----------
         z     : tensor

@@ -1,7 +1,16 @@
 import pickle
 import numpy as np
 from typing import Any, List
+import yaml
+
+
 np.set_printoptions(precision=4)
+
+with open('src/nn_config.yaml', 'r') as file:
+    nn_config = yaml.safe_load(file)
+
+ITERATIONS_MH: int = nn_config['sampling']['iterations']
+BURNIN_MH: int = nn_config['sampling']['burnin']
 
 class ModifiedGaussianSampler:
     def __init__(self, b: float = 0.5, components: int = 3, features: int = 3) -> None:
@@ -29,18 +38,18 @@ class ModifiedGaussianSampler:
         return selected_component_index
     
 
-    def metropolis_hasting(self, n_samples: int = 5, iterations: int = 1000, burn_in: int = 500) -> np.ndarray:
+    def metropolis_hasting(self, n_samples: int = 5) -> np.ndarray:
         """
         Metropolis-Hastings algorithm for sampling from a distribution q(x).
     
         Parameters:
         n_samples (int): The number of samples to return.
-        iterations (int): The total number of iterations to perform.
-        burn_in (int): The number of initial samples to discard.
 
         Returns:
         np.ndarray: An array of samples from the distribution.
         """
+        iterations: int = ITERATIONS_MH
+        burn_in: int = BURNIN_MH
         samples: List[np.ndarray] = []
         selected_component_index = self.randomly_select_component()
         selected_mean = self.model.means_[selected_component_index] + np.random.normal(0, 0.1, size=len(self.features))
@@ -62,6 +71,6 @@ class ModifiedGaussianSampler:
     def modify_and_sample(self, path: str, n_samples=5) -> np.ndarray:
         self.load_p(path)
         print('Model loaded: ', self.model)
-        samples = self.metropolis_hasting(n_samples=n_samples, iterations=100000, burn_in=500 )
+        samples = self.metropolis_hasting(n_samples=n_samples)
         return samples
 

@@ -92,65 +92,46 @@ def get_synthetic_light_curves(samples: np.ndarray, z_hat: np.ndarray, training_
     print('cuda: ', torch.cuda.is_available())
     print('model: ', ID)
     vae, config = load_model_list(ID=ID, device=device)
-    if training_cnn:
-        pass
-    else:
-        dataset = prepare_dataset(config)
-        df_columns = dataset.phy_names
-        
-        #num_cls = dataset.labels_onehot.shape[1]
-        #dataloader, _ = dataset.get_dataloader(batch_size=100, 
-        #                                   test_split=0., shuffle=False)
 
-    #mu, std = evaluate_encoder(vae, dataloader, config, 
-    #                        n_classes=num_cls, force=False)
-         
-    if training_cnn: 
-        pass
-    else:
-        #examples = []
-        meta_aux = dataset.meta.reset_index()
-        print(meta_aux)
-
-        first_key = list(objects_by_class.keys())[0]
-        first_value = objects_by_class[first_key]
-        print(dataset.phy_names)
-        
-        if sensivity is None:
-            aux = meta_aux.query('Type == "%s"' % first_key).sample(first_value)        
-        else: 
-            aux = meta_aux.query('Type == "%s"' % first_key).sample(1)
-
-        print(aux)
-        data, lb, onehot, pp = dataset[aux.index]
-        print(onehot.shape)
-        print(pp.shape)
-        print(lb.shape)
-        print(data[:,:,0].shape) 
+    dataset = prepare_dataset(config)
+    df_columns = dataset.phy_names
     
-        if sensivity is None: 
-            pass
-        else:
-            data = np.tile(data[0], (24, 1, 1))
-            lb = np.tile(lb[0], (24,))
-            onehot = np.tile(onehot[0], (24, 1))
-            pp = np.tile(aux[dataset.phy_names].values, (24, 1))
-                
-        if sensivity is None:
-            pass
-        
-        else:
-            print('conducting sensivity on: ' + sensivity)
-            column_to_sensivity = dataset.phy_names.index(sensivity)
-            pp = apply_sensitivity(pp, column = column_to_sensivity, a_percentage=20)
-            mu_ = reg.process_regressors(reg_conf_file, phys2=dataset.phy_names, samples= pp, 
-                                        from_vae=False, train_rf=False)
-            mu_ = torch.from_numpy(mu_).to(device)
+    #examples = []
+    meta_aux = dataset.meta.reset_index()
+
+    first_key = list(objects_by_class.keys())[0]
+    first_value = objects_by_class[first_key]
+    
+    if sensivity is None:
+        aux = meta_aux.query('Type == "%s"' % first_key).sample(first_value)        
+    else: 
+        aux = meta_aux.query('Type == "%s"' % first_key).sample(1)
+
+    data, lb, onehot, pp = dataset[aux.index]
+
+    if sensivity is None: 
+        pass
+    else:
+        data = np.tile(data[0], (24, 1, 1))
+        lb = np.tile(lb[0], (24,))
+        onehot = np.tile(onehot[0], (24, 1))
+        pp = np.tile(aux[dataset.phy_names].values, (24, 1))
+            
+    if sensivity is None:
+        pass
+    
+    else:
+        print('conducting sensivity on: ' + sensivity)
+        column_to_sensivity = dataset.phy_names.index(sensivity)
+        pp = apply_sensitivity(pp, column = column_to_sensivity, a_percentage=20)
+        mu_ = reg.process_regressors(reg_conf_file, phys2=dataset.phy_names, samples= pp, 
+                                    from_vae=False, train_rf=False)
+        mu_ = torch.from_numpy(mu_).to(device)
 
 
-        data = torch.from_numpy(data).to(device)
-        onehot = torch.from_numpy(onehot).to(device)
-        pp = torch.from_numpy(pp).to(device)
+    data = torch.from_numpy(data).to(device)
+    onehot = torch.from_numpy(onehot).to(device)
+    pp = torch.from_numpy(pp).to(device)
 
     print('device: ', device)
     print('torch assigned')
@@ -178,11 +159,6 @@ def get_synthetic_light_curves(samples: np.ndarray, z_hat: np.ndarray, training_
                 # Apply copula model to u
                 copula_loss = -copula_dist.log_prob(u)  # Negative log-likelihood
 
-        print(mu_.dtype)
-        print(type(mu_.shape))
-        print(data[:,:,0].dtype)
-        print(onehot.dtype)
-        print(pp.dtype)
         xhat_mu = vae.decoder(mu_, data[:,:,0], label=onehot, phy=pp)
     elif config['label_dim'] > 0 and config['physics_dim'] == 0:
         _, mu_, _, _, cop_loss = vae(data, label=onehot)

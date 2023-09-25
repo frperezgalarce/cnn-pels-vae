@@ -16,8 +16,11 @@ from typing import Union, Tuple, Optional, Any, Dict, List
 import yaml 
 import src.gmm.modifiedgmm as mgmm
 import src.sampler.fit_regressor as reg
-import src.sampler.create_lc as creator
+#import src.sampler.create_lc as creator
 import src.utils as utils
+import pickle 
+from sklearn.preprocessing import LabelEncoder, OneHotEncoder
+import time 
 
 with open('src/nn_config.yaml', 'r') as file:
     nn_config = yaml.safe_load(file)
@@ -53,9 +56,9 @@ def print_grad_norm(grad: torch.Tensor) -> None:
 class CNN(nn.Module):
     def __init__(self, num_classes: int = 2) -> None:
         super(CNN, self).__init__()
-        self.conv1 = nn.Conv1d(in_channels=2, out_channels=128, kernel_size=6, stride=4, groups=1)
-        self.conv2 = nn.Conv1d(in_channels=128, out_channels=64, kernel_size=6, stride=4, groups=1)
-        self.fc1 = nn.Linear(64*5, 100)
+        self.conv1 = nn.Conv1d(in_channels=2, out_channels=256, kernel_size=6, stride=4, groups=1)
+        self.conv2 = nn.Conv1d(in_channels=256, out_channels=128, kernel_size=6, stride=4, groups=1)
+        self.fc1 = nn.Linear(128*5, 100)
         self.fc2 = nn.Linear(100, num_classes)
 
     def forward(self, x: torch.Tensor, verbose: bool = False) -> torch.Tensor:
@@ -165,18 +168,24 @@ def create_synthetic_batch(mean_prior_dict: dict,
     lb: List[str] = []
     onehot: np.ndarray = np.empty((0, len(CLASSES)), dtype=np.float32)
 
-    for star_class in CLASSES:
+    with open(PATH_MODELS+'label_encoder_vae.pkl', 'rb') as f:
+        label_encoder = pickle.load(f)
+
+    with open('src/nn_config.yaml', 'r') as file:
+        nn_config = yaml.safe_load(file)
+
+    for star_class in list(nn_config['data']['classes']):
         print('------- sampling ' +star_class+'---------')
         lb += [star_class] * n_samples
-        position = 2  # For demonstration, placing 'one' at index 2 for all K vectors
-        one_hot_vector = np.zeros(len(CLASSES), dtype=np.float32)
-        one_hot_vector[position] = 1
-        
-        # Replicate the one-hot encoder K times
-        replicated_one_hot_vectors = np.tile(one_hot_vector, (n_samples, 1))
-        
-        # Vertically stack the new one-hot vectors with the existing array
-        onehot = np.vstack((onehot, replicated_one_hot_vectors))
+
+        integer_encoded = label_encoder.transform(lb)
+        n_values = len(label_encoder.classes_)
+        onehot = np.eye(n_values)[integer_encoded]
+
+        encoded_labels, _ = utils.transform_to_consecutive(integer_encoded, label_encoder)
+        n_values = len(np.unique(encoded_labels))
+        onehot_to_train = np.eye(n_values)[encoded_labels]
+
 
         components = count_subclasses(mean_prior_dict['StarTypes'][star_class])
         print(star_class +' includes '+ str(components) +' components ')
@@ -198,12 +207,14 @@ def create_synthetic_batch(mean_prior_dict: dict,
         else: 
             all_classes_samples = samples
 
-    print(all_classes_samples.shape)
+
+
     print('cuda: ', torch.cuda.is_available())
     print('model: ', vae_model)
 
     times = [i/600 for i in range(600)]
-    times = np.tile(times, (128, 1))
+    times = np.tile(times, (n_samples*len(list(nn_config['data']['classes'])), 1))
+    
 
     pp = all_classes_samples
     columns = ['Period', 'teff_val', '[Fe/H]_J95', 'abs_Gmag', 'radius_val', 'logg']
@@ -214,28 +225,46 @@ def create_synthetic_batch(mean_prior_dict: dict,
     onehot = np.array(onehot)  
     lb = np.array(lb)  
     times = np.array(times)  
-
     mu_ = torch.from_numpy(mu_).to(device)
     onehot = torch.from_numpy(onehot).to(device)
     pp = torch.from_numpy(pp).to(device)
     times = torch.from_numpy(times).to(device)
     times = times.to(dtype=torch.float32)
-
     vae, _ = load_model_list(ID=vae_model, device=device)
-    
     xhat_mu = vae.decoder(mu_, times, label=onehot, phy=pp)
+
+    #utils.get_time_sequence()
+    #times2 = utils.get_time_from_period(period, phased_time,  example_sequence, sequence_length=600)
+
+
     xhat_mu = torch.cat([times.unsqueeze(-1), xhat_mu], dim=-1).cpu().detach().numpy()
+    indices = np.random.choice(xhat_mu.shape[0], 24, replace=False)
+    sampled_arrays = xhat_mu[indices, :, :]
+
+    utils.plot_wall_lcs_sampling(sampled_arrays, sampled_arrays,  cls=lb[indices],  column_to_sensivity=index_period,
+                            to_title = pp[indices], sensivity = 'Period', all_columns=columns, save=True) 
+
     lc_reverted = utils.revert_light_curve(pp[:,index_period], xhat_mu, classes = lb)
-    print('saving data ', lc_reverted.shape)
 
-    labels = np.random.choice([0, 1, 2], size=128)
+    reverted_sample_array = lc_reverted[indices, :, :]
+    reverted_sample_array = np.swapaxes(reverted_sample_array, 2, 1)
 
-    utils.save_arrays_to_folder(lc_reverted, labels , PATH_DATA)
+    utils.plot_wall_lcs_sampling(reverted_sample_array, reverted_sample_array,  cls=lb[indices], save=True,  column_to_sensivity=index_period,
+                            to_title = pp[indices], sensivity = 'Period', all_columns=columns) 
+
+    # Sort by time, which is assumed to be the first channel (axis=1, index=0)
+    lc_reverted = np.sort(lc_reverted, axis=-1)
+
+    # Calculate differences in sorted time and magnitude, axis=-1 for the last dimension (100 points)
+    lc_reverted = np.diff(lc_reverted, axis=-1)
+
+    # Here, for demonstration, I just take the first 95 of the 24 you sampled
+    lc_reverted = lc_reverted[:, :, :100]
+
+    utils.save_arrays_to_folder(lc_reverted, onehot_to_train , PATH_DATA)
     numpy_array_x = np.load(PATH_DATA+'/x_batch_pelsvae.npy', allow_pickle=True)
     numpy_array_y = np.load(PATH_DATA+'/y_batch_pelsvae.npy', allow_pickle=True)
 
-    print(numpy_array_x.shape)
-    print(numpy_array_y.shape)
     synth_data = move_data_to_device((numpy_array_x, numpy_array_y), device)
     synthetic_dataset = TensorDataset(*synth_data)
     train_dataloader = DataLoader(synthetic_dataset, batch_size=64, shuffle=True)
@@ -247,12 +276,127 @@ def move_data_to_device(data, device):
 
 def evaluate_and_plot_cm(model, x_data, y_data, label_encoder, title):
     outputs = model(x_data)
-    _, predicted = torch.max(outputs.data.cpu(), 1)
-    cm = confusion_matrix(y_data.cpu(), predicted.cpu(), normalize='true')
-    plot_cm(cm, label_encoder.classes_, title=title)
-    export_recall_latex(y_data.cpu(), predicted, label_encoder)
+    _, predicted = torch.max(outputs.data, 1)  # Already on the same device as outputs
+
+    # Check if y_data is one-hot encoded and convert to label encoding if it is
+    if len(y_data.shape) > 1 and y_data.shape[1] > 1:
+        y_data = torch.argmax(y_data, dim=1)
+
+    # Move to CPU
+    y_data_cpu = y_data.cpu()
+    predicted_cpu = predicted.cpu()
+
+    # Compute confusion matrix
+    try:
+        cm = confusion_matrix(y_data_cpu, predicted_cpu, normalize=None)
+    except ValueError as e:
+        print(f"An error occurred: {e}")
+        print(f"y_data shape: {y_data_cpu.shape}, predicted shape: {predicted_cpu.shape}")
+        return None
+
+    plot_cm(cm, label_encoder, title=title)
+    #export_recall_latex(y_data_cpu, predicted_cpu, label_encoder)
     return cm
 
+
+def train_one_epoch_alternative(
+        model: torch.nn.Module, 
+        criterion: Module,  # Here
+        optimizer: Optimizer, 
+        dataloader: DataLoader, 
+        device: torch.device, 
+        mode: str = 'oneloss', 
+        criterion_2: Optional[Module] = None,  # And here
+        dataloader_2: Optional[DataLoader] = None, 
+        optimizer_2: Optional[Optimizer] = None
+    ) -> float:    
+    
+    #print('Running epoch')
+    running_loss = 0.0
+    start_time = time.time()
+    num_batches = 0
+
+    if mode=='oneloss':
+        for inputs, labels in dataloader:
+            num_batches += 1
+            inputs, labels = inputs.to(device), labels.to(device)
+            optimizer.zero_grad()
+            outputs = model(inputs)
+            _, labels_indices = torch.max(labels, 1)  # Convert one-hot to indices
+            loss = criterion(outputs, labels_indices)
+            loss.backward(retain_graph=True)
+            torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=2.0, norm_type=2)
+
+            optimizer.step()
+            running_loss += loss.item()
+            if num_batches % 50 == 0:  # log every 10 batches
+                avg_loss = running_loss / num_batches
+                elapsed_time = time.time() - start_time
+                print(f'Avg. Loss: {avg_loss:.4f}, Elapsed Time: {elapsed_time:.4f} seconds')
+        return running_loss
+    
+    elif mode=='twolosses':
+        if criterion_2 is None or dataloader_2 is None or optimizer_2 is None:
+            raise ValueError("For 'twolosses' mode, criterion_2, dataloader_2, and optimizer_2 must be provided.")
+        for param in model.parameters():
+            param.requires_grad = True
+        
+        EPS1 = 0.2
+        learning_rate = 0.001
+        loss_prior = torch.tensor(0)
+        optimizer = torch.optim.Adam(model.parameters(), lr=learning_rate)  
+        optimizer_prior = torch.optim.Adam(model.parameters(), lr=0.5*learning_rate)
+        locked_masks2 = {n: (torch.abs(w) >= EPS1) | (n.endswith('bias'))  for n, w in model.named_parameters()}
+        locked_masks = {n: torch.abs(w) <EPS1 for n, w in model.named_parameters()}       
+        running_loss = 0.0
+        running_loss_prior = 0.0
+        
+        for inputs, labels in dataloader:
+            num_batches += 1
+            inputs, labels = inputs.to(device), labels.to(device)
+            optimizer.zero_grad()
+            outputs = model(inputs)
+            _, labels_indices = torch.max(labels, 1)  # Convert one-hot to indices
+            loss = criterion(outputs, labels_indices)
+            loss.backward(retain_graph=True)
+            torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=2.0, norm_type=2)
+            optimizer.step()
+            running_loss += loss.item()
+            for n, w in model.named_parameters():                                                                                                                                                              
+                if w.grad is not None and n in locked_masks2:                                                                                                                                                                                   
+                    w.grad[locked_masks2[n]] = 0.0                                                             
+            optimizer.step()
+            optimizer.zero_grad()  
+            running_loss += loss.item()   
+            '''if num_batches % 50 == 0:  # log every 10 batches
+                avg_loss = running_loss / num_batches
+                elapsed_time = time.time() - start_time
+                print(f'Avg. Loss real light curves: {avg_loss:.4f}, Elapsed Time: {elapsed_time:.4f} seconds')'''
+
+        
+        num_batches = 0
+        for inputs_2, labels_2 in dataloader_2:
+            num_batches += 1
+            inputs, labels = inputs_2.to(device), labels_2.to(device)
+            optimizer_prior.zero_grad()
+            outputs = model(inputs)
+            _, labels_indices = torch.max(labels, 1)  # Convert one-hot to indices
+            loss_prior = criterion(outputs, labels_indices)
+            loss_prior.backward(retain_graph=True)
+            torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=2.0, norm_type=2)
+            optimizer_prior.step()
+            running_loss += loss_prior.item()
+            for n, w in model.named_parameters():                                                                                                                                                              
+                if w.grad is not None and n in locked_masks:                                                                                                                                                                                   
+                    w.grad[locked_masks[n]] = 0.0                                                             
+            running_loss_prior += loss_prior.item()
+            '''if num_batches % 2 == 0:  # log every 10 batches
+                avg_loss = running_loss_prior / num_batches
+                elapsed_time = time.time() - start_time
+                print(f'Avg. Loss synthetic samples: {avg_loss:.4f}, Elapsed Time: {elapsed_time:.4f} seconds')'''
+            
+        return running_loss
+  
 def train_one_epoch(
         model: torch.nn.Module, 
         criterion: Module,  # Here
@@ -265,46 +409,80 @@ def train_one_epoch(
         optimizer_2: Optional[Optimizer] = None
     ) -> float:    
     
+    print('Running epoch')
     running_loss = 0.0
+    start_time = time.time()
+    num_batches = 0
+
     if mode=='oneloss':
         for inputs, labels in dataloader:
+            num_batches += 1
             inputs, labels = inputs.to(device), labels.to(device)
             optimizer.zero_grad()
             outputs = model(inputs)
-            loss = criterion(outputs, labels)
-            loss.backward()
+            _, labels_indices = torch.max(labels, 1)  # Convert one-hot to indices
+            loss = criterion(outputs, labels_indices)
+            loss.backward(retain_graph=True)
+            torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=2.0, norm_type=2)
             optimizer.step()
             running_loss += loss.item()
+            if num_batches % 50 == 0:  # log every 10 batches
+                avg_loss = running_loss / num_batches
+                elapsed_time = time.time() - start_time
+                print(f'Avg. Loss: {avg_loss:.4f}, Elapsed Time: {elapsed_time:.4f} seconds')
 
-    elif mode=='twolosses':
+    start_time = time.time()
+    num_batches = 0
+    if mode=='twolosses':
         if criterion_2 is None or dataloader_2 is None or optimizer_2 is None:
             raise ValueError("For 'twolosses' mode, criterion_2, dataloader_2, and optimizer_2 must be provided.") 
-
-        for (inputs_1, labels_1), (inputs_2, labels_2) in zip(dataloader, dataloader_2):
-            
+        
+        running_loss_1 = 0
+        for inputs_1, labels_1 in dataloader:
+            num_batches += 1
             # Forward pass for dataloader 1
             inputs_1, labels_1 = inputs_1.to(device), labels_1.to(device)
             outputs_1 = model(inputs_1)
-            loss_1 = criterion(outputs_1, labels_1)
-            
-            # Forward pass for dataloader 2
-            inputs_2, labels_2 = inputs_2.to(device), labels_2.to(device)
-            outputs_2 = model(inputs_2)
-            loss_2 = criterion_2(outputs_2, labels_2)
+            _, labels_1_indices = torch.max(labels_1, 1) 
+            loss_1 = criterion(outputs_1, labels_1_indices)
             
             # Backward pass and optimization for parameters designated to loss_1
             optimizer.zero_grad()
-            loss_1.backward(retain_graph=True)
+            loss_1.backward()
             optimizer.step()
+
+            running_loss_1 += loss_1.item()
+
+            if num_batches % 50 == 0:  # log every 10 batches
+                avg_loss = running_loss_1 / num_batches
+                elapsed_time = time.time() - start_time
+                print(f'Avg. Loss real light curves: {avg_loss:.4f}, Elapsed Time: {elapsed_time:.4f} seconds')
+        
+        num_batches = 0
+        running_loss_2 = 0
+
+        for inputs_2, labels_2 in dataloader_2:
+            num_batches += 1
+            # Forward pass for dataloader 2
+            inputs_2, labels_2 = inputs_2.to(device), labels_2.to(device)
+            outputs_2 = model(inputs_2)
+            _, labels_2_indices = torch.max(labels_2, 1) 
+            loss_2 = criterion_2(outputs_2, labels_2_indices)
+
 
             # Backward pass and optimization for parameters designated to loss_2
             optimizer_2.zero_grad()
             loss_2.backward()
             optimizer_2.step()
 
-            running_loss += loss_1.item() + loss_2.item()
+            running_loss_2 += loss_2.item()
 
-    return running_loss
+        avg_loss = running_loss_2 / num_batches
+        elapsed_time = time.time() - start_time
+        print(f'Avg. Loss Synthetic samples: {avg_loss:.4f}, Elapsed Time: {elapsed_time:.4f} seconds')
+        running_loss = running_loss_1 + running_loss_2
+    return running_loss 
+  
 
 def evaluate(model, data, criterion, device):
     inputs, labels = data
@@ -314,7 +492,6 @@ def evaluate(model, data, criterion, device):
         predicted = torch.max(outputs, 1)[1]
         accuracy = (predicted == labels).sum().item() / len(labels)
     return loss, accuracy
-
 
 def evaluate_dataloader(model, dataloader, criterion, device):
     """
@@ -346,15 +523,16 @@ def evaluate_dataloader(model, dataloader, criterion, device):
             outputs = model(inputs)
             
             # Calculate loss
-            loss = criterion(outputs, labels)
+            _, labels_indices = torch.max(labels, 1)  # Convert one-hot to indices
+            loss = criterion(outputs, labels_indices)
             
             # Calculate predictions
             predicted = torch.max(outputs, 1)[1]
             
             # Update statistics
             total_loss += loss.item() * len(labels)
-            total_correct += (predicted == labels).sum().item()
-            total_samples += len(labels)
+            total_correct += (predicted == labels_indices).sum().item()
+            total_samples += len(labels_indices)
 
     avg_loss = total_loss / total_samples
     avg_accuracy = total_correct / total_samples
@@ -368,29 +546,30 @@ def create_optimizers(model: nn.Module,
                       kk_conv2: int, 
                       kk_fc1: int, 
                       kk_fc2: int) -> Tuple[optim.Optimizer, optim.Optimizer]:
-    
+
+    for name, param in model.named_parameters():
+        print(name, param)
+
     params_group2 = [
         {"params": [model.module.conv1.weight[:kk_conv1].detach().requires_grad_(), model.module.conv1.bias[:kk_conv1].detach().requires_grad_()]},
         {"params": [model.module.conv2.weight[:kk_conv2].detach().requires_grad_(), model.module.conv2.bias[:kk_conv2].detach().requires_grad_()]},
-        {"params": [model.module.fc1.weight[:kk_fc1, :].detach().requires_grad_(), model.module.fc1.bias[:kk_fc1].detach().requires_grad_()]},
-        {"params": [model.module.fc2.weight[:kk_fc2, :].detach().requires_grad_(), model.module.fc2.bias[:kk_fc2].detach().requires_grad_()]},
+        {"params": [model.module.fc1.weight[:kk_fc1, :].detach().requires_grad_()]},
+        {"params": [model.module.fc2.weight[:kk_fc2, :].detach().requires_grad_()]},
     ]
 
     params_group1 = [
         {"params": [model.module.conv1.weight[kk_conv1:].detach().requires_grad_(), model.module.conv1.bias[kk_conv1:].detach().requires_grad_()]},
         {"params": [model.module.conv2.weight[kk_conv2:].detach().requires_grad_(), model.module.conv2.bias[kk_conv2:].detach().requires_grad_()]},
-        {"params": [model.module.fc1.weight[kk_fc1:, :].detach().requires_grad_(), model.module.fc1.bias[kk_fc1:].detach().requires_grad_()]},
-        {"params": [model.module.fc2.weight[kk_fc2:, :].detach().requires_grad_(), model.module.fc2.bias[kk_fc2:].detach().requires_grad_()]},
+        {"params": [model.module.fc1.weight[kk_fc1:, :].detach().requires_grad_(), model.module.fc1.bias.detach().requires_grad_()]},
+        {"params": [model.module.fc2.weight[kk_fc2:, :].detach().requires_grad_(), model.module.fc2.bias.detach().requires_grad_()]},
     ]
     
     optimizer1 = optim.Adam(params_group1, lr=0.001)
-    optimizer2 = optim.Adam(params_group2, lr=0.001)
+    optimizer2 = optim.Adam(params_group2, lr=0.000001)
     
     return optimizer1, optimizer2
 
-
-
-def run_cnn(create_samples: Any, mode_running: str = 'load', mean_prior_dict: Dict = None, 
+def run_cnn(create_samples: Any, mean_prior_dict: Dict = None, 
             vae_model=None, PP=[], opt_method='twolosses') -> None:
     """
     Main function to run a Convolutional Neural Network (CNN) for classification tasks.
@@ -406,7 +585,7 @@ def run_cnn(create_samples: Any, mode_running: str = 'load', mean_prior_dict: Di
     Returns:
     None
     """
-    #wandb.init(project='train-classsifier', entity='fjperez10')
+    wandb.init(project='train-classsifier', entity='fjperez10')
     print('#'*50)
     print('TRAINING CNN')
     print('#'*50)
@@ -415,38 +594,39 @@ def run_cnn(create_samples: Any, mode_running: str = 'load', mean_prior_dict: Di
     
 
     print('------ Data loading -------------------')
-    print('mode: ', mode_running)
-    x_train, x_test, y_train, y_test, x_val, y_val, label_encoder = get_data(sample_size=nn_config['data']['sample_size'], mode=mode_running)
-    classes = np.unique(y_train.numpy())
+    print('mode: ', nn_config['data']['mode_running'], nn_config['data']['sample_size'])
+    x_train, x_test, y_train, y_test, x_val, y_val, label_encoder, y_train_labeled = get_data(nn_config['data']['sample_size'],
+                                                                             nn_config['data']['mode_running'])
+    classes = np.unique(y_train_labeled.numpy())
     num_classes = len(classes)
+    print('num_classes: ', num_classes)
     model = setup_model(num_classes, device)
-    class_weights = compute_class_weight('balanced', classes, y_train.numpy())
+    
+    class_weights = compute_class_weight('balanced', np.unique(y_train_labeled.numpy()), y_train_labeled.numpy())
     class_weights = torch.tensor(class_weights).to(device, dtype=x_train.dtype)
     criterion = nn.CrossEntropyLoss(weight=class_weights)
-   #twolosses, oneloss
+    criterion_synthetic_samples = nn.CrossEntropyLoss()
 
     if opt_method == 'twolosses':
         print('Using mode: two masks')
-        kk_conv1 = 10  
-        kk_conv2 = 10   
+        kk_conv1 = 32  
+        kk_conv2 = 16   
         kk_fc1 = 30    
-        kk_fc2 = 30  
-        optimizer1, optimizer2 = create_optimizers(model, kk_conv1= kk_conv1, 
-                                                    kk_conv2= kk_conv2, 
-                                                    kk_fc1= kk_fc1, 
-                                                    kk_fc2= kk_fc2)
-    else: 
-        print('Using mode: classic bapckpropagation')
+        kk_fc2 = 1  
+        optimizer1, optimizer2 = create_optimizers(model, kk_conv1=kk_conv1, 
+                                                    kk_conv2=kk_conv2, 
+                                                    kk_fc1=kk_fc1, 
+                                                    kk_fc2=kk_fc2)
+    elif opt_method == 'oneloss':
+        print('Using mode: classic backpropagation')
         optimizer1 = torch.optim.Adam(model.parameters(), lr=0.001)
         optimizer2 = None
+    else:
+        raise ValueError(f"Unsupported optimization method: {opt_method}. Supported methods are 'twolosses' and 'oneloss'.")
 
-    print(x_train.shape)
-    print(y_train.shape)
 
     training_data = move_data_to_device((x_train, y_train), device)
     val_data = move_data_to_device((x_val, y_val), device)
-    #test_data = move_data_to_device((x_test, y_test), device)
-
 
     batch_size = nn_config['training']['batch_size']
     train_dataset = TensorDataset(*training_data)
@@ -456,12 +636,10 @@ def run_cnn(create_samples: Any, mode_running: str = 'load', mean_prior_dict: Di
     val_dataset = TensorDataset(*val_data)
     val_dataloader = DataLoader(val_dataset, batch_size=batch_size, shuffle=False)  # Typically we don't shuffle validation data
 
-    # For test data
-    #test_dataset = TensorDataset(*test_data)
-    #test_dataloader = DataLoader(test_dataset, batch_size=batch_size, shuffle=False)  # Typically we don't shuffle test data
-
     # Main training loop
     best_val_loss = float('inf')
+    harder_samples = True
+    threshold_acc_synthetic = 0.95
     no_improvement_count = 0
     train_loss_values = []
     val_loss_values = []
@@ -471,25 +649,40 @@ def run_cnn(create_samples: Any, mode_running: str = 'load', mean_prior_dict: Di
     patience =  nn_config['training']['patience']
 
     for epoch in range(epochs):
-        print(f"Starting epoch {epoch+1}/{epochs}")
-        if create_samples:
+        if opt_method=='twolosses' and create_samples and harder_samples: 
             print("Creating synthetic samples")
             synthetic_data_loader = create_synthetic_batch(mean_prior_dict, priors=False, PP = PP, vae_model=vae_model) #TODO:check
+            harder_samples = False
+        elif  opt_method=='twolosses' and create_samples: 
+            print("Using available synthetic data")
+            synthetic_data_loader = synthetic_data_loader
         else:
             print("Skipping synthetic sample creation")
             synthetic_data_loader = None
 
+
+        '''
         running_loss = train_one_epoch(model, criterion, optimizer1, train_dataloader, device, 
                                         mode = opt_method, 
-                                        criterion_2= criterion, 
+                                        criterion_2= criterion_synthetic_samples, 
                                         dataloader_2 = synthetic_data_loader,
                                         optimizer_2 = optimizer2)
-
-        #val_loss, accuracy_val = evaluate(model, val_data, criterion, device)
-        #_, accuracy_train = evaluate(model, training_data, criterion, device)
-
+        '''
+        running_loss = train_one_epoch_alternative(model, criterion, optimizer1, train_dataloader, device, 
+                                        mode = opt_method, 
+                                        criterion_2= criterion_synthetic_samples, 
+                                        dataloader_2 = synthetic_data_loader,
+                                        optimizer_2 = optimizer2)
+                                        
         val_loss, accuracy_val = evaluate_dataloader(model, val_dataloader, criterion, device)
         _, accuracy_train = evaluate_dataloader(model, train_dataloader, criterion, device)
+
+        try:
+            synthetic_loss, accuracy_train_synthetic =  evaluate_dataloader(model, synthetic_data_loader, criterion, device)
+            if accuracy_train_synthetic>threshold_acc_synthetic:
+                harder_samples = True
+        except: 
+            print('Sinthetic data loader is: ', synthetic_data_loader)
 
         train_loss_values.append(running_loss)
         val_loss_values.append(val_loss)
@@ -507,8 +700,10 @@ def run_cnn(create_samples: Any, mode_running: str = 'load', mean_prior_dict: Di
             print(f"Stopping early after {epoch + 1} epochs")
             break
 
-        #wandb.log({'epoch': epoch, 'loss': running_loss, 'val_loss': val_loss, 'val_accu': accuracy_val})
-
+        wandb.log({'epoch': epoch, 'loss': running_loss, 'accuracy_train':accuracy_train, 'synthetic_loss':synthetic_loss, 
+                'acc_synthetic_samples': accuracy_train_synthetic, 'val_loss': val_loss, 'val_accu': accuracy_val})
+        print('epoch:', epoch, ' loss:', running_loss, ' acc_train:', accuracy_train, ' synth_loss:',synthetic_loss, 
+                ' acc_synth:', accuracy_train_synthetic, ' val_loss', val_loss, ' val_accu:', accuracy_val)
     # Post-training tasks
     model.load_state_dict(best_model)
     plot_training(range(len(train_loss_values)), train_loss_values, val_loss_values, train_accuracy_values, val_accuracy_values)

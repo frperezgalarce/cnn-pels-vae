@@ -257,8 +257,8 @@ def create_synthetic_batch(mean_prior_dict: dict,
     reverted_sample_array = lc_reverted[indices, :, :]
     reverted_sample_array = np.swapaxes(reverted_sample_array, 2, 1)
 
-    utils.plot_wall_lcs_sampling(reverted_sample_array, reverted_sample_array,  cls=lb[indices], save=True,  column_to_sensivity=index_period,
-                            to_title = pp[indices], sensivity = 'Period', all_columns=columns) 
+    #utils.plot_wall_lcs_sampling(reverted_sample_array, reverted_sample_array,  cls=lb[indices], save=True,  column_to_sensivity=index_period,
+    #                        to_title = pp[indices], sensivity = 'Period', all_columns=columns) 
 
     # Sort by time, which is assumed to be the first channel (axis=1, index=0)
     lc_reverted = np.sort(lc_reverted, axis=-1)
@@ -285,7 +285,6 @@ def create_synthetic_batch(mean_prior_dict: dict,
                 one_hot_to_train_samples[4*i + j, :] = onehot_to_train[i].T
         utils.save_arrays_to_folder(lc_reverted_samples, one_hot_to_train_samples , PATH_DATA)
     else: 
-        print()
         utils.save_arrays_to_folder(lc_reverted[:,:,:100], onehot_to_train , PATH_DATA)
 
     numpy_array_x = np.load(PATH_DATA+'/x_batch_pelsvae.npy', allow_pickle=True)
@@ -369,12 +368,12 @@ def train_one_epoch_alternative(
         mode: str = 'oneloss', 
         criterion_2: Optional[Module] = None,  # And here
         dataloader_2: Optional[DataLoader] = None, 
-        optimizer_2: Optional[Optimizer] = None
+        optimizer_2: Optional[Optimizer] = None, 
+        locked_masks2 = None, 
+        locked_masks = None
     ) -> float:    
     
-    #print('Running epoch')
     running_loss = 0.0
-    #start_time = time.time()
     num_batches = 0
 
     if mode=='oneloss':
@@ -387,40 +386,15 @@ def train_one_epoch_alternative(
             loss = criterion(outputs, labels_indices)
             loss.backward(retain_graph=True)
             torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=2.0, norm_type=2)
-
             optimizer.step()
             running_loss += loss.item()
-            '''if num_batches % 50 == 0:  # log every 10 batches
-                avg_loss = running_loss / num_batches
-                elapsed_time = time.time() - start_time
-                print(f'Avg. Loss: {avg_loss:.4f}, Elapsed Time: {elapsed_time:.4f} seconds')'''
         return running_loss
     
     elif mode=='twolosses':
         if criterion_2 is None or dataloader_2 is None or optimizer_2 is None:
-            raise ValueError("For 'twolosses' mode, criterion_2, dataloader_2, and optimizer_2 must be provided.")
-        for param in model.parameters():
-            param.requires_grad = True
-        
-        learning_rate = 0.001
-        loss_prior = torch.tensor(0)
-        optimizer = torch.optim.RMSprop(model.parameters(), lr=learning_rate, alpha=0.9, eps=1e-08)
-        optimizer_prior = torch.optim.RMSprop(model.parameters(), lr=0.5*learning_rate, alpha=0.9, eps=1e-08)
-        #optimizer = torch.optim.Adam(model.parameters(), lr=learning_rate)  
-        #optimizer_prior = torch.optim.Adam(model.parameters(), lr=0.5*learning_rate)
-        EPS1 = 1e-2  # Replace with your value
-
-        # Create locked_masks2 where condition is (abs(w) >= EPS1) or (name ends with 'bias') or ('bn' in name)
-        locked_masks2 = {n: (torch.abs(w) >= EPS1) | (n.endswith('bias')) | ("bn" in n) for n, w in model.named_parameters()}
-
-        # Create locked_masks where condition is the logical negation of the above condition
-        locked_masks = {n: (torch.abs(w) < EPS1) & (~n.endswith('bias')) & (~("bn" in n)) for n, w in model.named_parameters()}
-
-        #print('Primary mask: ', np.sum(locked_masks2))
-        #print('Secondary mask', np.sum(locked_masks))
+            raise ValueError("For 'twolosses' mode, criterion_2, dataloader_2, and optimizer_2 must be provided.")     
         running_loss = 0.0
-        running_loss_prior = 0.0
-        
+        running_loss_prior = 0.0 
         for inputs, labels in dataloader:
             num_batches += 1
             inputs, labels = inputs.to(device), labels.to(device)
@@ -430,41 +404,28 @@ def train_one_epoch_alternative(
             loss = criterion(outputs, labels_indices)
             loss.backward(retain_graph=True)
             torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=2.0, norm_type=2)
+            for name, param in model.named_parameters():
+                if name in locked_masks2:
+                    param.grad.data *= locked_masks2[name].float()                                                         
             optimizer.step()
-            running_loss += loss.item()
-            for n, w in model.named_parameters():                                                                                                                                                              
-                if w.grad is not None and n in locked_masks2:                                                                                                                                                                                   
-                    w.grad[locked_masks2[n]] = 0.0                                                             
-            optimizer.step()
-            optimizer.zero_grad()  
             running_loss += loss.item()   
-            '''if num_batches % 50 == 0:  # log every 10 batches
-                avg_loss = running_loss / num_batches
-                elapsed_time = time.time() - start_time
-                print(f'Avg. Loss real light curves: {avg_loss:.4f}, Elapsed Time: {elapsed_time:.4f} seconds')'''
 
-        
         num_batches = 0
         for inputs_2, labels_2 in dataloader_2:
             num_batches += 1
             inputs, labels = inputs_2.to(device), labels_2.to(device)
             inputs = inputs.float()
-            optimizer_prior.zero_grad()
+            optimizer_2.zero_grad()
             outputs = model(inputs)
             _, labels_indices = torch.max(labels, 1)  # Convert one-hot to indices
-            loss_prior = criterion(outputs, labels_indices)
+            loss_prior = criterion_2(outputs, labels_indices)
             loss_prior.backward(retain_graph=True)
             torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=2.0, norm_type=2)
-            optimizer_prior.step()
-            running_loss_prior += loss_prior.item()
-            for n, w in model.named_parameters():                                                                                                                                                              
-                if w.grad is not None and n in locked_masks:                                                                                                                                                                                   
-                    w.grad[locked_masks[n]] = 0.0                                                             
-            '''if num_batches % 2 == 0:  # log every 10 batches
-                avg_loss = running_loss_prior / num_batches
-                elapsed_time = time.time() - start_time
-                print(f'Avg. Loss synthetic samples: {avg_loss:.4f}, Elapsed Time: {elapsed_time:.4f} seconds')'''
-            
+            for name, param in model.named_parameters():
+                if name in locked_masks:
+                    param.grad.data *= locked_masks[name].float()
+            optimizer_2.step()
+            running_loss_prior += loss_prior.item() 
         return running_loss
   
 def train_one_epoch(
@@ -510,48 +471,29 @@ def train_one_epoch(
         running_loss_1 = 0
         for inputs_1, labels_1 in dataloader:
             num_batches += 1
-            # Forward pass for dataloader 1
+            optimizer.zero_grad()
             inputs_1, labels_1 = inputs_1.to(device), labels_1.to(device)
             outputs_1 = model(inputs_1)
             _, labels_1_indices = torch.max(labels_1, 1) 
             loss_1 = criterion(outputs_1, labels_1_indices)
-            
-            # Backward pass and optimization for parameters designated to loss_1
-            optimizer.zero_grad()
             loss_1.backward()
             optimizer.step()
-
             running_loss_1 += loss_1.item()
 
-            if num_batches % 50 == 0:  # log every 10 batches
-                avg_loss = running_loss_1 / num_batches
-                elapsed_time = time.time() - start_time
-                print(f'Avg. Loss real light curves: {avg_loss:.4f}, Elapsed Time: {elapsed_time:.4f} seconds')
-        
         num_batches = 0
         running_loss_2 = 0
-
         for inputs_2, labels_2 in dataloader_2:
             num_batches += 1
-            # Forward pass for dataloader 2
+            optimizer_2.zero_grad()
             inputs_2, labels_2 = inputs_2.to(device), labels_2.to(device)
             outputs_2 = model(inputs_2)
             _, labels_2_indices = torch.max(labels_2, 1) 
             loss_2 = criterion_2(outputs_2, labels_2_indices)
-
-
-            # Backward pass and optimization for parameters designated to loss_2
-            optimizer_2.zero_grad()
             loss_2.backward()
             optimizer_2.step()
-
             running_loss_2 += loss_2.item()
-
-        avg_loss = running_loss_2 / num_batches
-        elapsed_time = time.time() - start_time
-        print(f'Avg. Loss Synthetic samples: {avg_loss:.4f}, Elapsed Time: {elapsed_time:.4f} seconds')
         running_loss = running_loss_1 + running_loss_2
-    return running_loss 
+    return running_loss_1 
   
 def evaluate(model, data, criterion, device):
     inputs, labels = data
@@ -619,7 +561,7 @@ def create_optimizers(model: nn.Module,
 
     for name, param in model.named_parameters():
         print(name, param)
-
+    
     params_group2 = [
         {"params": [model.module.conv1.weight[:kk_conv1].detach().requires_grad_(), model.module.conv1.bias[:kk_conv1].detach().requires_grad_()]},
         {"params": [model.module.conv2.weight[:kk_conv2].detach().requires_grad_(), model.module.conv2.bias[:kk_conv2].detach().requires_grad_()]},
@@ -632,6 +574,8 @@ def create_optimizers(model: nn.Module,
         {"params": [model.module.conv2.weight[kk_conv2:].detach().requires_grad_(), model.module.conv2.bias[kk_conv2:].detach().requires_grad_()]},
         {"params": [model.module.fc1.weight[kk_fc1:, :].detach().requires_grad_(), model.module.fc1.bias.detach().requires_grad_()]},
         {"params": [model.module.fc2.weight[kk_fc2:, :].detach().requires_grad_(), model.module.fc2.bias.detach().requires_grad_()]},
+        {"params": [model.module.bn1.weight.detach().requires_grad_(), model.module.bn1.bias.detach().requires_grad_()]},
+        {"params": [model.module.bn2.weight.detach().requires_grad_(), model.module.bn2.bias.detach().requires_grad_()]},
     ]
     
     optimizer1 = optim.Adam(params_group1, lr=0.001)
@@ -679,14 +623,22 @@ def run_cnn(create_samples: Any, mean_prior_dict: Dict = None,
 
     if opt_method == 'twolosses':
         print('Using mode: two masks')
-        kk_conv1 = 32  
-        kk_conv2 = 16   
-        kk_fc1 = 30    
-        kk_fc2 = 1  
+
+        '''kk_conv1 = 0#32  
+        kk_conv2 =0 #16   
+        kk_fc1 = 0#30    
+        kk_fc2 = 0#1  
         optimizer1, optimizer2 = create_optimizers(model, kk_conv1=kk_conv1, 
                                                     kk_conv2=kk_conv2, 
                                                     kk_fc1=kk_fc1, 
-                                                    kk_fc2=kk_fc2)
+                                                    kk_fc2=kk_fc2)'''
+        EPS1 = 0.0#1e-2  # Replace with your value
+        locked_masks2 = {n: (torch.abs(w) >= EPS1) | (n.endswith('bias')) | ("bn" in n) for n, w in model.named_parameters()}
+        locked_masks = {n: (torch.abs(w) < EPS1) & (~n.endswith('bias')) & (~("bn" in n)) for n, w in model.named_parameters()}
+        learning_rate = 0.001
+        optimizer1 = torch.optim.Adam(model.parameters(), lr=learning_rate)  
+        optimizer2 = torch.optim.Adam(model.parameters(), lr=0.5*learning_rate)
+
     elif opt_method == 'oneloss':
         print('Using mode: classic backpropagation')
         optimizer1 = torch.optim.Adam(model.parameters(), lr=0.001)
@@ -724,6 +676,10 @@ def run_cnn(create_samples: Any, mean_prior_dict: Dict = None,
     epochs = nn_config['training']['epochs']
     patience =  nn_config['training']['patience']
 
+
+
+
+
     for epoch in range(epochs):
         if opt_method=='twolosses' and create_samples and harder_samples: 
             print("Creating synthetic samples")
@@ -737,7 +693,7 @@ def run_cnn(create_samples: Any, mean_prior_dict: Dict = None,
             synthetic_data_loader = None
 
 
-        '''
+        '''  
         running_loss = train_one_epoch(model, criterion, optimizer1, train_dataloader, device, 
                                         mode = opt_method, 
                                         criterion_2= criterion_synthetic_samples, 
@@ -748,8 +704,9 @@ def run_cnn(create_samples: Any, mean_prior_dict: Dict = None,
                                         mode = opt_method, 
                                         criterion_2= criterion_synthetic_samples, 
                                         dataloader_2 = synthetic_data_loader,
-                                        optimizer_2 = optimizer2)
-                                        
+                                        optimizer_2 = optimizer2, locked_masks2 = locked_masks2, 
+                                        locked_masks = locked_masks)
+                                 
         val_loss, accuracy_val = evaluate_dataloader(model, val_dataloader, criterion, device)
         _, accuracy_train = evaluate_dataloader(model, train_dataloader, criterion, device)
 

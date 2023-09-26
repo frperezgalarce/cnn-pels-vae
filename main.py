@@ -56,7 +56,7 @@ def main(train_gmm: Optional[bool] = False, create_samples: Optional[bool] = Tru
         print('Gaussian were fitted')
 
     if train_classifier: 
-        cnn.run_cnn(create_samples, mean_prior_dict=mean_prior_dict, vae_model=vae_model, PP=PP_list, opt_method='oneloss')
+        cnn.run_cnn(create_samples, mean_prior_dict=mean_prior_dict, vae_model=vae_model, PP=PP_list, opt_method='twolosses')
     
 if __name__ == "__main__": 
     main(train_gmm = False, create_samples = True, 

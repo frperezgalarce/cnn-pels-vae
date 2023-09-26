@@ -100,7 +100,7 @@ def load_light_curve_ogle():
     print('testing data shape: ', numpy_array_lcus_test.shape)
     return numpy_array_lcus_train, numpy_array_lcus_test, numpy_y_test, numpy_y_train
 
-def insert_lc(examples, np_array, np_array_y, lenght_lc = 0, signal_noise=3, subclass=False, train_set=True, train_classes=[], file_name='train'):
+def insert_lc(examples, np_array, np_array_y, lenght_lc = 0, signal_noise=6, subclass=False, train_set=True, train_classes=[], file_name='train'):
     counter = 0
     subclasses = pd.read_csv(PATH_SUBCLASSES)
     for lc in tqdm(examples.ID.unique(), desc='Processing Light Curves'):
@@ -109,6 +109,8 @@ def insert_lc(examples, np_array, np_array_y, lenght_lc = 0, signal_noise=3, sub
         lcu['delta_time'] = lcu['time'].diff()
         lcu['delta_mag'] = lcu['magnitude'].diff()
         lcu = lcu[lcu.magnitude/lcu.error>signal_noise] #Delete S/N greater than 0
+        lcu = lcu[lcu.delta_mag<10]
+        lcu = lcu[lcu.delta_time<10]
         lcu = delete_by_std(lcu)
         lcu['delta_time'] = lcu['time'].diff()
         lcu['delta_mag'] = lcu['magnitude'].diff()
@@ -174,7 +176,7 @@ def delete_low_represented_classes(df, column='class', threshold=100):
 def plot_cm(cm: np.ndarray,
             labels: List[str],
             title: str = 'Confusion Matrix',
-            save: bool = False,
+            save: bool = True,
             filename: Optional[str] = None,
             normed: bool = False) -> None:
     """
@@ -338,7 +340,7 @@ def get_data(sample_size, mode):
 
     y_train, y_test = torch.from_numpy(np.asarray(y_train_onehot)), torch.from_numpy(np.asarray(y_test_onehot))
 
-    x_train, x_val, y_train, y_val = train_test_split(x_train, y_train, test_size=0.2, random_state=42)
+    x_train, x_val, y_train, y_val = train_test_split(x_train, y_train, test_size=0.1, random_state=42)
 
     return x_train, x_test,  y_train, y_test, x_val, y_val, modified_labelencoder_classes, y_train_labels
 
@@ -1182,8 +1184,17 @@ def revert_light_curve(period, folded_normed_light_curve, faintness=1.0, classes
     reverted_light_curves = np.stack(reverted_light_curves)
 
     reverted_light_curves = np.swapaxes(reverted_light_curves, 1, 2)
-    reverted_light_curves = reverted_light_curves[:, :, :200]
-    return reverted_light_curves
+    # Generate random unique indices along the last dimension
+    random_indices = np.random.choice(600, 200, replace=False)
+
+    # Sort the indices for easier interpretation and debugging (optional)
+    random_indices.sort()
+
+    # Select 200 random observations
+    reverted_light_curves_random = reverted_light_curves[:, :, random_indices]
+
+    #reverted_light_curves = reverted_light_curves[:, :, :200]
+    return reverted_light_curves_random
 
 def apply_sensitivity(array, column, a_percentage=20):
     """
@@ -1313,11 +1324,11 @@ def get_time_from_period(period, phased_time,  example_sequence, sequence_length
     """
     # Calculate the range for 'k' values based on the minimum and maximum values of example_sequence
     if len(example_sequence) > 0:
-        k_min = np.min(example_sequence) / period
-        k_max = np.max(example_sequence) / period
+        k_min = int(np.min(example_sequence) / period)
+        k_max = int(np.max(example_sequence) / period)
     else:
-        k_min =  450
-        k_max =  3000
+        k_min =  int(450/period)
+        k_max =  int(3000/period)
         #raise ValueError("example_sequence is empty, cannot perform min/max operations.")
 
     if isinstance(k_min, np.ndarray):
@@ -1330,7 +1341,10 @@ def get_time_from_period(period, phased_time,  example_sequence, sequence_length
     k_values = torch.rand(sequence_length).to(period.device) * (k_max - k_min) + k_min
 
     # Calculate the minimum value of the example sequence
-    min_sequence = np.min(example_sequence)
+    try:
+        min_sequence = np.min(example_sequence)
+    except: 
+        min_sequence = 450
     # Ensure phased_time is a PyTorch tensor and on the same device as 'period'
     if isinstance(phased_time, np.ndarray):
         phased_time = torch.tensor(phased_time).to(period.device)

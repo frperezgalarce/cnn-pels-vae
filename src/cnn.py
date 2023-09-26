@@ -52,36 +52,44 @@ def print_grad_norm(grad: torch.Tensor) -> None:
     if (param.grad is not None) and torch.isnan(param.grad).any():
                 print(f"NaN value in gradient of {grad}")
 
-# Define the 1D CNN model
 class CNN(nn.Module):
     def __init__(self, num_classes: int = 2) -> None:
         super(CNN, self).__init__()
-        self.conv1 = nn.Conv1d(in_channels=2, out_channels=256, kernel_size=6, stride=4, groups=1)
-        self.conv2 = nn.Conv1d(in_channels=256, out_channels=128, kernel_size=6, stride=4, groups=1)
-        self.fc1 = nn.Linear(128*5, 100)
+        self.conv1 = nn.Conv1d(in_channels=2, out_channels=256, kernel_size=6, stride=4)
+        self.bn1 = nn.BatchNorm1d(256)
+        self.pool1 = nn.MaxPool1d(2)
+        
+        self.conv2 = nn.Conv1d(in_channels=256, out_channels=128, kernel_size=6, stride=4)
+        self.bn2 = nn.BatchNorm1d(128)
+        self.pool2 = nn.MaxPool1d(2)
+        
+        self.fc1 = nn.Linear(128*1, 100)
+        self.dropout1 = nn.Dropout(0.5)
+        
         self.fc2 = nn.Linear(100, num_classes)
+        self.dropout2 = nn.Dropout(0.5)
 
-    def forward(self, x: torch.Tensor, verbose: bool = False) -> torch.Tensor:
-        if verbose:
-            print('forward')
+    def forward(self, x):
         x = self.conv1(x)
-        if verbose: 
-            print('After conv1: ', x.size())
-        x = torch.tanh(x)
-        if verbose: 
-            print('After relu: ', x.size())
+        x = self.bn1(x)
+        x = F.relu(x)
+        x = self.pool1(x)
+        
         x = self.conv2(x)
-        if verbose:
-            print('After conv2: ', x.size())
-        x = torch.tanh(x)
-        if verbose:
-            print('After relu: ', x.size())
-        x = x.view(x.size(0), -1)
+        x = self.bn2(x)
+        x = F.relu(x)
+        x = self.pool2(x)
+        
+        x = x.view(x.size(0), -1)  # Flatten the tensor
         x = self.fc1(x)
-        x = nn.functional.relu(x)
+        x = self.dropout1(x)
+        x = F.relu(x)
+        
         x = self.fc2(x)
-        x = nn.functional.softmax(x, dim=1)
+        x = self.dropout2(x)
+
         return x
+
 
 def setup_environment() -> torch.device:
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -258,16 +266,34 @@ def create_synthetic_batch(mean_prior_dict: dict,
     # Calculate differences in sorted time and magnitude, axis=-1 for the last dimension (100 points)
     lc_reverted = np.diff(lc_reverted, axis=-1)
 
-    # Here, for demonstration, I just take the first 95 of the 24 you sampled
-    lc_reverted = lc_reverted[:, :, :100]
+    #TODO: check oversampling, it does not work
+    oversampling = False
+    if oversampling:
+        k = 4
+        lc_reverted_samples = np.zeros((lc_reverted.shape[0]*k, 2, 100))
+        one_hot_to_train_samples = np.zeros((onehot_to_train.shape[0]*k, onehot_to_train.shape[1]))
+        print(onehot_to_train.shape)
+        
+        for i in range(lc_reverted.shape[0]):
+            for j in range(k):  # 4 samples per light curve
+                # Generate 100 random unique indices
+                random_indices = np.random.choice(lc_reverted.shape[2], 100, replace=False)
+                random_indices.sort()  # Optional: sort indices
+            
+                # Select 100 random points for the i-th light curve, j-th sample
+                lc_reverted_samples[4*i + j, :, :] = lc_reverted[i, :, random_indices].T
+                one_hot_to_train_samples[4*i + j, :] = onehot_to_train[i].T
+        utils.save_arrays_to_folder(lc_reverted_samples, one_hot_to_train_samples , PATH_DATA)
+    else: 
+        print()
+        utils.save_arrays_to_folder(lc_reverted[:,:,:100], onehot_to_train , PATH_DATA)
 
-    utils.save_arrays_to_folder(lc_reverted, onehot_to_train , PATH_DATA)
     numpy_array_x = np.load(PATH_DATA+'/x_batch_pelsvae.npy', allow_pickle=True)
     numpy_array_y = np.load(PATH_DATA+'/y_batch_pelsvae.npy', allow_pickle=True)
 
     synth_data = move_data_to_device((numpy_array_x, numpy_array_y), device)
     synthetic_dataset = TensorDataset(*synth_data)
-    train_dataloader = DataLoader(synthetic_dataset, batch_size=64, shuffle=True)
+    train_dataloader = DataLoader(synthetic_dataset, batch_size=16, shuffle=True)
 
     return train_dataloader
     
@@ -299,6 +325,41 @@ def evaluate_and_plot_cm(model, x_data, y_data, label_encoder, title):
     return cm
 
 
+def evaluate_and_plot_cm_from_dataloader(model, dataloader, label_encoder, title):
+    all_y_data = []
+    all_predicted = []
+    
+    model.eval()  # Switch to evaluation mode
+    
+    with torch.no_grad():  # No need to calculate gradients in evaluation
+        for batch in dataloader:
+            x_data, y_data = batch
+            
+            outputs = model(x_data)
+            _, predicted = torch.max(outputs.data, 1)
+            
+            # Check if y_data is one-hot encoded and convert to label encoding if it is
+            if len(y_data.shape) > 1 and y_data.shape[1] > 1:
+                y_data = torch.argmax(y_data, dim=1)
+            
+            # Move data to CPU and append to lists
+            all_y_data.extend(y_data.cpu().numpy())
+            all_predicted.extend(predicted.cpu().numpy())
+    
+    # Compute confusion matrix
+    try:
+        cm = confusion_matrix(all_y_data, all_predicted, normalize='true')
+    except ValueError as e:
+        print(f"An error occurred: {e}")
+        print(f"y_data shape: {len(all_y_data)}, predicted shape: {len(all_predicted)}")
+        return None
+    
+    plot_cm(cm, label_encoder, title=title)
+    #export_recall_latex(all_y_data, all_predicted, label_encoder)
+    
+    return cm
+
+
 def train_one_epoch_alternative(
         model: torch.nn.Module, 
         criterion: Module,  # Here
@@ -313,7 +374,7 @@ def train_one_epoch_alternative(
     
     #print('Running epoch')
     running_loss = 0.0
-    start_time = time.time()
+    #start_time = time.time()
     num_batches = 0
 
     if mode=='oneloss':
@@ -329,10 +390,10 @@ def train_one_epoch_alternative(
 
             optimizer.step()
             running_loss += loss.item()
-            if num_batches % 50 == 0:  # log every 10 batches
+            '''if num_batches % 50 == 0:  # log every 10 batches
                 avg_loss = running_loss / num_batches
                 elapsed_time = time.time() - start_time
-                print(f'Avg. Loss: {avg_loss:.4f}, Elapsed Time: {elapsed_time:.4f} seconds')
+                print(f'Avg. Loss: {avg_loss:.4f}, Elapsed Time: {elapsed_time:.4f} seconds')'''
         return running_loss
     
     elif mode=='twolosses':
@@ -341,13 +402,22 @@ def train_one_epoch_alternative(
         for param in model.parameters():
             param.requires_grad = True
         
-        EPS1 = 0.2
         learning_rate = 0.001
         loss_prior = torch.tensor(0)
-        optimizer = torch.optim.Adam(model.parameters(), lr=learning_rate)  
-        optimizer_prior = torch.optim.Adam(model.parameters(), lr=0.5*learning_rate)
-        locked_masks2 = {n: (torch.abs(w) >= EPS1) | (n.endswith('bias'))  for n, w in model.named_parameters()}
-        locked_masks = {n: torch.abs(w) <EPS1 for n, w in model.named_parameters()}       
+        optimizer = torch.optim.RMSprop(model.parameters(), lr=learning_rate, alpha=0.9, eps=1e-08)
+        optimizer_prior = torch.optim.RMSprop(model.parameters(), lr=0.5*learning_rate, alpha=0.9, eps=1e-08)
+        #optimizer = torch.optim.Adam(model.parameters(), lr=learning_rate)  
+        #optimizer_prior = torch.optim.Adam(model.parameters(), lr=0.5*learning_rate)
+        EPS1 = 1e-2  # Replace with your value
+
+        # Create locked_masks2 where condition is (abs(w) >= EPS1) or (name ends with 'bias') or ('bn' in name)
+        locked_masks2 = {n: (torch.abs(w) >= EPS1) | (n.endswith('bias')) | ("bn" in n) for n, w in model.named_parameters()}
+
+        # Create locked_masks where condition is the logical negation of the above condition
+        locked_masks = {n: (torch.abs(w) < EPS1) & (~n.endswith('bias')) & (~("bn" in n)) for n, w in model.named_parameters()}
+
+        #print('Primary mask: ', np.sum(locked_masks2))
+        #print('Secondary mask', np.sum(locked_masks))
         running_loss = 0.0
         running_loss_prior = 0.0
         
@@ -378,6 +448,7 @@ def train_one_epoch_alternative(
         for inputs_2, labels_2 in dataloader_2:
             num_batches += 1
             inputs, labels = inputs_2.to(device), labels_2.to(device)
+            inputs = inputs.float()
             optimizer_prior.zero_grad()
             outputs = model(inputs)
             _, labels_indices = torch.max(labels, 1)  # Convert one-hot to indices
@@ -385,11 +456,10 @@ def train_one_epoch_alternative(
             loss_prior.backward(retain_graph=True)
             torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=2.0, norm_type=2)
             optimizer_prior.step()
-            running_loss += loss_prior.item()
+            running_loss_prior += loss_prior.item()
             for n, w in model.named_parameters():                                                                                                                                                              
                 if w.grad is not None and n in locked_masks:                                                                                                                                                                                   
                     w.grad[locked_masks[n]] = 0.0                                                             
-            running_loss_prior += loss_prior.item()
             '''if num_batches % 2 == 0:  # log every 10 batches
                 avg_loss = running_loss_prior / num_batches
                 elapsed_time = time.time() - start_time
@@ -483,7 +553,6 @@ def train_one_epoch(
         running_loss = running_loss_1 + running_loss_2
     return running_loss 
   
-
 def evaluate(model, data, criterion, device):
     inputs, labels = data
     with torch.no_grad():
@@ -518,7 +587,8 @@ def evaluate_dataloader(model, dataloader, criterion, device):
         for batch in dataloader:
             inputs, labels = batch
             inputs, labels = inputs.to(device), labels.to(device)
-            
+            inputs = inputs.float()
+
             # Forward pass
             outputs = model(inputs)
             
@@ -627,6 +697,8 @@ def run_cnn(create_samples: Any, mean_prior_dict: Dict = None,
 
     training_data = move_data_to_device((x_train, y_train), device)
     val_data = move_data_to_device((x_val, y_val), device)
+    testing_data = move_data_to_device((x_test, y_test), device)
+
 
     batch_size = nn_config['training']['batch_size']
     train_dataset = TensorDataset(*training_data)
@@ -635,6 +707,10 @@ def run_cnn(create_samples: Any, mean_prior_dict: Dict = None,
     # For validation data
     val_dataset = TensorDataset(*val_data)
     val_dataloader = DataLoader(val_dataset, batch_size=batch_size, shuffle=False)  # Typically we don't shuffle validation data
+
+        # For validation data
+    test_dataset = TensorDataset(*testing_data)
+    test_dataloader = DataLoader(test_dataset, batch_size=batch_size, shuffle=False)  # Typically we don't shuffle validation data
 
     # Main training loop
     best_val_loss = float('inf')
@@ -678,10 +754,13 @@ def run_cnn(create_samples: Any, mean_prior_dict: Dict = None,
         _, accuracy_train = evaluate_dataloader(model, train_dataloader, criterion, device)
 
         try:
-            synthetic_loss, accuracy_train_synthetic =  evaluate_dataloader(model, synthetic_data_loader, criterion, device)
+            synthetic_loss, accuracy_train_synthetic =  evaluate_dataloader(model, synthetic_data_loader, criterion_synthetic_samples, device)
             if accuracy_train_synthetic>threshold_acc_synthetic:
                 harder_samples = True
-        except: 
+        except Exception as error:
+            print(error) 
+            synthetic_loss=0
+            accuracy_train_synthetic=0
             print('Sinthetic data loader is: ', synthetic_data_loader)
 
         train_loss_values.append(running_loss)
@@ -709,6 +788,7 @@ def run_cnn(create_samples: Any, mean_prior_dict: Dict = None,
     plot_training(range(len(train_loss_values)), train_loss_values, val_loss_values, train_accuracy_values, val_accuracy_values)
 
     # Using the function
-    _ = evaluate_and_plot_cm(model, x_train, y_train, label_encoder, 'Confusion Matrix - Training set')
-    _ = evaluate_and_plot_cm(model, x_val, y_val, label_encoder, 'Confusion Matrix - Validation set')
-    _ = evaluate_and_plot_cm(model, x_test, y_test, label_encoder, 'Confusion Matrix - Testing set')
+    _ = evaluate_and_plot_cm_from_dataloader(model, train_dataloader, label_encoder, 'Confusion Matrix - Training set')
+    _ = evaluate_and_plot_cm_from_dataloader(model, val_dataloader, label_encoder, 'Confusion Matrix - Validation set')
+    _ = evaluate_and_plot_cm_from_dataloader(model, test_dataloader, label_encoder, 'Confusion Matrix - Testing set')
+    _ = evaluate_and_plot_cm_from_dataloader(model, synthetic_data_loader, label_encoder, 'Confusion Matrix - Synthetic') 

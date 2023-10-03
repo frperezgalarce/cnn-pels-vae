@@ -1171,6 +1171,8 @@ def revert_light_curve(period, folded_normed_light_curve, faintness=1.0, classes
     num_sequences = folded_normed_light_curve.shape[0]
     reverted_light_curves = []
     time_sequences = get_time_sequence(n=1, star_class=classes)
+    print(time_sequences[0], classes[0])
+    #raise
     for i in range(num_sequences):
         # Extract the time (period) and magnitude values from the folded and normed light curve
         time = folded_normed_light_curve[i,:,0]
@@ -1178,7 +1180,8 @@ def revert_light_curve(period, folded_normed_light_curve, faintness=1.0, classes
 
         # Generate the time values for the reverted light curve
         [example_sequence, original_min, original_max] = time_sequences[i]
-        real_time = get_time_from_period(period[i], time, example_sequence, sequence_length=600)
+        print(example_sequence, original_min, original_max, time)
+        real_time =  get_time_from_period(period[i], time, example_sequence, sequence_length=600)
 
         # Revert the normed magnitudes back to the original magnitudes using min-max scaling and faintness factor
         original_magnitudes = ((normed_magnitudes * (original_max - original_min)) + original_min) * faintness
@@ -1263,30 +1266,6 @@ def apply_sensitivity(array, column, a_percentage=20):
     print('array pp in sensitive: ', array)
     return array
 
-'''def add_perturbation(array, column = 0, scale=0.01):
-    """
-    Add perturbation to a NumPy array.
-
-    Parameters:
-        array (numpy.ndarray): The input NumPy array.
-        scale (float): The scale of the perturbation. Default is 0.01.
-
-    Returns:
-        numpy.ndarray: A new array with perturbation added.
-    """
-
-    perturbation = (1.0+scale) * np.random.randn(*array.shape).astype(np.float32)
-    print('Perturbation mean: ', perturbation.mean())
-    perturbed_array = array + perturbation
-
-    if isinstance(perturbed_array, (torch.Tensor)):
-        pass
-    elif isinstance(perturbed_array, (np.ndarray)):
-        perturbed_array = perturbed_array.astype(np.float32)
-    print('perturbation added')
-    return perturbed_array
-'''
-
 def get_time_sequence(n=1, star_class=['RRLYR']):
     """
     Retrieve time sequences from light curves data for 'n' objects.
@@ -1304,13 +1283,17 @@ def get_time_sequence(n=1, star_class=['RRLYR']):
 
     base_lcs = []
     
-    for star in star_class:
+    for star in tqdm(star_class, desc='Getting time sequences'):
         fail = True
         while(fail):
             try: 
                 new_label = lc_train[lc_train.CLASS==star].sample(1, replace=True)['ID'].to_list()[0]
-                base_lcs.append(new_label)
-                fail = False
+                path_lc = (PATH_LIGHT_CURVES_OGLE + new_label.split('-')[1].lower() +
+                   '/' + new_label.split('-')[2].lower() + '/phot/I/' + new_label)
+                lcu = pd.read_table(path_lc, sep=" ", names=['time', 'magnitude', 'error'])
+                if len(lcu['time'].to_list())>10:
+                    base_lcs.append(new_label)
+                    fail = False
             except Exception as error : 
                 fail = True    
                 logging.error(f"[get_time_sequence] The light curve {new_label} was not added: {error}")
@@ -1422,8 +1405,8 @@ def get_time_from_period(period, phased_time,  example_sequence, sequence_length
     """
     # Calculate the range for 'k' values based on the minimum and maximum values of example_sequence
     if len(example_sequence) > 0:
-        k_min = int(np.min(example_sequence) / period)
-        k_max = int(np.max(example_sequence) / period)
+        k_min = int(np.quantile(example_sequence, 0.2) / period)
+        k_max = int(np.quantile(example_sequence, 0.8) / period)
     else:
         k_min =  int(450/period)
         k_max =  int(3000/period)

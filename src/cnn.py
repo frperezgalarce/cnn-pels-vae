@@ -56,11 +56,13 @@ class CNN(nn.Module):
         self.bn2 = nn.BatchNorm1d(30)
         self.pool2 = nn.MaxPool1d(2)
         
-        self.fc1 = nn.Linear(2130, 100)  # Adjust this number based on your actual output size
+        self.fc1 = nn.Linear(2130, 200)  # Adjust this number based on your actual output size
         self.dropout1 = nn.Dropout(0.2)
         
-        self.fc2 = nn.Linear(100, num_classes)
+        self.fc2 = nn.Linear(200, num_classes)
         self.dropout2 = nn.Dropout(0.2)
+
+
 
     def forward(self, x):
         x = self.conv1(x)
@@ -360,7 +362,7 @@ def run_cnn(create_samples: Any, mean_prior_dict: Dict = None,
 
     if opt_method == 'twolosses':
         print('Using mode: two masks')
-        locked_masks, locked_masks2 = initialize_masks(model, EPS=0.3)
+        locked_masks, locked_masks2 = initialize_masks(model, EPS=0.5)
         learning_rate = 0.001
         scaling_lr = 0.5
         optimizer1 = torch.optim.Adam(model.parameters(), lr=learning_rate)  
@@ -409,7 +411,7 @@ def run_cnn(create_samples: Any, mean_prior_dict: Dict = None,
     epochs = nn_config['training']['epochs']
     patience =  nn_config['training']['patience']
 
-    batcher = SyntheticDataBatcher(PP = PP, vae_model=vae_model, n_samples=64, seq_length = x_train.size(-1))
+    batcher = SyntheticDataBatcher(PP = PP, vae_model=vae_model, n_samples=256, seq_length = x_train.size(-1))
     for epoch in range(epochs):
         if opt_method=='twolosses' and create_samples and harder_samples: 
             synthetic_data_loader = batcher.create_synthetic_batch()

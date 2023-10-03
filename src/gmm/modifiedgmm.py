@@ -51,6 +51,7 @@ class ModifiedGaussianSampler:
         iterations: int = ITERATIONS_MH
         burn_in: int = BURNIN_MH
         samples: List[np.ndarray] = []
+
         selected_component_index = self.randomly_select_component()
         selected_mean = self.model.means_[selected_component_index] + np.random.normal(0, 0.01, size=len(self.features))
         current_x = selected_mean
@@ -65,6 +66,8 @@ class ModifiedGaussianSampler:
                 samples.append(current_x.copy())
             if len(samples) == n_samples: 
                 break
+
+
         print('#'*50)
         print('Samples: ')
 
@@ -72,10 +75,57 @@ class ModifiedGaussianSampler:
 
         return np.array(samples)
 
-    def modify_and_sample(self, path: str, n_samples=5) -> np.ndarray:
+    def metropolis_hasting_all_components(self, n_samples: int = 5) -> np.ndarray:
+        """
+        Metropolis-Hastings algorithm for sampling from a distribution q(x).
+    
+        Parameters:
+        n_samples (int): The number of samples to return.
+
+        Returns:
+        np.ndarray: An array of samples from the distribution.
+        """
+        iterations: int = ITERATIONS_MH
+        burn_in: int = BURNIN_MH 
+        samples: List[np.ndarray] = []
+        weights = self.model.weights_
+
+        for selected_component_index in range(len(weights)):
+            weight = self.model.weights_[selected_component_index]
+            iterations_component = int(iterations*weight)
+            selected_mean = self.model.means_[selected_component_index] + np.random.normal(0, 0.01, size=len(self.features))
+            current_x = selected_mean
+            sample_interval = (iterations_component - burn_in) // (n_samples/len(weights))
+        
+            for i in range(iterations_component):
+                proposal_x = current_x + np.random.normal(0, 0.001, size=len(self.features)) 
+                acceptance_ratio = (self.p(proposal_x) ** self.b) / (self.p(current_x) ** self.b)           
+                if np.random.rand() < acceptance_ratio:
+                    current_x = proposal_x
+                if i > burn_in and (i - burn_in) % sample_interval == 0:
+                    samples.append(current_x.copy())
+                if len(samples) == n_samples: 
+                    break
+        print('#'*50)
+        print('Samples: ')
+        print(len(samples))
+        if len(samples)<n_samples: 
+            replicate_n = n_samples-len(samples)
+            for j in range(replicate_n): 
+                random_index = np.random.randint(0,len(samples))
+                samples.append(samples[random_index])
+        return np.array(samples)
+
+
+    def modify_and_sample(self, path: str, n_samples=5, mode='onecomponent') -> np.ndarray:
         print(n_samples)
         self.load_p(path)
         print('Model loaded: ', self.model)
-        samples = self.metropolis_hasting(n_samples=n_samples)
+        if mode == 'onecomponent':
+            samples = self.metropolis_hasting(n_samples=n_samples)
+        elif mode == 'allcomponents': 
+            samples = self.metropolis_hasting_all_components(n_samples=n_samples)
+        else: 
+            raise('the mmmmm')
         return samples
 

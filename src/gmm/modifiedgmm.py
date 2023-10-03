@@ -52,23 +52,28 @@ class ModifiedGaussianSampler:
         burn_in: int = BURNIN_MH
         samples: List[np.ndarray] = []
         selected_component_index = self.randomly_select_component()
-        selected_mean = self.model.means_[selected_component_index] + np.random.normal(0, 0.1, size=len(self.features))
+        selected_mean = self.model.means_[selected_component_index] + np.random.normal(0, 0.01, size=len(self.features))
         current_x = selected_mean
         sample_interval = (iterations - burn_in) // n_samples
         
         for i in range(iterations):
-            proposal_x = current_x + np.random.normal(0, 0.5, size=len(self.features)) 
+            proposal_x = current_x + np.random.normal(0, 0.001, size=len(self.features)) 
             acceptance_ratio = (self.p(proposal_x) ** self.b) / (self.p(current_x) ** self.b)           
             if np.random.rand() < acceptance_ratio:
                 current_x = proposal_x
             if i > burn_in and (i - burn_in) % sample_interval == 0:
                 samples.append(current_x.copy())
+            if len(samples) == n_samples: 
+                break
         print('#'*50)
         print('Samples: ')
-        print(samples)
+
+        print(len(samples))
+
         return np.array(samples)
 
     def modify_and_sample(self, path: str, n_samples=5) -> np.ndarray:
+        print(n_samples)
         self.load_p(path)
         print('Model loaded: ', self.model)
         samples = self.metropolis_hasting(n_samples=n_samples)

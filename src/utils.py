@@ -47,6 +47,9 @@ PATH_MODELS: str = PATHS["PATH_MODELS"]
 with open('src/regressor.yaml', 'r') as file:
     reg_conf_file: Dict[str, Any] = yaml.safe_load(file)
 
+with open('src/nn_config.yaml', 'r') as file:
+    nn_config = yaml.safe_load(file)
+
 
 def plot_training(epochs_range, train_loss_values, val_loss_values,train_accuracy_values,  val_accuracy_values):
     plt.figure(figsize=(12, 4))
@@ -79,7 +82,7 @@ def read_light_curve_ogle(example_test, example_train, lenght_lc=100):
     numpy_y_train = np.empty((0, ), dtype=object)  
 
     numpy_array_lcus_train, numpy_y_train = insert_lc(example_train, numpy_array_lcus_train,
-                                            numpy_y_train, lenght_lc=lenght_lc, train_set=True, train_classes=[], file_name='train')
+                                            numpy_y_train, signal_noise=nn_config['data']['sn_ratio'], lenght_lc=lenght_lc, train_set=True, train_classes=[], file_name='train')
 
     print(np.unique(numpy_y_train))
     numpy_array_lcus_test, numpy_y_test = insert_lc(example_test, numpy_array_lcus_test,
@@ -112,8 +115,8 @@ def insert_lc(examples, np_array, np_array_y, lenght_lc = 0, signal_noise=6, sub
         lcu = lcu[lcu.delta_mag<10]
         lcu = lcu[lcu.delta_time<10]
         lcu = delete_by_std(lcu)
-        lcu['delta_time'] = lcu['time'].diff()
-        lcu['delta_mag'] = lcu['magnitude'].diff()
+        #lcu['delta_time'] = lcu['time'].diff()
+        #lcu['delta_mag'] = lcu['magnitude'].diff()
         lcu.dropna(axis=0, inplace=True)
 
         if lcu.shape[0]> lenght_lc:
@@ -236,6 +239,9 @@ def plot_cm(cm: np.ndarray,
     else:
         plt.show()
 
+def move_data_to_device(data, device):
+    return tuple(torch.tensor(d).to(device) if isinstance(d, np.ndarray) else d.to(device) for d in data)
+    
 def get_ids(n=1): 
     path_train = PATH_FEATURES_TRAIN
     path_test = PATH_FEATURES_TEST
@@ -281,32 +287,45 @@ def transform_to_consecutive(input_list, label_encoder):
     return modified_labels, modified_labelencoder_classes
 
 def get_data(sample_size, mode):
+
+    with open('src/nn_config.yaml', 'r') as file:
+        nn_config = yaml.safe_load(file)
+
     print('-'*50)
     print('MODE DATA: ', mode)
     if mode=='create':
         id_test, id_train  = get_ids(n=sample_size) 
-        x_train, x_test, y_test, y_train  = read_light_curve_ogle(id_test, id_train)
+        x_train, x_test, y_test, y_train  = read_light_curve_ogle(id_test, id_train, lenght_lc=nn_config['data']['seq_length'])
     elif mode == 'load':
         x_train, x_test, y_test, y_train  = load_light_curve_ogle()
+    
+    print('Loaded shape training set: ', x_train.shape)
+    print('Loaded shape testing set: ', x_test.shape)
+    if int(x_train.shape[1])!=2:
+        x_train = x_train.transpose(0, 2, 1)
+        x_test = x_test.transpose(0, 2, 1)
+    print('Modified shape training set: ', x_train.shape)
+    print('Modified shape testing set: ', x_test.shape)
 
-    # Create a label encoder
-    #label_encoder = LabelEncoder()
     with open(PATH_MODELS+'label_encoder_vae.pkl', 'rb') as f:
             label_encoder = pickle.load(f)
-    # Fit the encoder using only the training set
-    #label_encoder.fit(y_train)
 
-    # Transform both the training and test sets
+    #print(y_train[:20])
+    
     encoded_labels = label_encoder.transform(y_train)
+    #print(encoded_labels[:20])
+
     encoded_labels_test = label_encoder.transform(y_test)
-    #TODO: return final list of labels to show confusion matrix
     encoded_labels, modified_labelencoder_classes = transform_to_consecutive(encoded_labels, label_encoder)
+
+
+    
     encoded_labels_test, modified_labelencoder_classes = transform_to_consecutive(encoded_labels_test, label_encoder)
     n_values = len(np.unique(encoded_labels))
     y_train = np.eye(n_values)[encoded_labels]
     y_test = np.eye(n_values)[encoded_labels_test]
 
-    # Save the encoder
+
     with open(PATH_MODELS+'label_encoder.pkl', 'wb') as f:
         pickle.dump(label_encoder, f)
 
@@ -315,8 +334,6 @@ def get_data(sample_size, mode):
     for index, label in enumerate(modified_labelencoder_classes):
         print(f"{label}: {index}")
 
-    with open('src/nn_config.yaml', 'r') as file:
-        nn_config = yaml.safe_load(file)
 
     nn_config['data']['classes'] = modified_labelencoder_classes
     # Save the updated config back to the file
@@ -325,8 +342,7 @@ def get_data(sample_size, mode):
         yaml.safe_dump(nn_config, file)
 
     # Convert the encoded labels to a PyTorch tensor
-    y_train_labels = torch.from_numpy(encoded_labels).long()
-    y_test_labels = torch.from_numpy(encoded_labels_test).long()
+    y_labels = torch.from_numpy(encoded_labels).long()
     y_train_onehot = torch.from_numpy(y_train).long()
     y_test_onehot = torch.from_numpy(y_test).long()
 
@@ -335,14 +351,13 @@ def get_data(sample_size, mode):
     x_test = torch.from_numpy(x_test).float()
 
     # Permute the dimensions of the input tensor
-    x_train = x_train.permute(0, 2, 1)
-    x_test = x_test.permute(0, 2, 1)
+    #x_train = x_train.permute(0, 2, 1)
+    #x_test = x_test.permute(0, 2, 1)
 
     y_train, y_test = torch.from_numpy(np.asarray(y_train_onehot)), torch.from_numpy(np.asarray(y_test_onehot))
-
-    x_train, x_val, y_train, y_val = train_test_split(x_train, y_train, test_size=0.1, random_state=42)
-
-    return x_train, x_test,  y_train, y_test, x_val, y_val, modified_labelencoder_classes, y_train_labels
+ 
+    x_train, x_val, y_train, y_val= train_test_split(x_train, y_train, test_size=0.2, random_state=42, stratify=y_train)
+    return x_train, x_test,  y_train, y_test, x_val, y_val, modified_labelencoder_classes, y_labels
 
 def export_recall_latex(true_labels, predicted_labels, label_encoder): 
     # Calculate the recall for each class
@@ -548,7 +563,6 @@ def normalize_each(data, norm_time=False, scale_to=[0, 1], n_feat=3):
                     normed[i, :, f] = normed[i, :, f] * \
                         (scale_to[1] - scale_to[0]) + scale_to[0]
     return normed
-
 
 ## normalize light curves
 def normalize_glob(data, norm_time=False, scale_to=[0, 1], n_feat=3):
@@ -971,7 +985,7 @@ def plot_wall_lcs(lc_gen, lc_real, cls=[], lc_gen2=None, save=False, wandb_activ
             verticalalignment='top', horizontalalignment='left',
             transform=ax.transAxes, fontsize=10)
         except Exception as error:
-            raise(error)
+            logging.error(f"The light curve {lc} was not loaded: {error}")
 
 
     axis[-1,1].set_xlabel('Phase', fontsize=20)
@@ -1063,7 +1077,7 @@ def plot_wall_lcs_sampling(lc_gen, lc_real, cls=[], lc_gen2=None, save=False, wa
             verticalalignment='top', horizontalalignment='left',
             transform=ax.transAxes, fontsize=6)
         except Exception as error:
-            raise(error)
+            logging.error(f"The light curve {lc} was not loaded: {error}")
 
 
     axis[-1,1].set_xlabel('Phase', fontsize=20)
@@ -1129,6 +1143,18 @@ def scatter_hue(x, y, labels, disc=True, c_label=''):
     plt.legend(loc='best', fontsize='x-large')
     plt.show()
 
+def quantile(tensor, q):
+    sorted_tensor, _ = torch.sort(tensor)
+    length = sorted_tensor.shape[0]
+    idx = float(length) * q
+    lower_idx = int(torch.floor(torch.tensor(idx)).item())
+    upper_idx = int(torch.ceil(torch.tensor(idx)).item())
+    
+    lower_val = sorted_tensor[lower_idx] if lower_idx < length else sorted_tensor[-1]
+    upper_val = sorted_tensor[upper_idx] if upper_idx < length else sorted_tensor[-1]
+
+    return lower_val + (upper_val - lower_val) * (idx - lower_idx)
+
 def revert_light_curve(period, folded_normed_light_curve, faintness=1.0, classes = None):
     """
     Revert previously folded and normed light curves back to the original light curves.
@@ -1144,7 +1170,7 @@ def revert_light_curve(period, folded_normed_light_curve, faintness=1.0, classes
     """
     num_sequences = folded_normed_light_curve.shape[0]
     reverted_light_curves = []
-    time_sequences = get_time_sequence(n=num_sequences)
+    time_sequences = get_time_sequence(n=1, star_class=classes)
     for i in range(num_sequences):
         # Extract the time (period) and magnitude values from the folded and normed light curve
         time = folded_normed_light_curve[i,:,0]
@@ -1177,7 +1203,7 @@ def revert_light_curve(period, folded_normed_light_curve, faintness=1.0, classes
         # No need to convert if original_magnitudes is already a NumPy array
 
         # Now, you can use np.column_stack without issues
-        reverted_light_curve = np.column_stack((real_time, original_magnitudes))
+        reverted_light_curve = np.column_stack((original_magnitudes, real_time))
 
         reverted_light_curves.append(reverted_light_curve)
     
@@ -1185,15 +1211,36 @@ def revert_light_curve(period, folded_normed_light_curve, faintness=1.0, classes
 
     reverted_light_curves = np.swapaxes(reverted_light_curves, 1, 2)
     # Generate random unique indices along the last dimension
-    random_indices = np.random.choice(600, 200, replace=False)
+    random_indices = np.random.choice(600, nn_config['data']['seq_length']+1, replace=False)
 
     # Sort the indices for easier interpretation and debugging (optional)
-    random_indices.sort()
+    random_indices = random_indices.sort()
 
     # Select 200 random observations
     reverted_light_curves_random = reverted_light_curves[:, :, random_indices]
 
-    #reverted_light_curves = reverted_light_curves[:, :, :200]
+    print(reverted_light_curves_random.shape)
+    reverted_light_curves_random = reverted_light_curves_random.squeeze(2) 
+    print(reverted_light_curves_random.shape)
+
+
+    print('before sort: ')
+    print(reverted_light_curves_random[:4])
+
+    for i in range(reverted_light_curves_random.shape[0]):
+        sort_indices = np.argsort(reverted_light_curves_random[i, 1, :])
+        for j in range(reverted_light_curves_random.shape[1]):
+            reverted_light_curves_random[i, j, :] = reverted_light_curves_random[i, j, sort_indices]
+
+    for i in range(reverted_light_curves_random.shape[0]):
+        reverted_light_curves_random[i] = np.flipud(reverted_light_curves_random[i])
+
+    print('after sort: ')
+    print(reverted_light_curves_random[:4])
+
+    print('Shape of reverted_light_curves_random[i, :, :]:', reverted_light_curves_random[i, :, :].shape)
+    print('Shape of sort_indices:', sort_indices.shape)
+
     return reverted_light_curves_random
 
 def apply_sensitivity(array, column, a_percentage=20):
@@ -1216,7 +1263,7 @@ def apply_sensitivity(array, column, a_percentage=20):
     print('array pp in sensitive: ', array)
     return array
 
-def add_perturbation(array, column = 0, scale=0.01):
+'''def add_perturbation(array, column = 0, scale=0.01):
     """
     Add perturbation to a NumPy array.
 
@@ -1238,8 +1285,9 @@ def add_perturbation(array, column = 0, scale=0.01):
         perturbed_array = perturbed_array.astype(np.float32)
     print('perturbation added')
     return perturbed_array
+'''
 
-def get_time_sequence(n=1, star_class='RRLYR'):
+def get_time_sequence(n=1, star_class=['RRLYR']):
     """
     Retrieve time sequences from light curves data for 'n' objects.
     Parameters:
@@ -1247,32 +1295,82 @@ def get_time_sequence(n=1, star_class='RRLYR'):
     Returns:
         list: A list of lists containing time sequences from the light curves of 'n' objects.
     """
-    # Ensure 'n' is an integer
     n = int(n)
-    # Path to the file containing light curve information
     path_train = PATH_FEATURES_TRAIN
-    # Read the light curve data from the file
     lc_train = pd.read_table(path_train, sep=',')
 
     lc_train[['SURVEY', 'FIELD', 'CLASS', 'NUMBER']] = lc_train['ID'].str.split('-', expand=True)
     lc_train['NUMBER'] = lc_train['NUMBER'].str.replace('.dat', '')
 
-    base_lcs = lc_train[lc_train.CLASS==star_class].sample(n)['ID'].to_list()    
-    # Initialize an empty list to store time sequences
+    base_lcs = []
+    
+    for star in star_class:
+        fail = True
+        while(fail):
+            try: 
+                new_label = lc_train[lc_train.CLASS==star].sample(1, replace=True)['ID'].to_list()[0]
+                base_lcs.append(new_label)
+                fail = False
+            except Exception as error : 
+                fail = True    
+                logging.error(f"[get_time_sequence] The light curve {new_label} was not added: {error}")
     time_sequences = []
-    # Loop through each sampled object to read its light curve data
     for lc in base_lcs:
-        # Generate the path to the light curve file for the current object
         path_lc = (PATH_LIGHT_CURVES_OGLE + lc.split('-')[1].lower() +
                    '/' + lc.split('-')[2].lower() + '/phot/I/' + lc)
-        # Read the light curve data from the file
         lcu = pd.read_table(path_lc, sep=" ", names=['time', 'magnitude', 'error'])
-        # Check if the time sequence is monotonic increasing
         if not lcu['time'].is_monotonic_increasing:
-            # If not, remove problematic elements to make it monotonically increasing
             lcu = lcu[lcu['time']  >lcu['time'].values[0]]
-        # Extract and store the time sequence as a list
         time_sequences.append([lcu['time'].to_list(), lcu.magnitude.min(), lcu.magnitude.max()])
+
+    return time_sequences
+
+def get_only_time_sequence(n=1, star_class=['RRLYR']):
+    """
+    Retrieve time sequences from light curves data for 'n' objects.
+    Parameters:
+        n (int): Number of objects to sample.
+    Returns:
+        list: A list of lists containing time sequences from the light curves of 'n' objects.
+    """
+    n = int(n)
+    path_train = PATH_FEATURES_TRAIN
+    lc_train = pd.read_table(path_train, sep=',')
+    lc_train[['SURVEY', 'FIELD', 'CLASS', 'NUMBER']] = lc_train['ID'].str.split('-', expand=True)
+    lc_train['NUMBER'] = lc_train['NUMBER'].str.replace('.dat', '')
+    base_lcs = []
+    print(len(star_class))
+    for star in star_class:
+        fail = True
+        while(fail):
+            try: 
+                new_label = lc_train[lc_train.CLASS==star].sample(1, replace=True)['ID'].to_list()[0]
+                path_lc = (PATH_LIGHT_CURVES_OGLE + new_label.split('-')[1].lower() +
+                   '/' + new_label.split('-')[2].lower() + '/phot/I/' + new_label)
+                lcu = pd.read_table(path_lc, sep=" ", names=['time', 'magnitude', 'error'])
+                if lcu.shape[0]>100:
+                    base_lcs.append(new_label)
+                    fail = False
+            except Exception as error : 
+                fail = True    
+                logging.error(f"[get_only_time_sequence] The light curve was not loaded: {error}")
+    print(len(base_lcs))
+    time_sequences = []
+    for lc in base_lcs:
+        path_lc = (PATH_LIGHT_CURVES_OGLE + lc.split('-')[1].lower() +
+                   '/' + lc.split('-')[2].lower() + '/phot/I/' + lc)
+        lcu = pd.read_table(path_lc, sep=" ", names=['time', 'magnitude', 'error'])
+        if not lcu['time'].is_monotonic_increasing:
+            lcu = lcu[lcu['time']  >lcu['time'].values[0]]
+        times = lcu['time'].to_list()
+        if len(times)<5:
+            lc_adapted = time_sequences[0]
+            logging.error(f"[get_only_time_sequence] The light curve {lc} was not used:")
+        else: 
+            lc_adapted = ensure_n_elements(times)
+        lc_adapted = (lc_adapted - np.min(lc_adapted))/(np.max(lc_adapted)-np.min(lc_adapted))
+        time_sequences.append(lc_adapted)
+    print(len(time_sequences))
     return time_sequences
 
 def ensure_n_elements(lst, n=600):

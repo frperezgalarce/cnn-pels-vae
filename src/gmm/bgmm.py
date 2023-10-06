@@ -20,10 +20,16 @@ PATH_PP: str = PATHS['PATH_PP']
 PATH_FIGURES: str = PATHS['PATH_FIGURES']
 
 class BayesianGaussianMixtureModel:
-    def __init__(self, n_components: int = 2, random_state: Optional[int] = None):
+    def __init__(self, n_components: int = 2, random_state: Optional[int] = None, 
+                covariance_type = 'full', max_iter = 500):
         self.n_components = n_components
         self.random_state = random_state
-        self.bgm = BayesianGaussianMixture(n_components=self.n_components, random_state=self.random_state)
+        self.covariance_type = covariance_type
+        self.max_iter = max_iter
+        self.bgm = BayesianGaussianMixture(n_components=self.n_components, 
+                                            random_state=self.random_state, 
+                                            covariance_type=self.covariance_type, 
+                                            max_iter = self.max_iter)
         self.object = None
         self.mean_prior = None
 
@@ -203,7 +209,6 @@ def fit_gausians(priors_dict, columns = ['Type','Period', 'teff_val', '[Fe/H]_J9
     train_and_save(priors = False, columns= columns)
 
 def get_load_and_sample(star_class: str = 'RRLYR') -> None:
-    # Load the model and generate samples
     train_and_save(components=2)
     loaded_bgmm = BayesianGaussianMixtureModel.load_model('bgm_model_'+str(star_class)+'.pkl')
     generated_samples = loaded_bgmm.generate_samples(n_samples=5)

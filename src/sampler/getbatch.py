@@ -8,12 +8,14 @@ import src.utils as utils
 import src.gmm.modifiedgmm as mgmm
 import src.sampler.fit_regressor as reg
 import matplotlib.pyplot as plt
+from src.sampler.LightCurveRandomSampler import LightCurveRandomSampler
+
 gpu: bool = True # fail when true is selected
 
 class SyntheticDataBatcher:
     def __init__(self, config_file_path: str = 'src/regressor.yaml', 
                  nn_config_path: str = 'src/nn_config.yaml', paths: str = 'src/paths.yaml', PP=[], vae_model=None, 
-                 n_samples=16, seq_length = 100, batch_size=64):
+                 n_samples=16, seq_length = 100, batch_size=128):
         self.device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
         self.config_file = self.load_yaml(config_file_path)
         self.nn_config = self.load_yaml(nn_config_path)
@@ -41,6 +43,33 @@ class SyntheticDataBatcher:
     def count_subclasses(star_type_data: Dict[str, Any]) -> int:
         return len([key for key in star_type_data.keys() if key != 'CompleteName'])
 
+
+
+    def process_in_batches(self, model, mu_, times, onehot, phy, batch_size):
+        # Split tensors into smaller batches
+        total_samples = mu_.size(0)
+        n_batches = (total_samples + batch_size - 1) // batch_size
+
+        results = []
+        for i in range(n_batches):
+            start_idx = i * batch_size
+            end_idx = min((i + 1) * batch_size, total_samples)
+
+            mu_batch = mu_[start_idx:end_idx]
+            times_batch = times[start_idx:end_idx]
+            onehot_batch = onehot[start_idx:end_idx]
+            phy_batch = phy[start_idx:end_idx]
+
+            xhat_mu_batch = model.decoder(mu_batch, times_batch, label=onehot_batch, phy=phy_batch)
+            results.append(xhat_mu_batch)
+            del xhat_mu_batch
+            torch.cuda.empty_cache()
+
+        # Concatenate results from all batches
+        xhat_mu = torch.cat(results, dim=0)
+        return xhat_mu
+
+
     def attempt_sample_load(self, model_name: str, sampler: 'YourSamplerType') -> Tuple[Union[np.ndarray, None], bool]:
         try:
             samples = sampler.modify_and_sample(model_name, n_samples=self.n_samples)
@@ -61,6 +90,8 @@ class SyntheticDataBatcher:
             label_encoder = pickle.load(f)
 
         for star_class in list(self.nn_config['data']['classes']):
+            torch.cuda.empty_cache()
+
             print('------- sampling ' +star_class+'---------')
             lb += [star_class] * self.n_samples
 
@@ -106,23 +137,29 @@ class SyntheticDataBatcher:
         print(len(lb))
         mu_ = reg.process_regressors(self.config_file, phys2=columns, samples= all_classes_samples, 
                                             from_vae=False, train_rf=False)
-        onehot = np.array(onehot)  
-        lb = np.array(lb)  
-        mu_ = torch.from_numpy(mu_).to(self.device)
-        onehot = torch.from_numpy(onehot).to(self.device)
-        pp = torch.from_numpy(all_classes_samples).to(self.device)
-
-
         
         times = [i/600 for i in range(600)]
         times = np.tile(times, (self.n_samples*len(list(self.nn_config['data']['classes'])), 1))
         times = np.array(times)  
         times = torch.from_numpy(times).to(self.device)
-        times = times.to(dtype=torch.float32)
-
+        # Load model first
         vae, _ = utils.load_model_list(ID=self.vae_model, device=self.device)
 
-        xhat_mu = vae.decoder(mu_, times, label=onehot, phy=pp)
+        # Convert times to float32
+        times = times.to(dtype=torch.float32)
+
+        # Directly convert to tensors and move to the GPU
+        mu_ = torch.tensor(mu_, device=self.device)
+        onehot = torch.tensor(onehot, device=self.device)
+        lb = np.array(lb)  
+        pp = torch.tensor(all_classes_samples, device=self.device)
+
+        # Clear GPU cache
+        torch.cuda.empty_cache()
+        xhat_mu = self.process_in_batches(vae, mu_, times, onehot, pp, 8)
+
+        #xhat_mu = vae.decoder(mu_, times, label=onehot, phy=pp)
+
         xhat_mu = torch.cat([times.unsqueeze(-1), xhat_mu], dim=-1).cpu().detach().numpy()
         indices = np.random.choice(xhat_mu.shape[0], 24, replace=False)
         sampled_arrays = xhat_mu[indices, :, :]
@@ -155,12 +192,17 @@ class SyntheticDataBatcher:
             plt.scatter(lc_reverted[0][1], lc_reverted[0][0])
             plt.show()
 
-        #TODO: check oversampling, it does not work
-        oversampling = False
+        oversampling = True
         if np.sum(np.isnan(lc_reverted)) > 0:
             print(f"Number of NaN values detected: {np.sum(np.isnan(lc_reverted))}")
             raise ValueError("NaN values detected in lc_reverted array")
-        lc_reverted = lc_reverted[:, :, :self.seq_length]
+        if oversampling: 
+            sampler = LightCurveRandomSampler(lc_reverted, onehot_to_train, self.seq_length, 8)
+            lc_reverted, onehot_to_train = sampler.sample()
+            print(lc_reverted.shape)
+            print(onehot_to_train.shape)
+        else:
+            lc_reverted = lc_reverted[:, :, :self.seq_length]
         utils.save_arrays_to_folder(lc_reverted, onehot_to_train , PATH_DATA)
 
         numpy_array_x = np.load(PATH_DATA+'/x_batch_pelsvae.npy', allow_pickle=True)

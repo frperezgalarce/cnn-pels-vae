@@ -112,11 +112,23 @@ def insert_lc(examples, np_array, np_array_y, lenght_lc = 0, signal_noise=6, sub
         lcu['delta_time'] = lcu['time'].diff()
         lcu['delta_mag'] = lcu['magnitude'].diff()
         lcu = lcu[lcu.magnitude/lcu.error>signal_noise] #Delete S/N greater than 0
-        lcu = lcu[lcu.delta_mag<10]
-        lcu = lcu[lcu.delta_time<10]
+        # Deleting rows where 'delta_mag' is in the top 10% (i.e., above 90th percentile)
+        threshold_mag = lcu['delta_mag'].quantile(0.975)
+        lcu = lcu[lcu.delta_mag < threshold_mag]
+
+        # Deleting rows where 'delta_time' is in the top 10% (i.e., above 90th percentile)
+        threshold_time = lcu['delta_time'].quantile(0.975)
+        lcu = lcu[lcu.delta_time < threshold_time]
+
+        threshold_mag = lcu['delta_mag'].quantile(0.025)
+        lcu = lcu[lcu.delta_mag > threshold_mag]
+
+        # Deleting rows where 'delta_time' is in the top 10% (i.e., above 90th percentile)
+        threshold_time = lcu['delta_time'].quantile(0.25)
+        lcu = lcu[lcu.delta_time > threshold_time]
+
         lcu = delete_by_std(lcu)
-        #lcu['delta_time'] = lcu['time'].diff()
-        #lcu['delta_mag'] = lcu['magnitude'].diff()
+
         lcu.dropna(axis=0, inplace=True)
 
         if lcu.shape[0]> lenght_lc:
@@ -1171,8 +1183,6 @@ def revert_light_curve(period, folded_normed_light_curve, faintness=1.0, classes
     num_sequences = folded_normed_light_curve.shape[0]
     reverted_light_curves = []
     time_sequences = get_time_sequence(n=1, star_class=classes)
-    print(time_sequences[0], classes[0])
-    #raise
     for i in range(num_sequences):
         # Extract the time (period) and magnitude values from the folded and normed light curve
         time = folded_normed_light_curve[i,:,0]
@@ -1180,7 +1190,7 @@ def revert_light_curve(period, folded_normed_light_curve, faintness=1.0, classes
 
         # Generate the time values for the reverted light curve
         [example_sequence, original_min, original_max] = time_sequences[i]
-        print(example_sequence, original_min, original_max, time)
+
         real_time =  get_time_from_period(period[i], time, example_sequence, sequence_length=600)
 
         # Revert the normed magnitudes back to the original magnitudes using min-max scaling and faintness factor
@@ -1222,9 +1232,7 @@ def revert_light_curve(period, folded_normed_light_curve, faintness=1.0, classes
     # Select 200 random observations
     reverted_light_curves_random = reverted_light_curves[:, :, random_indices]
 
-    print(reverted_light_curves_random.shape)
     reverted_light_curves_random = reverted_light_curves_random.squeeze(2) 
-    print(reverted_light_curves_random.shape)
 
 
     print('before sort: ')
@@ -1298,7 +1306,7 @@ def get_time_sequence(n=1, star_class=['RRLYR']):
                 fail = True    
                 logging.error(f"[get_time_sequence] The light curve {new_label} was not added: {error}")
     time_sequences = []
-    for lc in base_lcs:
+    for lc in tqdm(base_lcs, desc='Loading lcs'):
         path_lc = (PATH_LIGHT_CURVES_OGLE + lc.split('-')[1].lower() +
                    '/' + lc.split('-')[2].lower() + '/phot/I/' + lc)
         lcu = pd.read_table(path_lc, sep=" ", names=['time', 'magnitude', 'error'])
@@ -1405,11 +1413,12 @@ def get_time_from_period(period, phased_time,  example_sequence, sequence_length
     """
     # Calculate the range for 'k' values based on the minimum and maximum values of example_sequence
     if len(example_sequence) > 0:
-        k_min = int(np.quantile(example_sequence, 0.2) / period)
-        k_max = int(np.quantile(example_sequence, 0.8) / period)
+        k_min = (np.quantile(example_sequence, 0.3) / period)
+        k_max = (np.quantile(example_sequence, 0.7) / period)
+        print(k_min, k_max)
     else:
-        k_min =  int(450/period)
-        k_max =  int(3000/period)
+        k_min =  40.0
+        k_max =  200.0
         #raise ValueError("example_sequence is empty, cannot perform min/max operations.")
 
     if isinstance(k_min, np.ndarray):
@@ -1425,7 +1434,7 @@ def get_time_from_period(period, phased_time,  example_sequence, sequence_length
     try:
         min_sequence = np.min(example_sequence)
     except: 
-        min_sequence = 450
+        min_sequence = 400.0
     # Ensure phased_time is a PyTorch tensor and on the same device as 'period'
     if isinstance(phased_time, np.ndarray):
         phased_time = torch.tensor(phased_time).to(period.device)

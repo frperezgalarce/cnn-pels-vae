@@ -155,7 +155,8 @@ def train_one_epoch_alternative(
         dataloader_2: Optional[DataLoader] = None, 
         optimizer_2: Optional[Optimizer] = None, 
         locked_masks2 = None, 
-        locked_masks = None
+        locked_masks = None, 
+        repetitions = 10
     ) -> float:    
     
     running_loss = 0.0
@@ -170,7 +171,7 @@ def train_one_epoch_alternative(
             _, labels_indices = torch.max(labels, 1)  # Convert one-hot to indices
             loss = criterion(outputs, labels_indices)
             loss.backward(retain_graph=True)
-            torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=2.0, norm_type=2)
+            torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=6.0, norm_type=2)
             optimizer.step()
             running_loss += loss.item()
         return running_loss, model
@@ -188,7 +189,7 @@ def train_one_epoch_alternative(
             _, labels_indices = torch.max(labels, 1)  # Convert one-hot to indices
             loss = criterion(outputs, labels_indices)
             loss.backward()
-            #torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=2.0, norm_type=2)
+            torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=6.0, norm_type=2)
             for name, param in model.named_parameters():
                 if name in locked_masks2:
                     mask = locked_masks2[name].float().to(param.grad.data.device)
@@ -198,24 +199,25 @@ def train_one_epoch_alternative(
             running_loss += loss.item()   
         
         num_batches = 0
-        for inputs_2, labels_2 in dataloader_2:
-            num_batches += 1
-            inputs, labels = inputs_2.to(device), labels_2.to(device)
-            inputs = inputs.float()
-            optimizer_2.zero_grad()
-            outputs = model(inputs)
-            _, labels_indices = torch.max(labels, 1)  # Convert one-hot to indices
-            loss_prior = criterion_2(outputs, labels_indices)
-            loss_prior.backward()
-            #torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=2.0, norm_type=2)
-            for name, param in model.named_parameters():
-                if name in locked_masks:
-                    mask = locked_masks[name].float().to(param.grad.data.device)
-                    param.grad.data *= (mask == 0).float()
-                    param.grad.data += mask * param.grad.data.clone()
-            
-            optimizer_2.step()
-            running_loss_prior += loss_prior.item() 
+        for _ in range(repetitions):
+            for inputs_2, labels_2 in dataloader_2:
+                num_batches += 1
+                inputs, labels = inputs_2.to(device), labels_2.to(device)
+                inputs = inputs.float()
+                optimizer_2.zero_grad()
+                outputs = model(inputs)
+                _, labels_indices = torch.max(labels, 1)  # Convert one-hot to indices
+                loss_prior = criterion_2(outputs, labels_indices)
+                loss_prior.backward()
+                torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=2.0, norm_type=2)
+                for name, param in model.named_parameters():
+                    if name in locked_masks:
+                        mask = locked_masks[name].float().to(param.grad.data.device)
+                        param.grad.data *= (mask == 0).float()
+                        param.grad.data += mask * param.grad.data.clone()
+                
+                optimizer_2.step()
+                running_loss_prior += loss_prior.item() 
         return running_loss, model
   
 def evaluate_dataloader(model, dataloader, criterion, device):
@@ -256,16 +258,15 @@ def evaluate_dataloader(model, dataloader, criterion, device):
             predicted = torch.max(outputs, 1)[1]
             
             # Update statistics
-            total_loss += loss.item() * len(labels)
+            total_loss += loss.item()
             total_correct += (predicted == labels_indices).sum().item()
             total_samples += len(labels_indices)
 
-    avg_loss = total_loss / total_samples
     avg_accuracy = total_correct / total_samples
     
     model.train()  # Set the model back to training mode
     
-    return avg_loss, avg_accuracy
+    return total_loss, avg_accuracy
 
 def initialize_masks(model, device='cuda', EPS=0.25):
     locked_masks = {}
@@ -320,7 +321,6 @@ def initialize_masks(model, device='cuda', EPS=0.25):
         print(f"For parameter {name}, number of trainable weights: {mask.sum().item()}")
     return locked_masks, locked_masks2
 
-
 def run_cnn(create_samples: Any, mean_prior_dict: Dict = None, 
             vae_model=None, PP=[], opt_method='twolosses') -> None:
     """
@@ -338,6 +338,8 @@ def run_cnn(create_samples: Any, mean_prior_dict: Dict = None,
     None
     """
     wandb.init(project='train-classsifier', entity='fjperez10')
+    torch.cuda.empty_cache()
+
     print('#'*50)
     print('TRAINING CNN')
     print('#'*50)
@@ -362,20 +364,11 @@ def run_cnn(create_samples: Any, mean_prior_dict: Dict = None,
 
     if opt_method == 'twolosses':
         print('Using mode: two masks')
-        locked_masks, locked_masks2 = initialize_masks(model, EPS=0.5)
+        locked_masks, locked_masks2 = initialize_masks(model, EPS=0.25)
         learning_rate = 0.001
         scaling_lr = 0.5
         optimizer1 = torch.optim.Adam(model.parameters(), lr=learning_rate)  
         optimizer2 = torch.optim.Adam(model.parameters(), lr=scaling_lr*learning_rate)
-        #optimizer1 = optim.RMSprop(model.parameters(), lr=learning_rate, alpha=0.99)
-        #optimizer2 = optim.RMSprop(model.parameters(), lr=scaling_lr*learning_rate, alpha=0.99)
-
-        # ExponentialLR Schedulers
-        #gamma = 0.95  # decay factor
-
-        #scheduler1 = ExponentialLR(optimizer1, gamma=gamma)
-        #scheduler2 = ExponentialLR(optimizer2, gamma=gamma)
-
     elif opt_method == 'oneloss':
         print('Using mode: classic backpropagation')
         optimizer1 = torch.optim.Adam(model.parameters(), lr=0.001)
@@ -385,7 +378,6 @@ def run_cnn(create_samples: Any, mean_prior_dict: Dict = None,
     training_data = utils.move_data_to_device((x_train, y_train), device)
     val_data = utils.move_data_to_device((x_val, y_val), device)
     testing_data = utils.move_data_to_device((x_test, y_test), device)
-
 
     batch_size = nn_config['training']['batch_size']
     train_dataset = TensorDataset(*training_data)
@@ -411,7 +403,7 @@ def run_cnn(create_samples: Any, mean_prior_dict: Dict = None,
     epochs = nn_config['training']['epochs']
     patience =  nn_config['training']['patience']
 
-    batcher = SyntheticDataBatcher(PP = PP, vae_model=vae_model, n_samples=256, seq_length = x_train.size(-1))
+    batcher = SyntheticDataBatcher(PP = PP, vae_model=vae_model, n_samples=64, seq_length = x_train.size(-1))
     for epoch in range(epochs):
         if opt_method=='twolosses' and create_samples and harder_samples: 
             synthetic_data_loader = batcher.create_synthetic_batch()
@@ -428,7 +420,7 @@ def run_cnn(create_samples: Any, mean_prior_dict: Dict = None,
                                         criterion_2= criterion_synthetic_samples, 
                                         dataloader_2 = synthetic_data_loader,
                                         optimizer_2 = optimizer2, locked_masks2 = locked_masks2, 
-                                        locked_masks = locked_masks)
+                                        locked_masks = locked_masks, repetitions = 20)
                                  
         val_loss, accuracy_val = evaluate_dataloader(model, val_dataloader, criterion, device)
         _, accuracy_train = evaluate_dataloader(model, train_dataloader, criterion, device)
@@ -463,6 +455,10 @@ def run_cnn(create_samples: Any, mean_prior_dict: Dict = None,
                 'acc_synthetic_samples': accuracy_train_synthetic, 'val_loss': val_loss, 'val_accu': accuracy_val})
         print('epoch:', epoch, ' loss:', running_loss, ' acc_train:', accuracy_train, ' synth_loss:',synthetic_loss, 
                 ' acc_synth:', accuracy_train_synthetic, ' val_loss', val_loss, ' val_accu:', accuracy_val)
+    
+    
+    
+    
     # Post-training tasks
     model.load_state_dict(best_model)
     plot_training(range(len(train_loss_values)), train_loss_values, val_loss_values, train_accuracy_values, val_accuracy_values)

@@ -3,7 +3,8 @@ import src.gmm.bgmm as bgmm
 import src.sampler.create_lc as creator
 import src.sampler.fit_regressor as reg
 from src.utils import load_yaml_priors, load_pp_list
-
+import torch
+import argparse
 import yaml
 from typing import List, Optional, Any, Dict
 
@@ -28,10 +29,70 @@ print('Using vae model: '+ vae_model)
 sufix_path: str =   config_file['model_parameters']['sufix_path']
 print('sufix path: '+ sufix_path)
 
+
+def config_wandb(): 
+    ## Config ##
+    parser = argparse.ArgumentParser(description='Masked CNN to mitigate biases using synthetic samples')
+    parser.add_argument('--dry-run', dest='dry_run', action='store_true',
+                        default=False,
+                        help='Load data and initialize models [False]')
+
+    parser.add_argument('--machine', dest='machine', type=str, default='karimsala6s',
+                        help='were to is running (Jorges-MBP, karimsala6s, [exalearn])')
+
+    parser.add_argument('--data', dest='data', type=str, default='OGLE3_lcs_I_meta_snr5_augmented_folded_trim600_GAIA3_6PP.npy',
+                        help='data used for training ([OGLE3], EROS2)')
+    parser.add_argument('--use-err', dest='use_err', type=str, default='T',
+                        help='use magnitude errors ([T],F)')
+    parser.add_argument('--cls', dest='cls', type=str, default='all',
+                        help='drop or select ony one class '+
+                        '([all],drop_"vartype",only_"vartype")')
+
+    parser.add_argument('--lr', dest='lr', type=float, default=1e-3,
+                        help='learning rate [1e-4]')
+    parser.add_argument('--lr-sch', dest='lr_sch', type=str, default='cos',
+                        help='learning rate shceduler '+
+                        '([None], step, exp,cosine, plateau)')
+    parser.add_argument('--beta', dest='beta', type=str, default='4',
+                        help='beta factor for latent KL div ([1],step)')
+    parser.add_argument('--batch-size', dest='batch_size', type=int, default=128,
+                        help='batch size [128]')
+    parser.add_argument('--num-epochs', dest='num_epochs', type=int, default=200,
+                        help='total number of training epochs [150]') 
+
+    parser.add_argument('--cond', dest='cond', type=str, default='T',
+                        help='label conditional VAE (F,[T])')
+    parser.add_argument('--phy', dest='phy', type=str, default='PTARMG',
+                        help='physical parameters to use for conditioning ([],[tm])')
+    parser.add_argument('--latent-dim', dest='latent_dim', type=int, default=6,
+                        help='dimension of latent space [6]')
+    parser.add_argument('--latent-mode', dest='latent_mode', type=str,
+                        default='repeat',
+                        help='wheather to sample from a 3d or 2d tensor '+
+                        '([repeat],linear,convt)')
+    parser.add_argument('--arch', dest='arch', type=str, default='tcn',
+                        help='architecture for Enc & Dec ([tcn],lstm,gru)')
+    parser.add_argument('--transpose', dest='transpose', type=str, default='F',
+                        help='use tranpose convolution in Dec ([F],T)')
+    parser.add_argument('--units', dest='units', type=int, default=48,
+                        help='number of hidden units [32]')
+    parser.add_argument('--layers', dest='layers', type=int, default=9,
+                        help='number of layers/levels for lstm/tcn [5]')
+    parser.add_argument('--dropout', dest='dropout', type=float, default=0.2,
+                        help='dropout for lstm/tcn layers [0.2]')
+    parser.add_argument('--kernel-size', dest='kernel_size', type=int, default=4,
+                        help='kernel size for tcn conv, use odd ints [5]')
+
+    parser.add_argument('--comment', dest='comment', type=str, default='GAIA3_LOG_IMPUTED_BY_CLASS_6PP - log_cosh_loss',
+                        help='extra comments')
+    args = parser.parse_args()
+
+
 def main(train_gmm: Optional[bool] = False, create_samples: Optional[bool] = True, 
          train_classifier: Optional[bool]=True, sensitive_test: bool = False, 
          train_regressor: bool = False) -> None:
-    
+    torch.cuda.empty_cache()
+
     PP_list = load_pp_list(vae_model)
     print('FEATURES: ', PP_list)
     if train_regressor:
@@ -59,7 +120,7 @@ def main(train_gmm: Optional[bool] = False, create_samples: Optional[bool] = Tru
         cnn.run_cnn(create_samples, mean_prior_dict=mean_prior_dict, vae_model=vae_model, PP=PP_list, opt_method='twolosses')
     
 if __name__ == "__main__": 
-    main(train_gmm = False, create_samples = True, 
-         train_classifier = True, sensitive_test= False, train_regressor=False)
+    main(train_gmm = True, create_samples = True, 
+         train_classifier = True, sensitive_test= False, train_regressor=True)
         # create_samples activate samples generation in cnn training
     

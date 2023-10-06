@@ -47,14 +47,14 @@ print(np.max(df2y))
 
 
 print(np.unique(df1y), np.unique(df2y))
-for j in range(30):
-    lc = random.randint(1, df1.shape[0])
-    lc2 = random.randint(1, df2.shape[0])
+for j in range(50):
+    lc = random.randint(1, df1.shape[0]-1)
+    lc2 = random.randint(1, df2.shape[0]-1)
     print(lc, lc2)
 
     while np.argmax(df1y[lc]) != df2y[lc2]: 
-        lc = random.randint(1, df1.shape[0])
-        lc2 = random.randint(1, df2.shape[0])
+        lc = random.randint(1, df1.shape[0]-1)
+        lc2 = random.randint(1, df2.shape[0]-1)
         print(lc, lc2)
         print(np.argmax(df1y[lc]), df2y[lc2])
     

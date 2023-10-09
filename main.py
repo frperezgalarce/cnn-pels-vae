@@ -2,7 +2,7 @@ import src.cnn as cnn
 import src.gmm.bgmm as bgmm 
 import src.sampler.create_lc as creator
 import src.sampler.fit_regressor as reg
-from src.utils import load_yaml_priors, load_pp_list
+from src.utils import load_yaml_priors, load_pp_list, load_id_period_to_sample
 import torch
 import argparse
 import yaml
@@ -120,7 +120,7 @@ def main(train_gmm: Optional[bool] = False, create_samples: Optional[bool] = Tru
         cnn.run_cnn(create_samples, mean_prior_dict=mean_prior_dict, vae_model=vae_model, PP=PP_list, opt_method='twolosses')
     
 if __name__ == "__main__": 
-    main(train_gmm = True, create_samples = True, 
-         train_classifier = True, sensitive_test= False, train_regressor=True)
+    main(train_gmm = False, create_samples = True, 
+         train_classifier = True, sensitive_test= False, train_regressor=False)
         # create_samples activate samples generation in cnn training
     

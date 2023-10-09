@@ -23,6 +23,7 @@ from sklearn.metrics import recall_score
 import pickle
 from typing import Tuple, Any, Dict, Type, Union, List
 import logging
+import gzip
 
 logging.basicConfig(filename='error_log.txt', level=logging.ERROR)
 #from src.utils import load_yaml
@@ -42,6 +43,7 @@ PATH_SUBCLASSES = PATHS["PATH_SUBCLASSES"]
 PATH_DATA_FOLDER = PATHS["PATH_DATA_FOLDER"]
 PATH_FIGURES: str = PATHS['PATH_FIGURES']
 PATH_MODELS: str = PATHS["PATH_MODELS"]
+PATH_ZIP_GAIA:str = PATHS["PATH_ZIP_GAIA"]
 
 # Read configurations from a YAML file
 with open('src/regressor.yaml', 'r') as file:
@@ -290,6 +292,23 @@ def get_ids(n=1):
     print('clases: ', example_train['class'].unique())
 
     return example_test, example_train
+
+
+def load_id_period_to_sample(classes=None): 
+    print('Loading from:\n', PATH_DATA_FOLDER+PATH_ZIP_GAIA)
+    with gzip.open(PATH_DATA_FOLDER+PATH_ZIP_GAIA, 'rb') as f:
+        np_data = np.load(f, allow_pickle=True)
+    df = np_data.item()['meta'][['OGLE_id','Period','Type']]
+
+    if classes == None: 
+        df = df.sample(1)
+    else:
+        samples = []
+        for t in classes:
+            sample = df[df['Type'] == t].sample(n=50)
+            samples.append(sample)
+        df = pd.concat(samples, axis=0).reset_index(drop=True)
+    return df
 
 def transform_to_consecutive(input_list, label_encoder):
     unique_elements = sorted(set(input_list))
@@ -1114,7 +1133,7 @@ def plot_wall_lcs_sampling(lc_gen, lc_real, cls=[], lc_gen2=None, save=False, wa
         wandb.finish()
     else: 
         plt.show()
-    return 
+    return 'done'
 
 def scatter_hue(x, y, labels, disc=True, c_label=''):
     """Creates a wall of light curves plot with real and reconstruction
@@ -1167,7 +1186,7 @@ def quantile(tensor, q):
 
     return lower_val + (upper_val - lower_val) * (idx - lower_idx)
 
-def revert_light_curve(period, folded_normed_light_curve, faintness=1.0, classes = None):
+def revert_light_curve(period, folded_normed_light_curve, original_sequences, faintness=1.0, classes = None):
     """
     Revert previously folded and normed light curves back to the original light curves.
 
@@ -1185,20 +1204,20 @@ def revert_light_curve(period, folded_normed_light_curve, faintness=1.0, classes
     time_sequences = get_time_sequence(n=1, star_class=classes)
     for i in range(num_sequences):
         # Extract the time (period) and magnitude values from the folded and normed light curve
-        time = folded_normed_light_curve[i,:,0]
+        time = original_sequences[i] #folded_normed_light_curve[i,:,0]
         normed_magnitudes = folded_normed_light_curve[i,:,1]
 
         # Generate the time values for the reverted light curve
-        [example_sequence, original_min, original_max] = time_sequences[i]
+        [_, original_min, original_max] = time_sequences[i]
 
-        real_time =  get_time_from_period(period[i], time, example_sequence, sequence_length=600)
+        real_time =  time #get_time_from_period(period[i], time, example_sequence, sequence_length=600)
 
         # Revert the normed magnitudes back to the original magnitudes using min-max scaling and faintness factor
         original_magnitudes = ((normed_magnitudes * (original_max - original_min)) + original_min) * faintness
 
         # Ensure a sequence length for real_time
-        real_time = ensure_n_elements(real_time, n=600)
-
+        real_time = ensure_n_elements(real_time, n=350)
+        original_magnitudes = ensure_n_elements(original_magnitudes, n=350)
         # Convert real_time to NumPy array if it's a PyTorch tensor
         if isinstance(real_time, torch.Tensor):
             if real_time.is_cuda:
@@ -1224,7 +1243,7 @@ def revert_light_curve(period, folded_normed_light_curve, faintness=1.0, classes
 
     reverted_light_curves = np.swapaxes(reverted_light_curves, 1, 2)
     # Generate random unique indices along the last dimension
-    random_indices = np.random.choice(600, nn_config['data']['seq_length']+1, replace=False)
+    random_indices = np.random.choice(350, nn_config['data']['seq_length']+1, replace=False)
 
     # Sort the indices for easier interpretation and debugging (optional)
     random_indices = random_indices.sort()
@@ -1325,44 +1344,46 @@ def get_only_time_sequence(n=1, star_class=['RRLYR']):
         list: A list of lists containing time sequences from the light curves of 'n' objects.
     """
     n = int(n)
-    path_train = PATH_FEATURES_TRAIN
-    lc_train = pd.read_table(path_train, sep=',')
-    lc_train[['SURVEY', 'FIELD', 'CLASS', 'NUMBER']] = lc_train['ID'].str.split('-', expand=True)
-    lc_train['NUMBER'] = lc_train['NUMBER'].str.replace('.dat', '')
+    #path_train = PATH_FEATURES_TRAIN
+    #lc_train = pd.read_table(path_train, sep=',') 
+    df_id_period = load_id_period_to_sample(star_class)
+
+    # TODO: finally, get times in OGLE
+    df_id_period[['SURVEY', 'FIELD', 'CLASS', 'NUMBER']] = df_id_period['OGLE_id'].str.split('-', expand=True)
     base_lcs = []
     print(len(star_class))
-    for star in star_class:
+    for star in tqdm(star_class, desc='Selecting light curves'):
         fail = True
         while(fail):
             try: 
-                new_label = lc_train[lc_train.CLASS==star].sample(1, replace=True)['ID'].to_list()[0]
+                new_label = df_id_period[df_id_period.Type==star].sample(1, replace=True)['OGLE_id'].to_list()[0]
                 path_lc = (PATH_LIGHT_CURVES_OGLE + new_label.split('-')[1].lower() +
-                   '/' + new_label.split('-')[2].lower() + '/phot/I/' + new_label)
+                   '/' + new_label.split('-')[2].lower() + '/phot/I/' + new_label + '.dat')
                 lcu = pd.read_table(path_lc, sep=" ", names=['time', 'magnitude', 'error'])
-                if lcu.shape[0]>100:
+                if lcu.shape[0]>200 and lcu['time'].is_monotonic_increasing:
                     base_lcs.append(new_label)
                     fail = False
             except Exception as error : 
                 fail = True    
+                print(error)
                 logging.error(f"[get_only_time_sequence] The light curve was not loaded: {error}")
     print(len(base_lcs))
     time_sequences = []
-    for lc in base_lcs:
+    original_sequences = []
+    for lc in tqdm(base_lcs, desc='completing the dataset'):
         path_lc = (PATH_LIGHT_CURVES_OGLE + lc.split('-')[1].lower() +
-                   '/' + lc.split('-')[2].lower() + '/phot/I/' + lc)
+                   '/' + lc.split('-')[2].lower() + '/phot/I/' + lc + '.dat')
         lcu = pd.read_table(path_lc, sep=" ", names=['time', 'magnitude', 'error'])
-        if not lcu['time'].is_monotonic_increasing:
-            lcu = lcu[lcu['time']  >lcu['time'].values[0]]
         times = lcu['time'].to_list()
-        if len(times)<5:
-            lc_adapted = time_sequences[0]
-            logging.error(f"[get_only_time_sequence] The light curve {lc} was not used:")
-        else: 
-            lc_adapted = ensure_n_elements(times)
-        lc_adapted = (lc_adapted - np.min(lc_adapted))/(np.max(lc_adapted)-np.min(lc_adapted))
-        time_sequences.append(lc_adapted)
-    print(len(time_sequences))
-    return time_sequences
+        print(times)
+        lc_adapted = ensure_n_elements(times)
+        lc_adapted_to_real_sequence = ensure_n_elements(times, n=350)
+        period = df_id_period[df_id_period.OGLE_id==lc].Period.values[0]
+        lc_phased = ((lc_adapted-np.min(lc_adapted))%period)/period
+        sorted_lc_phased = np.sort(lc_phased)
+        time_sequences.append(sorted_lc_phased)
+        original_sequences.append(lc_adapted_to_real_sequence)
+    return time_sequences, original_sequences
 
 def ensure_n_elements(lst, n=600):
     """
@@ -1375,7 +1396,10 @@ def ensure_n_elements(lst, n=600):
     Returns:
         list: The modified list with 'n' elements.
     """
+    
+    print('light curve length: ', len(lst))
     if len(lst) < n:
+        print(lst)
         # If the list has fewer elements than 'n', calculate the differences between consecutive elements
         differences = [lst[i + 1] - lst[i] for i in range(len(lst) - 1)]
 

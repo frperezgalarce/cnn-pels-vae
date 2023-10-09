@@ -364,7 +364,7 @@ def run_cnn(create_samples: Any, mean_prior_dict: Dict = None,
 
     if opt_method == 'twolosses':
         print('Using mode: two masks')
-        locked_masks, locked_masks2 = initialize_masks(model, EPS=0.25)
+        locked_masks, locked_masks2 = initialize_masks(model, EPS=0.3)
         learning_rate = 0.001
         scaling_lr = 0.5
         optimizer1 = torch.optim.Adam(model.parameters(), lr=learning_rate)  
@@ -375,6 +375,7 @@ def run_cnn(create_samples: Any, mean_prior_dict: Dict = None,
         optimizer2 = None
     else:
         raise ValueError(f"Unsupported optimization method: {opt_method}. Supported methods are 'twolosses' and 'oneloss'.")
+    
     training_data = utils.move_data_to_device((x_train, y_train), device)
     val_data = utils.move_data_to_device((x_val, y_val), device)
     testing_data = utils.move_data_to_device((x_test, y_test), device)
@@ -395,6 +396,8 @@ def run_cnn(create_samples: Any, mean_prior_dict: Dict = None,
     best_val_loss = float('inf')
     harder_samples = True
     threshold_acc_synthetic = 0.95
+    beta_decay_factor=0.99
+    beta_initial=1
     no_improvement_count = 0
     train_loss_values = []
     val_loss_values = []
@@ -402,11 +405,13 @@ def run_cnn(create_samples: Any, mean_prior_dict: Dict = None,
     val_accuracy_values = []
     epochs = nn_config['training']['epochs']
     patience =  nn_config['training']['patience']
+    beta_actual = beta_initial
 
     batcher = SyntheticDataBatcher(PP = PP, vae_model=vae_model, n_samples=64, seq_length = x_train.size(-1))
     for epoch in range(epochs):
         if opt_method=='twolosses' and create_samples and harder_samples: 
-            synthetic_data_loader = batcher.create_synthetic_batch()
+            synthetic_data_loader = batcher.create_synthetic_batch(b=beta_actual)
+            beta_actual=beta_actual*beta_decay_factor
             harder_samples = False
         elif  opt_method=='twolosses' and create_samples: 
             print("Using available synthetic data")
@@ -420,14 +425,14 @@ def run_cnn(create_samples: Any, mean_prior_dict: Dict = None,
                                         criterion_2= criterion_synthetic_samples, 
                                         dataloader_2 = synthetic_data_loader,
                                         optimizer_2 = optimizer2, locked_masks2 = locked_masks2, 
-                                        locked_masks = locked_masks, repetitions = 20)
+                                        locked_masks = locked_masks, repetitions = 10)
                                  
         val_loss, accuracy_val = evaluate_dataloader(model, val_dataloader, criterion, device)
         _, accuracy_train = evaluate_dataloader(model, train_dataloader, criterion, device)
 
         try:
             synthetic_loss, accuracy_train_synthetic =  evaluate_dataloader(model, synthetic_data_loader, criterion_synthetic_samples, device)
-            if accuracy_train_synthetic>threshold_acc_synthetic:
+            if (accuracy_train_synthetic>threshold_acc_synthetic) and (accuracy_train>threshold_acc_synthetic):
                 harder_samples = True
         except Exception as error:
             print(error) 

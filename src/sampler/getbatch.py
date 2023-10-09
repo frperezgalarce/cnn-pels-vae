@@ -137,16 +137,25 @@ class SyntheticDataBatcher:
         print(len(lb))
         mu_ = reg.process_regressors(self.config_file, phys2=columns, samples= all_classes_samples, 
                                             from_vae=False, train_rf=False)
-        
+        '''
         times = [i/600 for i in range(600)]
         times = np.tile(times, (self.n_samples*len(list(self.nn_config['data']['classes'])), 1))
         times = np.array(times)  
         times = torch.from_numpy(times).to(self.device)
+        times = times.to(dtype=torch.float32)
+
+        '''
         # Load model first
         vae, _ = utils.load_model_list(ID=self.vae_model, device=self.device)
+        times, original_sequences =  utils.get_only_time_sequence(n=1, star_class=lb)
+        times = np.array(times) 
+        original_sequences = np.array(original_sequences) 
 
-        # Convert times to float32
+        print(times.shape, original_sequences.shape)
+        
+        times = torch.from_numpy(times).to(self.device)
         times = times.to(dtype=torch.float32)
+
 
         # Directly convert to tensors and move to the GPU
         mu_ = torch.tensor(mu_, device=self.device)
@@ -157,27 +166,26 @@ class SyntheticDataBatcher:
         # Clear GPU cache
         torch.cuda.empty_cache()
         xhat_mu = self.process_in_batches(vae, mu_, times, onehot, pp, 8)
-
-        #xhat_mu = vae.decoder(mu_, times, label=onehot, phy=pp)
-
         xhat_mu = torch.cat([times.unsqueeze(-1), xhat_mu], dim=-1).cpu().detach().numpy()
         indices = np.random.choice(xhat_mu.shape[0], 24, replace=False)
         sampled_arrays = xhat_mu[indices, :, :]
 
+        print('before plot')
         utils.plot_wall_lcs_sampling(sampled_arrays, sampled_arrays,  cls=lb[indices],  column_to_sensivity=index_period,
-                                to_title = pp[indices], sensivity = 'Period', all_columns=columns, save=True) 
+                                to_title = pp[indices], sensivity = 'Period', all_columns=columns, save=False) 
 
-        lc_reverted = utils.revert_light_curve(pp[:,index_period], xhat_mu, classes = lb)
+        print('after plot')
+        lc_reverted = utils.revert_light_curve(pp[:,index_period], xhat_mu, original_sequences, classes = lb)
 
+        print('after lc_reverted recovery')
         print(np.min(lc_reverted[0][0]),np.max(lc_reverted[0][0]))
         print(np.min(lc_reverted[0][1]),np.max(lc_reverted[0][1])) 
-        
+        print('max, min')
         if plot_example:
             plt.figure()
             plt.scatter(lc_reverted[0][1], lc_reverted[0][0])
             plt.show()
 
-        #TODO: manage nan
         mean_value = np.nanmean(lc_reverted)
         lc_reverted[np.isnan(lc_reverted)] = mean_value
 
@@ -197,7 +205,7 @@ class SyntheticDataBatcher:
             print(f"Number of NaN values detected: {np.sum(np.isnan(lc_reverted))}")
             raise ValueError("NaN values detected in lc_reverted array")
         if oversampling: 
-            sampler = LightCurveRandomSampler(lc_reverted, onehot_to_train, self.seq_length, 8)
+            sampler = LightCurveRandomSampler(lc_reverted, onehot_to_train, self.seq_length, 12)
             lc_reverted, onehot_to_train = sampler.sample()
             print(lc_reverted.shape)
             print(onehot_to_train.shape)

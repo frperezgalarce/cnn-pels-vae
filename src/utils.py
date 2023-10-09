@@ -1208,7 +1208,7 @@ def revert_light_curve(period, folded_normed_light_curve, original_sequences, fa
         normed_magnitudes = folded_normed_light_curve[i,:,1]
 
         # Generate the time values for the reverted light curve
-        [_, original_min, original_max] = time_sequences[i]
+        [original_min, original_max] = time_sequences[i]
 
         real_time =  time #get_time_from_period(period[i], time, example_sequence, sequence_length=600)
 
@@ -1314,16 +1314,32 @@ def get_time_sequence(n=1, star_class=['RRLYR']):
         fail = True
         while(fail):
             try: 
-                new_label = lc_train[lc_train.CLASS==star].sample(1, replace=True)['ID'].to_list()[0]
+                print(lc_train.columns)
+                quantile_series = lc_train[lc_train.CLASS == star].Amplitude.quantile(0.5)
+                quantile_value = float(quantile_series)
+                print(quantile_value)
+                new_label = (lc_train[(lc_train.CLASS==star) 
+                                                            & (lc_train.Amplitude > quantile_value)]
+                                                            .sample(1, replace=True)['ID']
+                                                            .to_list()[0]
+                            )
+                print(new_label)
+
                 path_lc = (PATH_LIGHT_CURVES_OGLE + new_label.split('-')[1].lower() +
                    '/' + new_label.split('-')[2].lower() + '/phot/I/' + new_label)
+                
+                print(path_lc)
+
                 lcu = pd.read_table(path_lc, sep=" ", names=['time', 'magnitude', 'error'])
-                if len(lcu['time'].to_list())>10:
+                print(lcu)
+
+                if len(lcu['time'].to_list())>100:
                     base_lcs.append(new_label)
                     fail = False
             except Exception as error : 
                 fail = True    
                 logging.error(f"[get_time_sequence] The light curve {new_label} was not added: {error}")
+
     time_sequences = []
     for lc in tqdm(base_lcs, desc='Loading lcs'):
         path_lc = (PATH_LIGHT_CURVES_OGLE + lc.split('-')[1].lower() +
@@ -1331,7 +1347,7 @@ def get_time_sequence(n=1, star_class=['RRLYR']):
         lcu = pd.read_table(path_lc, sep=" ", names=['time', 'magnitude', 'error'])
         if not lcu['time'].is_monotonic_increasing:
             lcu = lcu[lcu['time']  >lcu['time'].values[0]]
-        time_sequences.append([lcu['time'].to_list(), lcu.magnitude.min(), lcu.magnitude.max()])
+        time_sequences.append([lcu.magnitude.min(), lcu.magnitude.max()])
 
     return time_sequences
 
@@ -1344,14 +1360,9 @@ def get_only_time_sequence(n=1, star_class=['RRLYR']):
         list: A list of lists containing time sequences from the light curves of 'n' objects.
     """
     n = int(n)
-    #path_train = PATH_FEATURES_TRAIN
-    #lc_train = pd.read_table(path_train, sep=',') 
     df_id_period = load_id_period_to_sample(star_class)
-
-    # TODO: finally, get times in OGLE
     df_id_period[['SURVEY', 'FIELD', 'CLASS', 'NUMBER']] = df_id_period['OGLE_id'].str.split('-', expand=True)
     base_lcs = []
-    print(len(star_class))
     for star in tqdm(star_class, desc='Selecting light curves'):
         fail = True
         while(fail):
@@ -1365,9 +1376,7 @@ def get_only_time_sequence(n=1, star_class=['RRLYR']):
                     fail = False
             except Exception as error : 
                 fail = True    
-                print(error)
                 logging.error(f"[get_only_time_sequence] The light curve was not loaded: {error}")
-    print(len(base_lcs))
     time_sequences = []
     original_sequences = []
     for lc in tqdm(base_lcs, desc='completing the dataset'):
@@ -1375,7 +1384,6 @@ def get_only_time_sequence(n=1, star_class=['RRLYR']):
                    '/' + lc.split('-')[2].lower() + '/phot/I/' + lc + '.dat')
         lcu = pd.read_table(path_lc, sep=" ", names=['time', 'magnitude', 'error'])
         times = lcu['time'].to_list()
-        print(times)
         lc_adapted = ensure_n_elements(times)
         lc_adapted_to_real_sequence = ensure_n_elements(times, n=350)
         period = df_id_period[df_id_period.OGLE_id==lc].Period.values[0]
@@ -1397,9 +1405,9 @@ def ensure_n_elements(lst, n=600):
         list: The modified list with 'n' elements.
     """
     
-    print('light curve length: ', len(lst))
+    #print('light curve length: ', len(lst))
     if len(lst) < n:
-        print(lst)
+        #print(lst)
         # If the list has fewer elements than 'n', calculate the differences between consecutive elements
         differences = [lst[i + 1] - lst[i] for i in range(len(lst) - 1)]
 

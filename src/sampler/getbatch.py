@@ -10,7 +10,7 @@ import src.sampler.fit_regressor as reg
 import matplotlib.pyplot as plt
 from src.sampler.LightCurveRandomSampler import LightCurveRandomSampler
 
-gpu: bool = True # fail when true is selected
+gpu: bool = True 
 
 class SyntheticDataBatcher:
     def __init__(self, config_file_path: str = 'src/regressor.yaml', 
@@ -26,6 +26,7 @@ class SyntheticDataBatcher:
         self.vae_model = vae_model
         self.n_samples = n_samples
         self.seq_length = seq_length
+        self.delta_max = 10
         self.CLASSES = ['ACEP','CEP', 'DSCT', 'ECL',  'ELL', 'LPV',  'RRLYR', 'T2CEP']
         self.batch_size = batch_size
 
@@ -42,8 +43,6 @@ class SyntheticDataBatcher:
     @staticmethod
     def count_subclasses(star_type_data: Dict[str, Any]) -> int:
         return len([key for key in star_type_data.keys() if key != 'CompleteName'])
-
-
 
     def process_in_batches(self, model, mu_, times, onehot, phy, batch_size):
         # Split tensors into smaller batches
@@ -69,7 +68,6 @@ class SyntheticDataBatcher:
         xhat_mu = torch.cat(results, dim=0)
         return xhat_mu
 
-
     def attempt_sample_load(self, model_name: str, sampler: 'YourSamplerType') -> Tuple[Union[np.ndarray, None], bool]:
         try:
             samples = sampler.modify_and_sample(model_name, n_samples=self.n_samples)
@@ -77,15 +75,12 @@ class SyntheticDataBatcher:
         except Exception as e:
             raise Exception(f"Failed to load samples from model {model_name}. Error: {str(e)}")
 
-    def create_synthetic_batch(self, plot_example=True, b=1.0):
+    def create_synthetic_batch(self, plot_example=False, b=1.0):
         print(self.path)
         PATH_MODELS = self.path['PATH_MODELS']
         PATH_DATA = self.path['PATH_DATA_FOLDER']
         lb = []
 
-        print(self.n_samples)
-        print(len(list(self.nn_config['data']['classes'])))
-        print(len(list(self.nn_config['data']['classes']))*self.n_samples)
         with open(PATH_MODELS+'label_encoder_vae.pkl', 'rb') as f:
             label_encoder = pickle.load(f)
 
@@ -109,11 +104,10 @@ class SyntheticDataBatcher:
             sampler: mgmm.ModifiedGaussianSampler = mgmm.ModifiedGaussianSampler(b=b, components=components, features=self.PP)
             model_name = self.construct_model_name(star_class, PATH_MODELS)
             samples, error = self.attempt_sample_load(model_name, sampler)
-            print(samples.shape)
+            
             # If we have priors and failed to load the model, try with priors=False
             if self.priors and samples is None:
                 model_name = self.construct_model_name(star_class, PATH_MODELS)
-                print(self.n_samples)
                 samples, error = self.attempt_sample_load(model_name, sampler, n_samples=self.n_samples)
             
             # If still not loaded, raise an error
@@ -132,9 +126,6 @@ class SyntheticDataBatcher:
 
         columns = ['Period', 'teff_val', '[Fe/H]_J95', 'abs_Gmag', 'radius_val', 'logg']
         index_period = columns.index('Period')
-
-        print(all_classes_samples.shape)
-        print(len(lb))
         mu_ = reg.process_regressors(self.config_file, phys2=columns, samples= all_classes_samples, 
                                             from_vae=False, train_rf=False)
         '''
@@ -151,8 +142,6 @@ class SyntheticDataBatcher:
         times = np.array(times) 
         original_sequences = np.array(original_sequences) 
 
-        print(times.shape, original_sequences.shape)
-        
         times = torch.from_numpy(times).to(self.device)
         times = times.to(dtype=torch.float32)
 
@@ -170,17 +159,11 @@ class SyntheticDataBatcher:
         indices = np.random.choice(xhat_mu.shape[0], 24, replace=False)
         sampled_arrays = xhat_mu[indices, :, :]
 
-        print('before plot')
         utils.plot_wall_lcs_sampling(sampled_arrays, sampled_arrays,  cls=lb[indices],  column_to_sensivity=index_period,
-                                to_title = pp[indices], sensivity = 'Period', all_columns=columns, save=False) 
+                                to_title = pp[indices], sensivity = 'Period', all_columns=columns, save=True) 
 
-        print('after plot')
         lc_reverted = utils.revert_light_curve(pp[:,index_period], xhat_mu, original_sequences, classes = lb)
 
-        print('after lc_reverted recovery')
-        print(np.min(lc_reverted[0][0]),np.max(lc_reverted[0][0]))
-        print(np.min(lc_reverted[0][1]),np.max(lc_reverted[0][1])) 
-        print('max, min')
         if plot_example:
             plt.figure()
             plt.scatter(lc_reverted[0][1], lc_reverted[0][0])
@@ -188,10 +171,19 @@ class SyntheticDataBatcher:
 
         mean_value = np.nanmean(lc_reverted)
         lc_reverted[np.isnan(lc_reverted)] = mean_value
+        oversampling = True
+
+        if oversampling: 
+            sampler = LightCurveRandomSampler(lc_reverted, onehot_to_train, self.seq_length, 12)
+            lc_reverted, onehot_to_train = sampler.sample()
+        else:
+            lc_reverted = lc_reverted[:, :, :self.seq_length]
 
         print('before diff: ')
         print(lc_reverted[0])
         lc_reverted = np.diff(lc_reverted, axis=-1)
+        mean_value = np.nanmean(lc_reverted)
+        lc_reverted[(lc_reverted)> self.delta_max] = mean_value
 
         print('after diff: ')
         print(lc_reverted[0])
@@ -200,17 +192,10 @@ class SyntheticDataBatcher:
             plt.scatter(lc_reverted[0][1], lc_reverted[0][0])
             plt.show()
 
-        oversampling = True
         if np.sum(np.isnan(lc_reverted)) > 0:
             print(f"Number of NaN values detected: {np.sum(np.isnan(lc_reverted))}")
             raise ValueError("NaN values detected in lc_reverted array")
-        if oversampling: 
-            sampler = LightCurveRandomSampler(lc_reverted, onehot_to_train, self.seq_length, 12)
-            lc_reverted, onehot_to_train = sampler.sample()
-            print(lc_reverted.shape)
-            print(onehot_to_train.shape)
-        else:
-            lc_reverted = lc_reverted[:, :, :self.seq_length]
+
         utils.save_arrays_to_folder(lc_reverted, onehot_to_train , PATH_DATA)
 
         numpy_array_x = np.load(PATH_DATA+'/x_batch_pelsvae.npy', allow_pickle=True)

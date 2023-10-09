@@ -14,13 +14,9 @@ from torch.utils.data import DataLoader, TensorDataset
 import wandb
 from typing import Union, Tuple, Optional, Any, Dict, List
 import yaml 
-import src.gmm.modifiedgmm as mgmm
-import src.sampler.fit_regressor as reg
 from src.sampler.getbatch import SyntheticDataBatcher
 import src.utils as utils
-import pickle 
-from sklearn.preprocessing import LabelEncoder, OneHotEncoder
-from torch.optim.lr_scheduler import ExponentialLR
+import torch.optim as optim
 
 with open('src/nn_config.yaml', 'r') as file:
     nn_config = yaml.safe_load(file)
@@ -40,6 +36,7 @@ with open('src/regressor.yaml', 'r') as file:
     config_file: Dict[str, Any] = yaml.safe_load(file)
 
 vae_model: str = config_file['model_parameters']['ID']
+sufix_path: str = config_file['model_parameters']['sufix_path']
 gpu: bool = True # fail when true is selected
 
 device: torch.device = torch.device("cuda:0" if torch.cuda.is_available() and gpu else "cpu")
@@ -48,15 +45,15 @@ class CNN(nn.Module):
     def __init__(self, num_classes: int = 2) -> None:
         super(CNN, self).__init__()
         
-        self.conv1 = nn.Conv1d(in_channels=2, out_channels=60, kernel_size=6, stride=1)
-        self.bn1 = nn.BatchNorm1d(60)
+        self.conv1 = nn.Conv1d(in_channels=2, out_channels=90, kernel_size=6, stride=1)
+        self.bn1 = nn.BatchNorm1d(90)
         self.pool1 = nn.MaxPool1d(2)
         
-        self.conv2 = nn.Conv1d(in_channels=60, out_channels=30, kernel_size=6, stride=1)
-        self.bn2 = nn.BatchNorm1d(30)
+        self.conv2 = nn.Conv1d(in_channels=90, out_channels=60, kernel_size=6, stride=1)
+        self.bn2 = nn.BatchNorm1d(60)
         self.pool2 = nn.MaxPool1d(2)
         
-        self.fc1 = nn.Linear(2130, 200)  # Adjust this number based on your actual output size
+        self.fc1 = nn.Linear(4260, 200)  # Adjust this number based on your actual output size
         self.dropout1 = nn.Dropout(0.2)
         
         self.fc2 = nn.Linear(200, num_classes)
@@ -78,13 +75,12 @@ class CNN(nn.Module):
         x = x.view(x.size(0), -1)  # Flatten the tensor
         x = self.fc1(x)
         x = F.relu(x)
-        x = self.dropout1(x)
+        #x = self.dropout1(x)
         
         x = self.fc2(x)
-        x = self.dropout2(x)
+        #x = self.dropout2(x)
 
         return F.log_softmax(x, dim=1)  # Optional softmax at the end
-
 
 def setup_environment() -> torch.device:
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -115,11 +111,11 @@ def evaluate_and_plot_cm_from_dataloader(model, dataloader, label_encoder, title
     all_predicted = []
     
     model.eval()  # Switch to evaluation mode
-    
+
     with torch.no_grad():  # No need to calculate gradients in evaluation
         for batch in dataloader:
             x_data, y_data = batch
-            
+            x_data, y_data = x_data.float(), y_data.float()
             outputs = model(x_data)
             _, predicted = torch.max(outputs.data, 1)
             
@@ -268,6 +264,11 @@ def evaluate_dataloader(model, dataloader, criterion, device):
     
     return total_loss, avg_accuracy
 
+def create_dataloader(data, batch_size):
+    data = TensorDataset(*data)
+    dataloader = DataLoader(data, batch_size=batch_size, shuffle=True)
+    return dataloader 
+
 def initialize_masks(model, device='cuda', EPS=0.25):
     locked_masks = {}
     locked_masks2 = {}
@@ -321,8 +322,37 @@ def initialize_masks(model, device='cuda', EPS=0.25):
         print(f"For parameter {name}, number of trainable weights: {mask.sum().item()}")
     return locked_masks, locked_masks2
 
+def initialize_optimizers(model, opt_method, EPS=0.35, base_learning_rate=0.001, scaling_factor=0.5):
+    """
+    Initializes the optimizers based on the specified optimization method.
+    Args:
+    - model: The model for which the optimizer needs to be created.
+    - opt_method (str): The optimization method ('twolosses' or 'oneloss').
+    - EPS (float, optional): EPS value for the 'twolosses' method. Defaults to 0.35.
+    - base_learning_rate (float, optional): Base learning rate. Defaults to 0.001.
+    - scaling_factor (float, optional): Scaling factor for the second optimizer in 'twolosses'. Defaults to 0.5.
+
+    Returns:
+    - optimizer1: The primary optimizer.
+    - optimizer2: The secondary optimizer (only for 'twolosses'). Returns None for 'oneloss'.
+    """
+    if opt_method == 'twolosses':
+        print('Using mode: two masks')
+        locked_masks, locked_masks2 = initialize_masks(model, EPS=EPS)  # Assuming you have this function
+        optimizer1 = optim.Adam(model.parameters(), lr=base_learning_rate)
+        optimizer2 = optim.Adam(model.parameters(), lr=scaling_factor * base_learning_rate)
+    elif opt_method == 'oneloss':
+        print('Using mode: classic backpropagation')
+        optimizer1 = optim.Adam(model.parameters(), lr=base_learning_rate)
+        optimizer2 = None
+        locked_masks, locked_masks2 = None, None
+    else:
+        raise ValueError(f"Unsupported optimization method: {opt_method}. Supported methods are 'twolosses' and 'oneloss'.")
+    
+    return optimizer1, optimizer2, locked_masks, locked_masks2
+
 def run_cnn(create_samples: Any, mean_prior_dict: Dict = None, 
-            vae_model=None, PP=[], opt_method='twolosses') -> None:
+            vae_model=None, PP=[]) -> None:
     """
     Main function to run a Convolutional Neural Network (CNN) for classification tasks.
 
@@ -354,68 +384,79 @@ def run_cnn(create_samples: Any, mean_prior_dict: Dict = None,
     classes = np.unique(y_train_labeled.numpy())
     num_classes = len(classes)
     print('num_classes: ', num_classes)
-    print(x_train.size(-1))
+
     model = setup_model(num_classes, device)
     class_weights = compute_class_weight('balanced', np.unique(y_train_labeled.numpy()), y_train_labeled.numpy())
     class_weights = torch.tensor(class_weights).to(device, dtype=x_train.dtype)
+    
     criterion = nn.CrossEntropyLoss(weight=class_weights)
-
     criterion_synthetic_samples = nn.CrossEntropyLoss()
-
-    if opt_method == 'twolosses':
-        print('Using mode: two masks')
-        locked_masks, locked_masks2 = initialize_masks(model, EPS=0.3)
-        learning_rate = 0.001
-        scaling_lr = 0.5
-        optimizer1 = torch.optim.Adam(model.parameters(), lr=learning_rate)  
-        optimizer2 = torch.optim.Adam(model.parameters(), lr=scaling_lr*learning_rate)
-    elif opt_method == 'oneloss':
-        print('Using mode: classic backpropagation')
-        optimizer1 = torch.optim.Adam(model.parameters(), lr=0.001)
-        optimizer2 = None
-    else:
-        raise ValueError(f"Unsupported optimization method: {opt_method}. Supported methods are 'twolosses' and 'oneloss'.")
     
     training_data = utils.move_data_to_device((x_train, y_train), device)
     val_data = utils.move_data_to_device((x_val, y_val), device)
     testing_data = utils.move_data_to_device((x_test, y_test), device)
 
-    batch_size = nn_config['training']['batch_size']
-    train_dataset = TensorDataset(*training_data)
-    train_dataloader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True)
-
-    # For validation data
-    val_dataset = TensorDataset(*val_data)
-    val_dataloader = DataLoader(val_dataset, batch_size=batch_size, shuffle=False)  # Typically we don't shuffle validation data
-
-        # For validation data
-    test_dataset = TensorDataset(*testing_data)
-    test_dataloader = DataLoader(test_dataset, batch_size=batch_size, shuffle=False)  # Typically we don't shuffle validation data
-
     # Main training loop
     best_val_loss = float('inf')
     harder_samples = True
-    threshold_acc_synthetic = 0.95
-    beta_decay_factor=0.99
-    beta_initial=1
     no_improvement_count = 0
     train_loss_values = []
     val_loss_values = []
     train_accuracy_values = []
     val_accuracy_values = []
+
     epochs = nn_config['training']['epochs']
     patience =  nn_config['training']['patience']
+    batch_size = nn_config['training']['batch_size']
+    repetitions = nn_config['training']['repetitions']
+    sinthetic_samples_by_class = nn_config['training']['sinthetic_samples_by_class']
+    threshold_acc_synthetic = nn_config['training']['threshold_acc_synthetic'] 
+    beta_decay_factor= nn_config['training']['beta_decay_factor'] 
+    beta_initial= nn_config['training']['beta_initial'] 
+    EPS= nn_config['training']['EPS'] 
+    base_learning_rate= nn_config['training']['base_learning_rate'] 
+    scaling_factor= nn_config['training']['scaling_factor'] 
+    opt_method= nn_config['training']['opt_method']
+    
+    wandb.config.epochs = nn_config['training']['epochs']
+    wandb.config.patience = nn_config['training']['patience']
+    wandb.config.batch_size = nn_config['training']['batch_size']
+    wandb.config.repetitions = nn_config['training']['repetitions']
+    wandb.config.sinthetic_samples_by_class = nn_config['training']['sinthetic_samples_by_class']
+    wandb.config.threshold_acc_synthetic = nn_config['training']['threshold_acc_synthetic']
+    wandb.config.beta_decay_factor = nn_config['training']['beta_decay_factor']
+    wandb.config.beta_initial = nn_config['training']['beta_initial']
+    wandb.config.EPS = nn_config['training']['EPS']
+    wandb.config.base_learning_rate = nn_config['training']['base_learning_rate']
+    wandb.config.scaling_factor = nn_config['training']['scaling_factor']
+    wandb.config.opt_method = nn_config['training']['opt_method']
+    wandb.config.vae_model = vae_model
+    wandb.config.sufix_path = sufix_path
+    wandb.config.mode_running =  nn_config['data']['mode_running']
+    wandb.config.sample_size =  nn_config['data']['sample_size']
+    wandb.config.seq_length =  nn_config['data']['seq_length']
+    wandb.config.sn_ratio =  nn_config['data']['sn_ratio']
+
+    train_dataloader = create_dataloader(training_data, batch_size)
+    val_dataloader = create_dataloader(val_data, batch_size)
+    test_dataloader = create_dataloader(testing_data, batch_size)
+
     beta_actual = beta_initial
 
-    batcher = SyntheticDataBatcher(PP = PP, vae_model=vae_model, n_samples=64, seq_length = x_train.size(-1))
+    optimizer1, optimizer2, locked_masks, locked_masks2 = initialize_optimizers(model, opt_method= opt_method,
+                                                                                EPS=EPS, base_learning_rate=base_learning_rate, 
+                                                                                scaling_factor=scaling_factor)
+
+    batcher = SyntheticDataBatcher(PP = PP, vae_model=vae_model, n_samples=sinthetic_samples_by_class, 
+                                    seq_length = x_train.size(-1))
+
     for epoch in range(epochs):
         if opt_method=='twolosses' and create_samples and harder_samples: 
             synthetic_data_loader = batcher.create_synthetic_batch(b=beta_actual)
-            beta_actual=beta_actual*beta_decay_factor
+            beta_actual = beta_actual*beta_decay_factor
             harder_samples = False
         elif  opt_method=='twolosses' and create_samples: 
             print("Using available synthetic data")
-            synthetic_data_loader = synthetic_data_loader
         else:
             print("Skipping synthetic sample creation")
             synthetic_data_loader = None
@@ -425,15 +466,22 @@ def run_cnn(create_samples: Any, mean_prior_dict: Dict = None,
                                         criterion_2= criterion_synthetic_samples, 
                                         dataloader_2 = synthetic_data_loader,
                                         optimizer_2 = optimizer2, locked_masks2 = locked_masks2, 
-                                        locked_masks = locked_masks, repetitions = 10)
+                                        locked_masks = locked_masks, repetitions = repetitions)
                                  
         val_loss, accuracy_val = evaluate_dataloader(model, val_dataloader, criterion, device)
         _, accuracy_train = evaluate_dataloader(model, train_dataloader, criterion, device)
 
         try:
-            synthetic_loss, accuracy_train_synthetic =  evaluate_dataloader(model, synthetic_data_loader, criterion_synthetic_samples, device)
-            if (accuracy_train_synthetic>threshold_acc_synthetic) and (accuracy_train>threshold_acc_synthetic):
+            synthetic_loss, accuracy_train_synthetic =  evaluate_dataloader(model, synthetic_data_loader, 
+                                                                        criterion_synthetic_samples, device)
+            condition1 = (accuracy_train_synthetic>threshold_acc_synthetic)
+            condition2 = (accuracy_train - accuracy_train_synthetic > 0)
+            condition3 = counter > 20
+            if condition1 or condition2 or condition3:
                 harder_samples = True
+                counter = 0
+            else: 
+                counter = counter + 1
         except Exception as error:
             print(error) 
             synthetic_loss=0
@@ -460,9 +508,6 @@ def run_cnn(create_samples: Any, mean_prior_dict: Dict = None,
                 'acc_synthetic_samples': accuracy_train_synthetic, 'val_loss': val_loss, 'val_accu': accuracy_val})
         print('epoch:', epoch, ' loss:', running_loss, ' acc_train:', accuracy_train, ' synth_loss:',synthetic_loss, 
                 ' acc_synth:', accuracy_train_synthetic, ' val_loss', val_loss, ' val_accu:', accuracy_val)
-    
-    
-    
     
     # Post-training tasks
     model.load_state_dict(best_model)

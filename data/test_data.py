@@ -51,7 +51,9 @@ print(np.max(df2y))
 print(df2y.shape)
 # Assuming 6 classes in y, for each class plot the 2D density
 # For each class, plot the 2D density
-for i in range(np.max(df2y) + 1):  # Added "+ 1" to ensure all classes are covered
+for i in range(np.max(df2y) + 1):  # Ensure all classes are covered
+    
+    plt.figure(figsize=(12, 8))
     
     # Dataset 1
     mask1 = df1y[:, i] == 1
@@ -66,14 +68,17 @@ for i in range(np.max(df2y) + 1):  # Added "+ 1" to ensure all classes are cover
     # Class name
     class_name = label_encoder.inverse_transform([i])[0]
     
-    # 2D Density for Dataset 1
-    g1 = sns.jointplot(x=delta_time1, y=delta_magnitude1, kind='scatter', color="r", label="Dataset 1")
-    g1.savefig(f"2D_Density_Dataset1_Class_{class_name}.png")
-    plt.close()
+
+    # Plot 2D scatter for Dataset 2
+    sns.scatterplot(x=delta_time2, y=delta_magnitude2, color="b", label="Real light curves", alpha=0.1)
+
+        # Plot 2D scatter for Dataset 1
+    sns.scatterplot(x=delta_time1, y=delta_magnitude1, color="r", label="Synthetic Light curves", alpha=0.2)
     
-    # 2D Density for Dataset 2
-    g2 = sns.jointplot(x=delta_time2, y=delta_magnitude2, kind='scatter', color="b", label="Dataset 2")
-    g2.savefig(f"2D_Density_Dataset2_Class_{class_name}.png")
+    
+    plt.title(f"2D Density for Class {class_name}")
+    plt.legend()
+    plt.savefig(f"2D_Density_Class_{class_name}.png")
     plt.close()
 
 print(np.unique(df1y), np.unique(df2y))

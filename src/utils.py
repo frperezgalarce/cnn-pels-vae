@@ -111,27 +111,28 @@ def insert_lc(examples, np_array, np_array_y, lenght_lc = 0, signal_noise=6, sub
     for lc in tqdm(examples.ID.unique(), desc='Processing Light Curves'):
         path_lc = PATH_LIGHT_CURVES_OGLE+lc.split('-')[1].lower()+'/'+lc.split('-')[2].lower()+'/phot/I/'+lc
         lcu = pd.read_table(path_lc, sep=" ", names=['time', 'magnitude', 'error'])
+        
+        lcu.dropna(axis=0, inplace=True)
+
         lcu['delta_time'] = lcu['time'].diff()
         lcu['delta_mag'] = lcu['magnitude'].diff()
         lcu = lcu[lcu.magnitude/lcu.error>signal_noise] #Delete S/N greater than 0
-        # Deleting rows where 'delta_mag' is in the top 10% (i.e., above 90th percentile)
-        threshold_mag = lcu['delta_mag'].quantile(0.975)
+
+        threshold_mag = lcu['delta_mag'].quantile(0.95)
         lcu = lcu[lcu.delta_mag < threshold_mag]
 
         # Deleting rows where 'delta_time' is in the top 10% (i.e., above 90th percentile)
-        threshold_time = lcu['delta_time'].quantile(0.975)
+        threshold_time = lcu['delta_time'].quantile(0.95)
         lcu = lcu[lcu.delta_time < threshold_time]
 
-        threshold_mag = lcu['delta_mag'].quantile(0.025)
+        threshold_mag = lcu['delta_mag'].quantile(0.05)
         lcu = lcu[lcu.delta_mag > threshold_mag]
 
         # Deleting rows where 'delta_time' is in the top 10% (i.e., above 90th percentile)
-        threshold_time = lcu['delta_time'].quantile(0.25)
+        threshold_time = lcu['delta_time'].quantile(0.05)
         lcu = lcu[lcu.delta_time > threshold_time]
 
         lcu = delete_by_std(lcu)
-
-        lcu.dropna(axis=0, inplace=True)
 
         if lcu.shape[0]> lenght_lc:
             lcu_data = np.asarray(lcu[['delta_time', 'delta_mag']].head(lenght_lc))
@@ -154,7 +155,7 @@ def insert_lc(examples, np_array, np_array_y, lenght_lc = 0, signal_noise=6, sub
                             np_array[-1] = lcu_data
                             counter = counter + 1
                     else:
-                        if new_element  in train_classes:
+                        if new_element in train_classes:
                             np_array_y = np.append(np_array_y, new_element)
                             np_array = np.resize(np_array, (np_array.shape[0] + 1, lcu_data.shape[0], 2))
                             np_array[-1] = lcu_data
@@ -1347,8 +1348,8 @@ def get_time_sequence(n=1, star_class=['RRLYR']):
         lcu = pd.read_table(path_lc, sep=" ", names=['time', 'magnitude', 'error'])
         if not lcu['time'].is_monotonic_increasing:
             lcu = lcu[lcu['time']  >lcu['time'].values[0]]
-        time_sequences.append([lcu.magnitude.min(), lcu.magnitude.max()])
-
+        time_sequences.append([lcu.magnitude.quantile(0.05), lcu.magnitude.quantile(0.95)])
+        print(lcu.magnitude.quantile(0.05), lcu.magnitude.quantile(0.95))
     return time_sequences
 
 def get_only_time_sequence(n=1, star_class=['RRLYR']):
@@ -1414,7 +1415,7 @@ def ensure_n_elements(lst, n=600):
         # Calculate the cumulative sum of differences and add it to the last element to complete the list
         last_element = lst[-1]
         while len(lst) < n:
-            last_element += differences[-1]
+            last_element += np.mean(differences)
             lst.append(last_element)
     elif len(lst) > n:
         # If the list has more elements than 'n', remove elements from the end of the list

@@ -404,7 +404,7 @@ def run_cnn(create_samples: Any, mean_prior_dict: Dict = None,
     val_loss_values = []
     train_accuracy_values = []
     val_accuracy_values = []
-
+    counter = 0
     epochs = nn_config['training']['epochs']
     patience =  nn_config['training']['patience']
     batch_size = nn_config['training']['batch_size']
@@ -476,7 +476,7 @@ def run_cnn(create_samples: Any, mean_prior_dict: Dict = None,
                                                                         criterion_synthetic_samples, device)
             condition1 = (accuracy_train_synthetic>threshold_acc_synthetic)
             condition2 = (accuracy_train - accuracy_train_synthetic > 0)
-            condition3 = counter > 20
+            condition3 = counter > 30
             if condition1 or condition2 or condition3:
                 harder_samples = True
                 counter = 0

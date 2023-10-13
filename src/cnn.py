@@ -145,6 +145,7 @@ def train_one_epoch_alternative(
         criterion: Module,  # Here
         optimizer: Optimizer, 
         dataloader: DataLoader, 
+        val_dataloader: DataLoader, 
         device: torch.device, 
         mode: str = 'oneloss', 
         criterion_2: Optional[Module] = None,  # And here
@@ -170,7 +171,9 @@ def train_one_epoch_alternative(
             torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=6.0, norm_type=2)
             optimizer.step()
             running_loss += loss.item()
-        return running_loss, model
+        val_loss, _ = evaluate_dataloader(model, val_dataloader, criterion, device)
+
+        return running_loss, model, val_loss
     
     elif mode=='twolosses':
         if criterion_2 is None or dataloader_2 is None or optimizer_2 is None:
@@ -185,7 +188,7 @@ def train_one_epoch_alternative(
             _, labels_indices = torch.max(labels, 1)  # Convert one-hot to indices
             loss = criterion(outputs, labels_indices)
             loss.backward()
-            torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=6.0, norm_type=2)
+            torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=4.0, norm_type=2)
             for name, param in model.named_parameters():
                 if name in locked_masks2:
                     mask = locked_masks2[name].float().to(param.grad.data.device)
@@ -194,6 +197,8 @@ def train_one_epoch_alternative(
             optimizer.step()
             running_loss += loss.item()   
         
+        val_loss, _ = evaluate_dataloader(model, val_dataloader, criterion, device)
+
         num_batches = 0
         for _ in range(repetitions):
             for inputs_2, labels_2 in dataloader_2:
@@ -205,7 +210,7 @@ def train_one_epoch_alternative(
                 _, labels_indices = torch.max(labels, 1)  # Convert one-hot to indices
                 loss_prior = criterion_2(outputs, labels_indices)
                 loss_prior.backward()
-                torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=2.0, norm_type=2)
+                torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=1.0, norm_type=2)
                 for name, param in model.named_parameters():
                     if name in locked_masks:
                         mask = locked_masks[name].float().to(param.grad.data.device)
@@ -214,7 +219,8 @@ def train_one_epoch_alternative(
                 
                 optimizer_2.step()
                 running_loss_prior += loss_prior.item() 
-        return running_loss, model
+               
+        return running_loss, model, val_loss
   
 def evaluate_dataloader(model, dataloader, criterion, device):
     """
@@ -367,8 +373,10 @@ def run_cnn(create_samples: Any, mean_prior_dict: Dict = None,
     Returns:
     None
     """
-    wandb.init(project='train-classsifier', entity='fjperez10')
-    torch.cuda.empty_cache()
+    wandb_active = False
+    if wandb_active:
+        wandb.init(project='train-classsifier', entity='fjperez10')
+        torch.cuda.empty_cache()
 
     print('#'*50)
     print('TRAINING CNN')
@@ -385,11 +393,12 @@ def run_cnn(create_samples: Any, mean_prior_dict: Dict = None,
     num_classes = len(classes)
     print('num_classes: ', num_classes)
 
+
     model = setup_model(num_classes, device)
     class_weights = compute_class_weight('balanced', np.unique(y_train_labeled.numpy()), y_train_labeled.numpy())
     class_weights = torch.tensor(class_weights).to(device, dtype=x_train.dtype)
     
-    criterion = nn.CrossEntropyLoss(weight=class_weights)
+    criterion = nn.CrossEntropyLoss() # nn.CrossEntropyLoss(weight=class_weights)
     criterion_synthetic_samples = nn.CrossEntropyLoss()
     
     training_data = utils.move_data_to_device((x_train, y_train), device)
@@ -398,6 +407,7 @@ def run_cnn(create_samples: Any, mean_prior_dict: Dict = None,
 
     # Main training loop
     best_val_loss = float('inf')
+    best_accuracy_val = 0
     harder_samples = True
     no_improvement_count = 0
     train_loss_values = []
@@ -418,24 +428,28 @@ def run_cnn(create_samples: Any, mean_prior_dict: Dict = None,
     scaling_factor= nn_config['training']['scaling_factor'] 
     opt_method= nn_config['training']['opt_method']
     
-    wandb.config.epochs = nn_config['training']['epochs']
-    wandb.config.patience = nn_config['training']['patience']
-    wandb.config.batch_size = nn_config['training']['batch_size']
-    wandb.config.repetitions = nn_config['training']['repetitions']
-    wandb.config.sinthetic_samples_by_class = nn_config['training']['sinthetic_samples_by_class']
-    wandb.config.threshold_acc_synthetic = nn_config['training']['threshold_acc_synthetic']
-    wandb.config.beta_decay_factor = nn_config['training']['beta_decay_factor']
-    wandb.config.beta_initial = nn_config['training']['beta_initial']
-    wandb.config.EPS = nn_config['training']['EPS']
-    wandb.config.base_learning_rate = nn_config['training']['base_learning_rate']
-    wandb.config.scaling_factor = nn_config['training']['scaling_factor']
-    wandb.config.opt_method = nn_config['training']['opt_method']
-    wandb.config.vae_model = vae_model
-    wandb.config.sufix_path = sufix_path
-    wandb.config.mode_running =  nn_config['data']['mode_running']
-    wandb.config.sample_size =  nn_config['data']['sample_size']
-    wandb.config.seq_length =  nn_config['data']['seq_length']
-    wandb.config.sn_ratio =  nn_config['data']['sn_ratio']
+    if wandb_active:
+        wandb.config.epochs = nn_config['training']['epochs']
+        wandb.config.patience = nn_config['training']['patience']
+        wandb.config.batch_size = nn_config['training']['batch_size']
+        wandb.config.repetitions = nn_config['training']['repetitions']
+        wandb.config.sinthetic_samples_by_class = nn_config['training']['sinthetic_samples_by_class']
+        wandb.config.threshold_acc_synthetic = nn_config['training']['threshold_acc_synthetic']
+        wandb.config.beta_decay_factor = nn_config['training']['beta_decay_factor']
+        wandb.config.beta_initial = nn_config['training']['beta_initial']
+        wandb.config.EPS = nn_config['training']['EPS']
+        wandb.config.base_learning_rate = nn_config['training']['base_learning_rate']
+        wandb.config.scaling_factor = nn_config['training']['scaling_factor']
+        wandb.config.opt_method = nn_config['training']['opt_method']
+        wandb.config.vae_model = vae_model
+        wandb.config.sufix_path = sufix_path
+        wandb.config.mode_running =  nn_config['data']['mode_running']
+        wandb.config.sample_size =  nn_config['data']['sample_size']
+        wandb.config.seq_length =  nn_config['data']['seq_length']
+        wandb.config.sn_ratio =  nn_config['data']['sn_ratio']
+        wandb.config.upper_limit_majority_classes =  nn_config['data']['upper_limit_majority_classes']
+        wandb.config.limit_to_define_minority_Class =  nn_config['data']['limit_to_define_minority_Class']
+
 
     train_dataloader = create_dataloader(training_data, batch_size)
     val_dataloader = create_dataloader(val_data, batch_size)
@@ -461,25 +475,30 @@ def run_cnn(create_samples: Any, mean_prior_dict: Dict = None,
             print("Skipping synthetic sample creation")
             synthetic_data_loader = None
 
-        running_loss, model = train_one_epoch_alternative(model, criterion, optimizer1, train_dataloader, device, 
+        running_loss, model, val_loss = train_one_epoch_alternative(model, criterion, optimizer1, train_dataloader, val_dataloader, device, 
                                         mode = opt_method, 
                                         criterion_2= criterion_synthetic_samples, 
                                         dataloader_2 = synthetic_data_loader,
                                         optimizer_2 = optimizer2, locked_masks2 = locked_masks2, 
                                         locked_masks = locked_masks, repetitions = repetitions)
                                  
-        val_loss, accuracy_val = evaluate_dataloader(model, val_dataloader, criterion, device)
+        _, accuracy_val = evaluate_dataloader(model, val_dataloader, criterion, device)
         _, accuracy_train = evaluate_dataloader(model, train_dataloader, criterion, device)
 
         try:
             synthetic_loss, accuracy_train_synthetic =  evaluate_dataloader(model, synthetic_data_loader, 
                                                                         criterion_synthetic_samples, device)
             condition1 = (accuracy_train_synthetic>threshold_acc_synthetic)
-            condition2 = (accuracy_train - accuracy_train_synthetic > 0)
-            condition3 = counter > 30
-            if condition1 or condition2 or condition3:
-                harder_samples = True
-                counter = 0
+            condition2 = (accuracy_train - accuracy_train_synthetic > 0.2)
+            condition3 = (counter > 30) 
+            condition4 = (counter > 2)
+            
+            if condition4: 
+                if condition1 or condition2 or condition3:
+                    harder_samples = True
+                    counter = 0
+                else:
+                    counter = counter + 1
             else: 
                 counter = counter + 1
         except Exception as error:
@@ -494,8 +513,9 @@ def run_cnn(create_samples: Any, mean_prior_dict: Dict = None,
         val_accuracy_values.append(accuracy_val)
 
         # Early stopping criteria
-        if val_loss < best_val_loss:
+        if (val_loss < best_val_loss) or (accuracy_val > best_accuracy_val):
             best_val_loss = val_loss
+            best_accuracy_val = accuracy_val
             best_model = model.state_dict()
             no_improvement_count = 0
         else:
@@ -504,8 +524,10 @@ def run_cnn(create_samples: Any, mean_prior_dict: Dict = None,
             print(f"Stopping early after {epoch + 1} epochs")
             break
 
-        wandb.log({'epoch': epoch, 'loss': running_loss, 'accuracy_train':accuracy_train, 'synthetic_loss':synthetic_loss, 
+        if wandb_active:
+            wandb.log({'epoch': epoch, 'loss': running_loss, 'accuracy_train':accuracy_train, 'synthetic_loss':synthetic_loss, 
                 'acc_synthetic_samples': accuracy_train_synthetic, 'val_loss': val_loss, 'val_accu': accuracy_val})
+                
         print('epoch:', epoch, ' loss:', running_loss, ' acc_train:', accuracy_train, ' synth_loss:',synthetic_loss, 
                 ' acc_synth:', accuracy_train_synthetic, ' val_loss', val_loss, ' val_accu:', accuracy_val)
     

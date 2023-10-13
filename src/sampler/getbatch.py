@@ -75,6 +75,21 @@ class SyntheticDataBatcher:
         except Exception as e:
             raise Exception(f"Failed to load samples from model {model_name}. Error: {str(e)}")
 
+    def create_time_sequences(self, lb, based_on_real_lc = True): 
+        
+        if based_on_real_lc:
+            times, original_sequences =  utils.get_only_time_sequence(n=1, star_class=lb)
+            times = np.array(times) 
+            original_sequences = np.array(original_sequences) 
+            times = torch.from_numpy(times).to(self.device)
+            times = times.to(dtype=torch.float32)
+        else: 
+            times = [i/600 for i in range(600)]
+            times = np.tile(times, (self.n_samples*len(list(self.nn_config['data']['classes'])), 1))
+            times = np.array(times)  
+            times = torch.from_numpy(times).to(self.device)
+            times = times.to(dtype=torch.float32)
+
     def create_synthetic_batch(self, plot_example=False, b=1.0):
         print(self.path)
         PATH_MODELS = self.path['PATH_MODELS']
@@ -128,22 +143,6 @@ class SyntheticDataBatcher:
         index_period = columns.index('Period')
         mu_ = reg.process_regressors(self.config_file, phys2=columns, samples= all_classes_samples, 
                                             from_vae=False, train_rf=False)
-        '''
-        times = [i/600 for i in range(600)]
-        times = np.tile(times, (self.n_samples*len(list(self.nn_config['data']['classes'])), 1))
-        times = np.array(times)  
-        times = torch.from_numpy(times).to(self.device)
-        times = times.to(dtype=torch.float32)
-
-        '''
-        # Load model first
-        vae, _ = utils.load_model_list(ID=self.vae_model, device=self.device)
-        times, original_sequences =  utils.get_only_time_sequence(n=1, star_class=lb)
-        times = np.array(times) 
-        original_sequences = np.array(original_sequences) 
-
-        times = torch.from_numpy(times).to(self.device)
-        times = times.to(dtype=torch.float32)
 
 
         # Directly convert to tensors and move to the GPU
@@ -153,6 +152,9 @@ class SyntheticDataBatcher:
         pp = torch.tensor(all_classes_samples, device=self.device)
 
         # Clear GPU cache
+        vae, _ = utils.load_model_list(ID=self.vae_model, device=self.device)
+        times = self.create_time_sequences(lb)
+
         torch.cuda.empty_cache()
         xhat_mu = self.process_in_batches(vae, mu_, times, onehot, pp, 8)
         xhat_mu = torch.cat([times.unsqueeze(-1), xhat_mu], dim=-1).cpu().detach().numpy()
@@ -179,14 +181,10 @@ class SyntheticDataBatcher:
         else:
             lc_reverted = lc_reverted[:, :, :self.seq_length]
 
-        print('before diff: ')
-        print(lc_reverted[0])
         lc_reverted = np.diff(lc_reverted, axis=-1)
         mean_value = np.nanmean(lc_reverted)
         lc_reverted[(lc_reverted)> self.delta_max] = mean_value
 
-        print('after diff: ')
-        print(lc_reverted[0])
         if plot_example:
             plt.figure()
             plt.scatter(lc_reverted[0][1], lc_reverted[0][0])

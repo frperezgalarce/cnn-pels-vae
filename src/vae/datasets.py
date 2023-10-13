@@ -158,7 +158,7 @@ class Astro_lightcurves(Dataset):
         if norm:
             self.lcs = normalize_each(self.lcs, 
                                       n_feat=self.lcs.shape[2],
-                                      scale_to=[.0001, .9999], #TODO: original interval [.0001, .9999] 
+                                      scale_to=[.0001, .9999],
                                       norm_time=use_time)
         
         self.phy_names = []

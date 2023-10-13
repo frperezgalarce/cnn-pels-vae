@@ -68,11 +68,10 @@ for i in range(np.max(df2y) + 1):  # Ensure all classes are covered
     # Class name
     class_name = label_encoder.inverse_transform([i])[0]
     
-
     # Plot 2D scatter for Dataset 2
     sns.scatterplot(x=delta_time2, y=delta_magnitude2, color="b", label="Real light curves", alpha=0.1)
 
-        # Plot 2D scatter for Dataset 1
+    # Plot 2D scatter for Dataset 1
     sns.scatterplot(x=delta_time1, y=delta_magnitude1, color="r", label="Synthetic Light curves", alpha=0.2)
     
     

@@ -24,6 +24,7 @@ import pickle
 from typing import Tuple, Any, Dict, Type, Union, List
 import logging
 import gzip
+from concurrent.futures import ThreadPoolExecutor
 
 logging.basicConfig(filename='error_log.txt', level=logging.ERROR)
 #from src.utils import load_yaml
@@ -36,9 +37,9 @@ PATH_LIGHT_CURVES_OGLE = PATHS['PATH_LIGHT_CURVES_OGLE']
 PATH_FEATURES_TRAIN = PATHS['PATH_FEATURES_TRAIN']
 PATH_FEATURES_TEST = PATHS['PATH_FEATURES_TEST']
 PATH_NUMPY_DATA_X_TRAIN = PATHS['PATH_NUMPY_DATA_X_TRAIN']
-PATH_NUMPY_DATA_X_TEST = PATHS['PATH_NUMPY_DATA_X_TEST'] #TODO: apply differences
+PATH_NUMPY_DATA_X_TEST = PATHS['PATH_NUMPY_DATA_X_TEST'] 
 PATH_NUMPY_DATA_Y_TRAIN = PATHS['PATH_NUMPY_DATA_Y_TRAIN']
-PATH_NUMPY_DATA_Y_TEST = PATHS['PATH_NUMPY_DATA_Y_TEST'] #TODO: apply differences
+PATH_NUMPY_DATA_Y_TEST = PATHS['PATH_NUMPY_DATA_Y_TEST'] 
 PATH_SUBCLASSES = PATHS["PATH_SUBCLASSES"]
 PATH_DATA_FOLDER = PATHS["PATH_DATA_FOLDER"]
 PATH_FIGURES: str = PATHS['PATH_FIGURES']
@@ -76,19 +77,56 @@ def plot_training(epochs_range, train_loss_values, val_loss_values,train_accurac
     plt.tight_layout()
     plt.show()
 
-def read_light_curve_ogle(example_test, example_train, lenght_lc=100):
+def read_light_curve_ogle(example_test, example_train, values_count, lenght_lc=100):
+    
+    numpy_array_lcus_test = np.empty((0, 0, 2))
+    numpy_array_lcus_train =  np.empty((0, 0, 2))
+    numpy_y_test =  np.empty((0, ), dtype=object)
+    numpy_y_train = np.empty((0, ), dtype=object)
+    
+    def task1():
+        return insert_lc(example_test, numpy_array_lcus_test,
+                         numpy_y_test, lenght_lc=lenght_lc, 
+                         signal_noise=nn_config['data']['sn_ratio'], 
+                         train_set=False, file_name='test')
+    
+    def task2():
+        return insert_lc(example_train, numpy_array_lcus_train,
+                         numpy_y_train, values_count=values_count, 
+                         signal_noise=nn_config['data']['sn_ratio'], 
+                         lenght_lc=lenght_lc, train_set=True, file_name='train')
+    
+    with ThreadPoolExecutor() as executor:
+        future1 = executor.submit(task1)
+        future2 = executor.submit(task2)
+        
+        numpy_array_lcus_test, numpy_y_test = future1.result()
+        numpy_array_lcus_train, numpy_y_train = future2.result()
+    
+    return numpy_array_lcus_train, numpy_array_lcus_test, numpy_y_test, numpy_y_train
+
+
+def read_light_curve_ogle_sequential(example_test, example_train, values_count, lenght_lc=100):
 
     numpy_array_lcus_test = np.empty((0, 0, 2)) # initialize the 3D array with zeros
     numpy_array_lcus_train =  np.empty((0, 0, 2)) 
     numpy_y_test =  np.empty((0, ), dtype=object) 
     numpy_y_train = np.empty((0, ), dtype=object)  
 
-    numpy_array_lcus_train, numpy_y_train = insert_lc(example_train, numpy_array_lcus_train,
-                                            numpy_y_train, signal_noise=nn_config['data']['sn_ratio'], lenght_lc=lenght_lc, train_set=True, train_classes=[], file_name='train')
 
-    print(np.unique(numpy_y_train))
+
     numpy_array_lcus_test, numpy_y_test = insert_lc(example_test, numpy_array_lcus_test,
-                                                    numpy_y_test, lenght_lc=lenght_lc, train_set=False, train_classes=np.unique(numpy_y_train), file_name='test')
+                                                    numpy_y_test, lenght_lc=lenght_lc, 
+                                                    signal_noise=nn_config['data']['sn_ratio'], 
+                                                    train_set=False, file_name='test')
+
+
+    numpy_array_lcus_train, numpy_y_train = insert_lc(example_train, numpy_array_lcus_train,
+                                            numpy_y_train, values_count =values_count, 
+                                            signal_noise=nn_config['data']['sn_ratio'], 
+                                            lenght_lc=lenght_lc, train_set=True, file_name='train')
+
+
 
     return numpy_array_lcus_train, numpy_array_lcus_test, numpy_y_test, numpy_y_train
 
@@ -105,49 +143,148 @@ def load_light_curve_ogle():
     print('testing data shape: ', numpy_array_lcus_test.shape)
     return numpy_array_lcus_train, numpy_array_lcus_test, numpy_y_test, numpy_y_train
 
-def insert_lc(examples, np_array, np_array_y, lenght_lc = 0, signal_noise=6, subclass=False, train_set=True, train_classes=[], file_name='train'):
+def light_curve_preprocessing(lcu):
+    lcu.dropna(axis=0, inplace=True)
+    lcu['delta_time'] = lcu['time'].diff()
+    lcu['delta_mag'] = lcu['magnitude'].diff()
+    threshold_mag = lcu['delta_mag'].quantile(0.99)
+    lcu = lcu[lcu.delta_mag < threshold_mag]
+    lcu = lcu[lcu.delta_time < nn_config['data']['delta_time_max']]
+    threshold_delta = lcu['delta_mag'].quantile(0.001)
+    lcu = lcu[lcu.delta_mag > threshold_delta]
+    threshold_time = lcu['delta_time'].quantile(0.001)
+    lcu = lcu[lcu.delta_time > threshold_time]
+    lcu = delete_by_std(lcu)
+    return lcu
+
+def add_ell(new_element, ELL, lc): 
+    if (new_element in ['ECL']): 
+        type_value = ELL.loc[ELL.ID==lc.replace('.dat', ''), 'Type'].values
+        if type_value and type_value=='ELL':
+            new_element = 'ELL' 
+        else: 
+            new_element = 'ECL'
+    return new_element
+
+def update_arrays(np_array, np_array_y, new_element, lcu_data, counter, verbose = False): 
+    
+    if verbose: 
+        print('original shape: ', np_array.shape, np_array_y.shape)
+    np_array_y = np.append(np_array_y, new_element)
+    np_array = np.resize(np_array, (np_array.shape[0] + 1, lcu_data.shape[0], 2))
+    np_array[-1] = lcu_data
+    counter = counter + 1
+    if verbose: 
+        print('original shape: ', np_array.shape, np_array_y.shape)
+
+    return np_array, np_array_y, counter 
+
+def insert_lc(examples, np_array, np_array_y, values_count= None, lenght_lc = 0, signal_noise=6, 
+            train_set=True, file_name='train', verbose = False):
     counter = 0
-    subclasses = pd.read_csv(PATH_SUBCLASSES)
+    ELL = pd.read_table(PATH_DATA_FOLDER+'/ELL.txt')
+    
     for lc in tqdm(examples.ID.unique(), desc='Processing Light Curves'):
+        if train_set:
+            class_counter = values_count[values_count.Type==lc.split('-')[2]].counter.values[0]
+        else: 
+            class_counter = np.iinfo(np.int64).max
+
         path_lc = PATH_LIGHT_CURVES_OGLE+lc.split('-')[1].lower()+'/'+lc.split('-')[2].lower()+'/phot/I/'+lc
+        
         lcu = pd.read_table(path_lc, sep=" ", names=['time', 'magnitude', 'error'])
         
-        lcu.dropna(axis=0, inplace=True)
+        lcu = light_curve_preprocessing(lcu)
 
-        lcu['delta_time'] = lcu['time'].diff()
-        lcu['delta_mag'] = lcu['magnitude'].diff()
-        lcu = lcu[lcu.magnitude/lcu.error>signal_noise] #Delete S/N greater than 0
+        signal = lcu['magnitude'].max() - lcu['magnitude'].min()
 
-        threshold_mag = lcu['delta_mag'].quantile(0.95)
-        lcu = lcu[lcu.delta_mag < threshold_mag]
+        condition1 = (lcu.shape[0]> lenght_lc)
+        condition2 = ('error' in lcu.columns)
 
-        # Deleting rows where 'delta_time' is in the top 10% (i.e., above 90th percentile)
-        threshold_time = lcu['delta_time'].quantile(0.95)
-        lcu = lcu[lcu.delta_time < threshold_time]
+        if condition2: 
+            condition3 = ((signal)/lcu['error'].mean()>signal_noise)
+        else: 
+            condition3 = False
 
-        threshold_mag = lcu['delta_mag'].quantile(0.05)
-        lcu = lcu[lcu.delta_mag > threshold_mag]
+        if verbose:
+            print(lc, condition1, condition2, condition3)
 
-        # Deleting rows where 'delta_time' is in the top 10% (i.e., above 90th percentile)
-        threshold_time = lcu['delta_time'].quantile(0.05)
-        lcu = lcu[lcu.delta_time > threshold_time]
-
-        lcu = delete_by_std(lcu)
-
-        if lcu.shape[0]> lenght_lc:
-            lcu_data = np.asarray(lcu[['delta_time', 'delta_mag']].head(lenght_lc))
-            if subclass:
-                try:
-                    new_element = str(subclasses.loc[subclasses.ID==lc.replace('.dat', ''),'sub_clase'].values[0])
-                    np_array_y = np.append(np_array_y, new_element)
-                    np_array = np.resize(np_array, (np_array.shape[0] + 1, lcu_data.shape[0], 2))
-                    np_array[-1] = lcu_data
-                except Exception as error:
-                    logging.error(f"The light curve {lc} was not loaded: {error}")
-                    raise ValueError("The light curve {} was not loaded.".format(lc) + str(error))
-            else:
+        if condition1 and condition2 and condition3:
+            condition4 =  (class_counter > nn_config['data']['limit_to_define_minority_Class'])
+            if verbose:
+                print(train_set, condition4)
+                print(class_counter, nn_config['data']['limit_to_define_minority_Class'])
+            
+            if (train_set) or condition4:
+                lcu_data = np.asarray(lcu[['delta_time', 'delta_mag']].sample(lenght_lc))
                 try: 
                     new_element = lc.split('-')[2]
+                    if verbose: 
+                        print(new_element)
+                    new_element = add_ell(new_element, ELL, lc)
+                    if new_element in list(nn_config['data']['classes']):
+                        np_array, np_array_y, counter = update_arrays(np_array, np_array_y, new_element, lcu_data, counter)
+                except Exception as error: 
+                    logging.error(f"The light curve {lc} was not loaded: {error}")
+            else:
+                k_samples_by_object = int(nn_config['data']['upper_limit_majority_classes']/(class_counter)) #TODO: 1/3 of majority class
+                if verbose: 
+                    print(k_samples_by_object)
+                for _ in range(k_samples_by_object): 
+                    lcu_data = np.asarray(lcu[['delta_time', 'delta_mag']].sample(lenght_lc))
+                    try: 
+                        new_element = lc.split('-')[2]
+                        new_element = add_ell(new_element, ELL, lc)
+                        if new_element in list(nn_config['data']['classes']):
+                            np_array, np_array_y, counter = update_arrays(np_array, np_array_y, new_element, lcu_data, counter)
+                    except Exception as error: 
+                        logging.error(f"The light curve {lc} was not loaded: {error}")
+                        #raise ValueError("The light curve {} was not loaded.".format(lc) + str(error))
+    print('shape: ', np_array.shape, np_array_y.shape)
+    np.save(PATH_DATA_FOLDER+'/'+file_name+'_np_array_y.npy', np_array_y)
+    np.save(PATH_DATA_FOLDER+'/'+file_name+'_np_array.npy', np_array)
+    return np_array, np_array_y
+
+def insert_lc_subclasses(examples, np_array, np_array_y, values_count= None, lenght_lc = 0, signal_noise=6, subclass=False, train_set=True, train_classes=[], file_name='train'):
+    counter = 0
+    #subclasses = pd.read_csv(PATH_SUBCLASSES)
+    ELL = pd.read_table(PATH_DATA_FOLDER+'/ELL.txt')
+    
+    for lc in tqdm(examples.ID.unique(), desc='Processing Light Curves'):
+        if train_set:
+            class_counter = values_count[values_count.Type==lc.split('-')[2]].counter.values[0]
+        else: 
+            class_counter = np.iinfo(np.int64).max
+
+        path_lc = PATH_LIGHT_CURVES_OGLE+lc.split('-')[1].lower()+'/'+lc.split('-')[2].lower()+'/phot/I/'+lc
+        
+        lcu = pd.read_table(path_lc, sep=" ", names=['time', 'magnitude', 'error'])
+        
+        lcu = light_curve_preprocessing(lcu)
+
+        signal = lcu['magnitude'].max() - lcu['magnitude'].min()
+
+        if (lcu.shape[0]> lenght_lc) and  ('error' in lcu.columns) and ((signal)/lcu['error'].mean()>signal_noise):
+            if (train_set) and (class_counter > nn_config['data']['limit_to_define_minority_Class']):
+                lcu_data = np.asarray(lcu[['delta_time', 'delta_mag']].sample(lenght_lc))
+                '''if subclass:
+                    try:
+                        new_element = str(subclasses.loc[subclasses.ID==lc.replace('.dat', ''),'sub_clase'].values[0])
+                        np_array_y = np.append(np_array_y, new_element)
+                        np_array = np.resize(np_array, (np_array.shape[0] + 1, lcu_data.shape[0], 2))
+                        np_array[-1] = lcu_data
+                    except Exception as error:
+                        logging.error(f"The light curve {lc} was not loaded: {error}")
+                        raise ValueError("The light curve {} was not loaded.".format(lc) + str(error))
+                else:'''
+                try: 
+                    new_element = lc.split('-')[2]
+                    if (new_element in ['ECL']): 
+                        type_value = ELL.loc[ELL.ID==lc.replace('.dat', ''), 'Type'].values
+                        if type_value and type_value=='ELL':
+                            new_element = 'ELL' 
+                        else: 
+                            new_element = 'ECL'
                     if train_set:
                         if new_element  in ['ACEP','CEP', 'DSCT', 'ECL',  'ELL', 'LPV',  'RRLYR', 'T2CEP']:
                             np_array_y = np.append(np_array_y, new_element)
@@ -162,8 +299,44 @@ def insert_lc(examples, np_array, np_array_y, lenght_lc = 0, signal_noise=6, sub
                             counter = counter + 1
                 except Exception as error: 
                     logging.error(f"The light curve {lc} was not loaded: {error}")
-                    raise ValueError("The light curve {} was not loaded.".format(lc) + str(error))
-
+                    #raise ValueError("The light curve {} was not loaded.".format(lc) + str(error))
+            else:
+                k_samples_by_object = int(nn_config['data']['upper_limit_majority_classes']/class_counter)
+                for _ in range(k_samples_by_object): 
+                    lcu_data = np.asarray(lcu[['delta_time', 'delta_mag']].sample(lenght_lc))
+                    '''if subclass:
+                        try:
+                            new_element = str(subclasses.loc[subclasses.ID==lc.replace('.dat', ''),'sub_clase'].values[0])
+                            np_array_y = np.append(np_array_y, new_element)
+                            np_array = np.resize(np_array, (np_array.shape[0] + 1, lcu_data.shape[0], 2))
+                            np_array[-1] = lcu_data
+                        except Exception as error:
+                            logging.error(f"The light curve {lc} was not loaded: {error}")
+                            raise ValueError("The light curve {} was not loaded.".format(lc) + str(error))
+                    else:'''
+                    try: 
+                        new_element = lc.split('-')[2]
+                        if (new_element in ['ECL']): 
+                            type_value = ELL.loc[ELL.ID==lc.replace('.dat', ''), 'Type'].values
+                            if type_value and type_value=='ELL':
+                                new_element = 'ELL' 
+                            else: 
+                                new_element = 'ECL'
+                        if train_set:
+                            if new_element  in ['ACEP','CEP', 'DSCT', 'ECL',  'ELL', 'LPV',  'RRLYR', 'T2CEP']:
+                                np_array_y = np.append(np_array_y, new_element)
+                                np_array = np.resize(np_array, (np_array.shape[0] + 1, lcu_data.shape[0], 2))
+                                np_array[-1] = lcu_data
+                                counter = counter + 1
+                        else:
+                            if new_element in train_classes:
+                                np_array_y = np.append(np_array_y, new_element)
+                                np_array = np.resize(np_array, (np_array.shape[0] + 1, lcu_data.shape[0], 2))
+                                np_array[-1] = lcu_data
+                                counter = counter + 1
+                    except Exception as error: 
+                        logging.error(f"The light curve {lc} was not loaded: {error}")
+                        #raise ValueError("The light curve {} was not loaded.".format(lc) + str(error))
     print('shape: ', np_array.shape, np_array_y.shape)
     np.save(PATH_DATA_FOLDER+'/'+file_name+'_np_array_y.npy', np_array_y)
     np.save(PATH_DATA_FOLDER+'/'+file_name+'_np_array.npy', np_array)
@@ -257,34 +430,73 @@ def plot_cm(cm: np.ndarray,
 def move_data_to_device(data, device):
     return tuple(torch.tensor(d).to(device) if isinstance(d, np.ndarray) else d.to(device) for d in data)
     
+def custom_sample(df, class_column, threshold, n):
+    """
+    df: The input dataframe
+    class_column: The name of the column which contains the class labels
+    threshold: The threshold which decides if a class is low or high represented
+    n: Number of samples desired for overrepresented classes
+    """
+    
+    # Count the occurrences of each class
+    class_counts = df[class_column].value_counts()
+    
+    # Identify low and high represented classes
+    low_represented = class_counts[class_counts <= threshold].index
+    high_represented = class_counts[class_counts > threshold].index
+    
+    sampled_dataframes = []
+    
+    # Include all instances for low represented classes
+    for class_value in low_represented:
+        sampled_dataframes.append(df[df[class_column] == class_value])
+    
+    # Sample n instances for high represented classes
+    for class_value in high_represented:
+        sample_size = min(n, class_counts[class_value]) # To handle cases where n is greater than class count
+        sampled_dataframes.append(df[df[class_column] == class_value].sample(sample_size))
+    
+    # Concatenate the results and return
+    return pd.concat(sampled_dataframes)
+
 def get_ids(n=1): 
     path_train = PATH_FEATURES_TRAIN
     path_test = PATH_FEATURES_TEST
     lc_test = pd.read_table(path_test, sep= ',')
-    #lc_test = lc_test[lc_test.label=='ClassA']
     lc_train = pd.read_table(path_train, sep= ',')
-    #lc_train = lc_train[lc_train.label=='ClassA']
-    example_test  = lc_test[['ID']]
-    if n>=lc_train.shape[0]:
-        example_train =lc_train[['ID']]
-    else:
-        example_train = lc_train.sample(n)[['ID']]
 
+    example_test  = lc_test[['ID']]
+    #if n>=lc_train.shape[0]:
+    example_train =lc_train[['ID']]
+    #else:
+    #    example_train = lc_train.sample(n)[['ID']]
 
     new_cols_test = example_test.ID.str.split("-", n = 3, expand = True)
     new_cols_test.columns = ['survey', 'field', 'class', 'number']
     # concatenate the new columns with the original DataFrame
     example_test = pd.concat([new_cols_test, example_test], axis=1)
-    example_test = delete_low_represented_classes(example_test, column='class', threshold=50)
+    example_test = delete_low_represented_classes(example_test, column='class', threshold=20)
 
     new_cols_train = example_train.ID.str.split("-", n = 3, expand = True)
     new_cols_train.columns = ['survey', 'field', 'class', 'number']
-
-
-
     example_train = pd.concat([new_cols_train, example_train], axis=1)
+    print(example_train['class'].value_counts())
 
-    example_train = delete_low_represented_classes(example_train, column='class', threshold=50)
+    example_train = delete_low_represented_classes(example_train, column='class', threshold=20)
+
+    example_train = custom_sample(example_train, 'class', nn_config['data']['limit_to_define_minority_Class'], 
+                                nn_config['data']['upper_limit_majority_classes'])
+
+    print(example_train['class'].value_counts())
+
+    values_count = example_train['class'].value_counts().reset_index()
+    values_count.columns = ['Type', 'counter']
+    
+    print(example_train['class'].value_counts())
+
+    example_train = example_train[example_train['class'].isin(list(nn_config['data']['classes']))]
+    example_test = example_test[example_test['class'].isin(list(nn_config['data']['classes']))]
+
 
     print('clases: ', example_train['class'].unique())
     example_test['class'] = pd.factorize(example_test['class'])[0]
@@ -292,21 +504,22 @@ def get_ids(n=1):
 
     print('clases: ', example_train['class'].unique())
 
-    return example_test, example_train
+    return example_test, example_train, values_count
 
-
-def load_id_period_to_sample(classes=None): 
+def load_id_period_to_sample(classes=[]): 
     print('Loading from:\n', PATH_DATA_FOLDER+PATH_ZIP_GAIA)
     with gzip.open(PATH_DATA_FOLDER+PATH_ZIP_GAIA, 'rb') as f:
         np_data = np.load(f, allow_pickle=True)
     df = np_data.item()['meta'][['OGLE_id','Period','Type']]
-
-    if classes == None: 
+    if len(classes)==0: 
         df = df.sample(1)
     else:
         samples = []
         for t in classes:
-            sample = df[df['Type'] == t].sample(n=50)
+            if t == 'ELL':
+                sample = df[df['Type'] == 'ECL'].sample(n=50)
+            else:
+                sample = df[df['Type'] == t].sample(n=50)        
             samples.append(sample)
         df = pd.concat(samples, axis=0).reset_index(drop=True)
     return df
@@ -326,10 +539,13 @@ def get_data(sample_size, mode):
     print('-'*50)
     print('MODE DATA: ', mode)
     if mode=='create':
-        id_test, id_train  = get_ids(n=sample_size) 
-        x_train, x_test, y_test, y_train  = read_light_curve_ogle(id_test, id_train, lenght_lc=nn_config['data']['seq_length'])
+        id_test, id_train, values_count  = get_ids(n=sample_size) 
+        #TODO: get objects by class and oversample
+        x_train, x_test, y_test, y_train  = read_light_curve_ogle(id_test, id_train, values_count, lenght_lc=nn_config['data']['seq_length'])
     elif mode == 'load':
         x_train, x_test, y_test, y_train  = load_light_curve_ogle()
+    else: 
+        raise('Mode not valid. Please check mode_running in nn_config. Use create or load strings.')
     
     print('Loaded shape training set: ', x_train.shape)
     print('Loaded shape testing set: ', x_test.shape)
@@ -389,6 +605,7 @@ def get_data(sample_size, mode):
     y_train, y_test = torch.from_numpy(np.asarray(y_train_onehot)), torch.from_numpy(np.asarray(y_test_onehot))
  
     x_train, x_val, y_train, y_val= train_test_split(x_train, y_train, test_size=0.2, random_state=42, stratify=y_train)
+
     return x_train, x_test,  y_train, y_test, x_val, y_val, modified_labelencoder_classes, y_labels
 
 def export_recall_latex(true_labels, predicted_labels, label_encoder): 
@@ -1203,6 +1420,7 @@ def revert_light_curve(period, folded_normed_light_curve, original_sequences, fa
     num_sequences = folded_normed_light_curve.shape[0]
     reverted_light_curves = []
     time_sequences = get_time_sequence(n=1, star_class=classes)
+
     for i in range(num_sequences):
         # Extract the time (period) and magnitude values from the folded and normed light curve
         time = original_sequences[i] #folded_normed_light_curve[i,:,0]
@@ -1254,10 +1472,6 @@ def revert_light_curve(period, folded_normed_light_curve, original_sequences, fa
 
     reverted_light_curves_random = reverted_light_curves_random.squeeze(2) 
 
-
-    print('before sort: ')
-    print(reverted_light_curves_random[:4])
-
     for i in range(reverted_light_curves_random.shape[0]):
         sort_indices = np.argsort(reverted_light_curves_random[i, 1, :])
         for j in range(reverted_light_curves_random.shape[1]):
@@ -1265,9 +1479,6 @@ def revert_light_curve(period, folded_normed_light_curve, original_sequences, fa
 
     for i in range(reverted_light_curves_random.shape[0]):
         reverted_light_curves_random[i] = np.flipud(reverted_light_curves_random[i])
-
-    print('after sort: ')
-    print(reverted_light_curves_random[:4])
 
     print('Shape of reverted_light_curves_random[i, :, :]:', reverted_light_curves_random[i, :, :].shape)
     print('Shape of sort_indices:', sort_indices.shape)
@@ -1309,47 +1520,46 @@ def get_time_sequence(n=1, star_class=['RRLYR']):
     lc_train[['SURVEY', 'FIELD', 'CLASS', 'NUMBER']] = lc_train['ID'].str.split('-', expand=True)
     lc_train['NUMBER'] = lc_train['NUMBER'].str.replace('.dat', '')
 
-    base_lcs = []
-    
-    for star in tqdm(star_class, desc='Getting time sequences'):
-        fail = True
-        while(fail):
-            try: 
-                print(lc_train.columns)
-                quantile_series = lc_train[lc_train.CLASS == star].Amplitude.quantile(0.5)
-                quantile_value = float(quantile_series)
-                print(quantile_value)
-                new_label = (lc_train[(lc_train.CLASS==star) 
-                                                            & (lc_train.Amplitude > quantile_value)]
-                                                            .sample(1, replace=True)['ID']
-                                                            .to_list()[0]
-                            )
-                print(new_label)
+    time_sequences = []
 
+    for star in tqdm(star_class, desc='Getting time sequences'):
+        counter = 0
+        fail = True
+
+        while(fail):
+
+            counter = counter + 1
+
+            try: 
+                if counter < 10:
+                    quantile_series = lc_train[lc_train.CLASS == star].Amplitude.quantile(0.5)
+                    quantile_value = float(quantile_series)
+                    new_label = (lc_train[(lc_train.CLASS==star) 
+                                                                & (lc_train.Amplitude > quantile_value)]
+                                                                .sample(1, replace=True)['ID']
+                                                                .to_list()[0]
+                                )
+                else:
+                    quantile_series = lc_train.Amplitude.quantile(0.5)
+                    quantile_value = float(quantile_series)
+                    new_label = (lc_train[(lc_train.Amplitude > quantile_value)]
+                                                                .sample(1, replace=True)['ID']
+                                                                .to_list()[0]
+                                )
                 path_lc = (PATH_LIGHT_CURVES_OGLE + new_label.split('-')[1].lower() +
                    '/' + new_label.split('-')[2].lower() + '/phot/I/' + new_label)
                 
-                print(path_lc)
 
                 lcu = pd.read_table(path_lc, sep=" ", names=['time', 'magnitude', 'error'])
-                print(lcu)
 
-                if len(lcu['time'].to_list())>100:
-                    base_lcs.append(new_label)
+                if (len(lcu['time'].to_list())>nn_config['data']['minimum_lenght_real_curves']) and (lcu['time'].is_monotonic_increasing):
+                    time_sequences.append([lcu.magnitude.min(), lcu.magnitude.max()])
                     fail = False
+
             except Exception as error : 
                 fail = True    
                 logging.error(f"[get_time_sequence] The light curve {new_label} was not added: {error}")
 
-    time_sequences = []
-    for lc in tqdm(base_lcs, desc='Loading lcs'):
-        path_lc = (PATH_LIGHT_CURVES_OGLE + lc.split('-')[1].lower() +
-                   '/' + lc.split('-')[2].lower() + '/phot/I/' + lc)
-        lcu = pd.read_table(path_lc, sep=" ", names=['time', 'magnitude', 'error'])
-        if not lcu['time'].is_monotonic_increasing:
-            lcu = lcu[lcu['time']  >lcu['time'].values[0]]
-        time_sequences.append([lcu.magnitude.quantile(0.05), lcu.magnitude.quantile(0.95)])
-        print(lcu.magnitude.quantile(0.05), lcu.magnitude.quantile(0.95))
     return time_sequences
 
 def get_only_time_sequence(n=1, star_class=['RRLYR']):
@@ -1363,35 +1573,41 @@ def get_only_time_sequence(n=1, star_class=['RRLYR']):
     n = int(n)
     df_id_period = load_id_period_to_sample(star_class)
     df_id_period[['SURVEY', 'FIELD', 'CLASS', 'NUMBER']] = df_id_period['OGLE_id'].str.split('-', expand=True)
-    base_lcs = []
-    for star in tqdm(star_class, desc='Selecting light curves'):
-        fail = True
-        while(fail):
-            try: 
-                new_label = df_id_period[df_id_period.Type==star].sample(1, replace=True)['OGLE_id'].to_list()[0]
-                path_lc = (PATH_LIGHT_CURVES_OGLE + new_label.split('-')[1].lower() +
-                   '/' + new_label.split('-')[2].lower() + '/phot/I/' + new_label + '.dat')
-                lcu = pd.read_table(path_lc, sep=" ", names=['time', 'magnitude', 'error'])
-                if lcu.shape[0]>200 and lcu['time'].is_monotonic_increasing:
-                    base_lcs.append(new_label)
-                    fail = False
-            except Exception as error : 
-                fail = True    
-                logging.error(f"[get_only_time_sequence] The light curve was not loaded: {error}")
     time_sequences = []
     original_sequences = []
-    for lc in tqdm(base_lcs, desc='completing the dataset'):
-        path_lc = (PATH_LIGHT_CURVES_OGLE + lc.split('-')[1].lower() +
-                   '/' + lc.split('-')[2].lower() + '/phot/I/' + lc + '.dat')
-        lcu = pd.read_table(path_lc, sep=" ", names=['time', 'magnitude', 'error'])
-        times = lcu['time'].to_list()
-        lc_adapted = ensure_n_elements(times)
-        lc_adapted_to_real_sequence = ensure_n_elements(times, n=350)
-        period = df_id_period[df_id_period.OGLE_id==lc].Period.values[0]
-        lc_phased = ((lc_adapted-np.min(lc_adapted))%period)/period
-        sorted_lc_phased = np.sort(lc_phased)
-        time_sequences.append(sorted_lc_phased)
-        original_sequences.append(lc_adapted_to_real_sequence)
+
+    for star in tqdm(star_class, desc='Selecting light curves'):
+        counter = 0
+        fail = True
+
+        while(fail):
+            counter = counter + 1
+            try: 
+                if counter < 10:
+                    new_label = df_id_period[df_id_period.Type==star].sample(1, replace=True)['OGLE_id'].to_list()[0]
+                else: 
+                    new_label = df_id_period.sample(1, replace=True)['OGLE_id'].to_list()[0]
+                
+                path_lc = (PATH_LIGHT_CURVES_OGLE + new_label.split('-')[1].lower() +
+                    '/' + new_label.split('-')[2].lower() + '/phot/I/' + new_label + '.dat')
+                lcu = pd.read_table(path_lc, sep=" ", names=['time', 'magnitude', 'error'])               
+                period = df_id_period[df_id_period.OGLE_id==new_label].Period.values[0]
+                time_range = lcu.time.max() -lcu.time.min()
+
+                if (lcu.shape[0]>nn_config['data']['minimum_lenght_real_curves']) and (lcu['time'].is_monotonic_increasing) and (time_range>period):
+                    times = lcu['time'].to_list()
+                    lc_adapted = ensure_n_elements(times)
+                    lc_adapted_to_real_sequence = ensure_n_elements(times, n=350)
+                    lc_phased = ((lc_adapted-np.min(lc_adapted))%period)/period
+                    sorted_lc_phased = np.sort(lc_phased)
+                    time_sequences.append(sorted_lc_phased)
+                    original_sequences.append(lc_adapted_to_real_sequence)
+                    fail = False
+            except Exception as error:
+                #print(error)  #TODO: check ID ELL
+                fail = True    
+                logging.error(f"[get_only_time_sequence] The light curve was not loaded: {error}")
+
     return time_sequences, original_sequences
 
 def ensure_n_elements(lst, n=600):

@@ -373,7 +373,7 @@ def run_cnn(create_samples: Any, mean_prior_dict: Dict = None,
     Returns:
     None
     """
-    wandb_active = False
+    wandb_active = True
     if wandb_active:
         wandb.init(project='train-classsifier', entity='fjperez10')
         torch.cuda.empty_cache()
@@ -398,7 +398,7 @@ def run_cnn(create_samples: Any, mean_prior_dict: Dict = None,
     class_weights = compute_class_weight('balanced', np.unique(y_train_labeled.numpy()), y_train_labeled.numpy())
     class_weights = torch.tensor(class_weights).to(device, dtype=x_train.dtype)
     
-    criterion = nn.CrossEntropyLoss() # nn.CrossEntropyLoss(weight=class_weights)
+    criterion = nn.CrossEntropyLoss(weight=class_weights)
     criterion_synthetic_samples = nn.CrossEntropyLoss()
     
     training_data = utils.move_data_to_device((x_train, y_train), device)
@@ -489,12 +489,11 @@ def run_cnn(create_samples: Any, mean_prior_dict: Dict = None,
             synthetic_loss, accuracy_train_synthetic =  evaluate_dataloader(model, synthetic_data_loader, 
                                                                         criterion_synthetic_samples, device)
             condition1 = (accuracy_train_synthetic>threshold_acc_synthetic)
-            condition2 = (accuracy_train - accuracy_train_synthetic > 0.2)
             condition3 = (counter > 30) 
             condition4 = (counter > 2)
             
             if condition4: 
-                if condition1 or condition2 or condition3:
+                if condition1 or condition3:
                     harder_samples = True
                     counter = 0
                 else:
@@ -527,7 +526,7 @@ def run_cnn(create_samples: Any, mean_prior_dict: Dict = None,
         if wandb_active:
             wandb.log({'epoch': epoch, 'loss': running_loss, 'accuracy_train':accuracy_train, 'synthetic_loss':synthetic_loss, 
                 'acc_synthetic_samples': accuracy_train_synthetic, 'val_loss': val_loss, 'val_accu': accuracy_val})
-                
+
         print('epoch:', epoch, ' loss:', running_loss, ' acc_train:', accuracy_train, ' synth_loss:',synthetic_loss, 
                 ' acc_synth:', accuracy_train_synthetic, ' val_loss', val_loss, ' val_accu:', accuracy_val)
     
@@ -539,4 +538,5 @@ def run_cnn(create_samples: Any, mean_prior_dict: Dict = None,
     _ = evaluate_and_plot_cm_from_dataloader(model, train_dataloader, label_encoder, 'Confusion Matrix - Training set')
     _ = evaluate_and_plot_cm_from_dataloader(model, val_dataloader, label_encoder, 'Confusion Matrix - Validation set')
     _ = evaluate_and_plot_cm_from_dataloader(model, test_dataloader, label_encoder, 'Confusion Matrix - Testing set')
-    _ = evaluate_and_plot_cm_from_dataloader(model, synthetic_data_loader, label_encoder, 'Confusion Matrix - Synthetic') 
+    if opt_method == 'twolosses':
+        _ = evaluate_and_plot_cm_from_dataloader(model, synthetic_data_loader, label_encoder, 'Confusion Matrix - Synthetic') 

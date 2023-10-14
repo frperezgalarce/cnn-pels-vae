@@ -1790,3 +1790,26 @@ def load_pp_list(vae_model: str) -> List[str]:
     PP_list = [value for key, value in pp_mapping.items() if key in phy_params]
     #PP_list = ['Period','teff_val', 'abs_Gmag', 'radius_val', '[Fe/H]_J95', 'logg']
     return PP_list
+
+# Create filenames for the two arrays
+def plot_batch(df1, df1y, label_encoder):
+
+    for i in range(int(np.max(df1y)) + 1):  # Ensure all classes are covered
+        
+        plt.figure(figsize=(12, 8))
+        
+        # Dataset 1
+        mask1 = df1y[:, i] == 1
+        delta_time1 = df1[mask1][:, 0, :].ravel()
+        delta_magnitude1 = df1[mask1][:, 1, :].ravel()
+        
+        # Class name
+        class_name = label_encoder.inverse_transform([i])[0]
+
+        # Plot 2D scatter for Dataset 1
+        sb.scatterplot(x=delta_time1, y=delta_magnitude1, color="r", label="Synthetic Light curves", alpha=0.2)
+        
+        plt.title(f"2D Density for Class {class_name}")
+        plt.legend()
+        plt.savefig(f"2D_Density_Class_{class_name}.png")
+        plt.show()

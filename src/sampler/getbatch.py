@@ -11,6 +11,8 @@ import matplotlib.pyplot as plt
 from src.sampler.LightCurveRandomSampler import LightCurveRandomSampler
 
 gpu: bool = True 
+with open('src/nn_config.yaml', 'r') as file:
+    nn_config = yaml.safe_load(file)
 
 class SyntheticDataBatcher:
     def __init__(self, config_file_path: str = 'src/regressor.yaml', 
@@ -29,6 +31,8 @@ class SyntheticDataBatcher:
         self.delta_max = 10
         self.CLASSES = ['ACEP','CEP', 'DSCT', 'ECL',  'ELL', 'LPV',  'RRLYR', 'T2CEP']
         self.batch_size = batch_size
+        self.x_array = None
+        self.y_array = None
 
     @staticmethod
     def load_yaml(path: str) -> Dict[str, Any]:
@@ -70,7 +74,7 @@ class SyntheticDataBatcher:
 
     def attempt_sample_load(self, model_name: str, sampler: 'YourSamplerType') -> Tuple[Union[np.ndarray, None], bool]:
         try:
-            samples = sampler.modify_and_sample(model_name, n_samples=self.n_samples)
+            samples = sampler.modify_and_sample(model_name, n_samples=self.n_samples, mode= nn_config['sampling']['mode'])
             return samples, True
         except Exception as e:
             raise Exception(f"Failed to load samples from model {model_name}. Error: {str(e)}")
@@ -89,6 +93,9 @@ class SyntheticDataBatcher:
             times = np.array(times)  
             times = torch.from_numpy(times).to(self.device)
             times = times.to(dtype=torch.float32)
+            original_sequences = None #TODO
+        
+        return times, original_sequences
 
     def create_synthetic_batch(self, plot_example=False, b=1.0):
         print(self.path)
@@ -153,7 +160,7 @@ class SyntheticDataBatcher:
 
         # Clear GPU cache
         vae, _ = utils.load_model_list(ID=self.vae_model, device=self.device)
-        times = self.create_time_sequences(lb)
+        times, original_sequences = self.create_time_sequences(lb)
 
         torch.cuda.empty_cache()
         xhat_mu = self.process_in_batches(vae, mu_, times, onehot, pp, 8)
@@ -199,6 +206,9 @@ class SyntheticDataBatcher:
         numpy_array_x = np.load(PATH_DATA+'/x_batch_pelsvae.npy', allow_pickle=True)
         numpy_array_y = np.load(PATH_DATA+'/y_batch_pelsvae.npy', allow_pickle=True)
 
+        self.x_array = numpy_array_x
+        self.y_array = numpy_array_y 
+        
         if plot_example:
             plt.figure()
             plt.scatter(numpy_array_x[0][0], numpy_array_x[0][1])

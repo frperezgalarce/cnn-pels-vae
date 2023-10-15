@@ -42,17 +42,32 @@ gpu: bool = True # fail when true is selected
 device: torch.device = torch.device("cuda:0" if torch.cuda.is_available() and gpu else "cpu")
 
 class CNN(nn.Module):
-    def __init__(self, num_classes: int = 2) -> None:
+    def __init__(self, num_classes: int = 2, layers = 2) -> None:
         super(CNN, self).__init__()
-        
-        self.conv1 = nn.Conv1d(in_channels=2, out_channels=90, kernel_size=6, stride=1)
-        self.bn1 = nn.BatchNorm1d(90)
+
+        self.layers = layers
+        self.conv1 = nn.Conv1d(in_channels=2, out_channels=30, kernel_size=6, stride=1)
+        self.bn1 = nn.BatchNorm1d(30)
         self.pool1 = nn.MaxPool1d(2)
         
-        self.conv2 = nn.Conv1d(in_channels=90, out_channels=60, kernel_size=6, stride=1)
+        self.conv2 = nn.Conv1d(in_channels=30, out_channels=60, kernel_size=6, stride=1)
         self.bn2 = nn.BatchNorm1d(60)
         self.pool2 = nn.MaxPool1d(2)
+
+        if self.layers == 3: 
+            self.conv3 = nn.Conv1d(in_channels=60, out_channels=60, kernel_size=6, stride=1)
+            self.bn3 = nn.BatchNorm1d(60)
+            self.pool3 = nn.MaxPool1d(2)  
         
+        if self.layers == 4: 
+            self.conv3 = nn.Conv1d(in_channels=60, out_channels=60, kernel_size=6, stride=1)
+            self.bn3 = nn.BatchNorm1d(60)
+            self.pool3 = nn.MaxPool1d(2)  
+
+            self.conv4 = nn.Conv1d(in_channels=60, out_channels=60, kernel_size=6, stride=1)
+            self.bn4 = nn.BatchNorm1d(60)
+            self.pool4 = nn.MaxPool1d(2)  
+
         self.fc1 = nn.Linear(4260, 200)  # Adjust this number based on your actual output size
         self.dropout1 = nn.Dropout(0.2)
         
@@ -71,7 +86,24 @@ class CNN(nn.Module):
         x = self.bn2(x)
         x = F.relu(x)
         x = self.pool2(x)
-        
+
+        if self.layers == 3: 
+            x = self.conv3(x)
+            x = self.bn3(x)
+            x = F.relu(x)
+            x = self.pool3(x)
+
+        if self.layers == 4: 
+            x = self.conv3(x)
+            x = self.bn3(x)
+            x = F.relu(x)
+            x = self.pool3(x)
+            
+            x = self.conv4(x)
+            x = self.bn4(x)
+            x = F.relu(x)
+            x = self.pool4(x)
+
         x = x.view(x.size(0), -1)  # Flatten the tensor
         x = self.fc1(x)
         x = F.relu(x)
@@ -93,7 +125,7 @@ def setup_environment() -> torch.device:
 def setup_model(num_classes: int, device: torch.device, show_architecture: bool = True) -> nn.Module:
 
     print('----- model setup --------')
-    model = CNN(num_classes=num_classes)
+    model = CNN(num_classes=num_classes, layers = nn_config['training']['layers'])
     if torch.cuda.is_available():
         model = model.to(device)
     if torch.cuda.device_count() > 1:
@@ -275,11 +307,15 @@ def create_dataloader(data, batch_size):
     dataloader = DataLoader(data, batch_size=batch_size, shuffle=True)
     return dataloader 
 
-def initialize_masks(model, device='cuda', EPS=0.25):
+def initialize_masks(model, device='cuda', EPS=0.25, layers=2):
     locked_masks = {}
     locked_masks2 = {}
     conv1_bias_mask = None
     conv2_bias_mask = None
+    conv3_bias_mask = None
+    conv4_bias_mask = None
+    if layers > 4: 
+        raise('The current implementation does not support more than 4 layers')
     for name, param in model.named_parameters():
         if "conv1" in name and "weight" in name:
             print(utils.quantile(torch.abs(param.mean(dim=[1, 2])), EPS))
@@ -295,7 +331,29 @@ def initialize_masks(model, device='cuda', EPS=0.25):
             mask = mask_value.view(-1, 1, 1).repeat(1, param.shape[1], param.shape[2])
             locked_masks[name] = mask
             conv2_bias_mask = mask_value  # Save for bias
-        elif "fc1" in name and "weight" in name:
+        elif "conv3" in name and "weight" in name:
+            print(utils.quantile(torch.abs(param.mean(dim=[1, 2])), EPS))
+            quantile = utils.quantile(torch.abs(param.mean(dim=[1, 2])), EPS)
+            mask_value = (torch.abs(param.mean(dim=[1, 2])) >= quantile).float()
+            mask = mask_value.view(-1, 1, 1).repeat(1, param.shape[1], param.shape[2])
+            locked_masks[name] = mask
+            conv3_bias_mask = mask_value  # Save for bias
+        elif "conv4" in name and "weight" in name:
+            print(utils.quantile(torch.abs(param.mean(dim=[1, 2])), EPS))
+            quantile = utils.quantile(torch.abs(param.mean(dim=[1, 2])), EPS)
+            mask_value = (torch.abs(param.mean(dim=[1, 2])) >= quantile).float()
+            mask = mask_value.view(-1, 1, 1).repeat(1, param.shape[1], param.shape[2])
+            locked_masks[name] = mask
+            conv4_bias_mask = mask_value  # Save for bias
+        elif "conv1.bias" in name:
+            locked_masks[name] = conv1_bias_mask
+        elif "conv2.bias" in name:
+            locked_masks[name] = conv2_bias_mask
+        elif "conv3.bias" in name:
+            locked_masks[name] = conv3_bias_mask
+        elif "conv4.bias" in name:
+            locked_masks[name] = conv4_bias_mask
+        if "fc1" in name and "weight" in name:
             print(utils.quantile(torch.abs(param.mean(dim=[1])), EPS))
             quantile = utils.quantile(torch.abs(param.mean(dim=[1])), EPS)
             mask_value = (torch.abs(param.mean(dim=1)) >= quantile).float()
@@ -307,10 +365,6 @@ def initialize_masks(model, device='cuda', EPS=0.25):
             mask_value = (torch.abs(param.mean(dim=1)) >= quantile).float()
             mask = mask_value.view(-1, 1).repeat(1, param.shape[1])
             locked_masks[name] = mask
-        elif "conv1.bias" in name:
-            locked_masks[name] = conv1_bias_mask
-        elif "conv2.bias" in name:
-            locked_masks[name] = conv2_bias_mask
         else:
             mask = torch.ones_like(param)
             locked_masks[name] = mask
@@ -344,7 +398,7 @@ def initialize_optimizers(model, opt_method, EPS=0.35, base_learning_rate=0.001,
     """
     if opt_method == 'twolosses':
         print('Using mode: two masks')
-        locked_masks, locked_masks2 = initialize_masks(model, EPS=EPS)  # Assuming you have this function
+        locked_masks, locked_masks2 = initialize_masks(model, EPS=EPS, layers=nn_config['training']['layers'])  # Assuming you have this function
         optimizer1 = optim.Adam(model.parameters(), lr=base_learning_rate)
         optimizer2 = optim.Adam(model.parameters(), lr=scaling_factor * base_learning_rate)
     elif opt_method == 'oneloss':
@@ -398,9 +452,15 @@ def run_cnn(create_samples: Any, mean_prior_dict: Dict = None,
     class_weights = compute_class_weight('balanced', np.unique(y_train_labeled.numpy()), y_train_labeled.numpy())
     class_weights = torch.tensor(class_weights).to(device, dtype=x_train.dtype)
     
-    criterion = nn.CrossEntropyLoss(weight=class_weights)
-    criterion_synthetic_samples = nn.CrossEntropyLoss()
-    
+    if nn_config['training']['loss']=='CrossEntropyLoss':
+        criterion = nn.CrossEntropyLoss(weight=class_weights) 
+        criterion_synthetic_samples = nn.CrossEntropyLoss() 
+    elif nn_config['training']['loss']=='NLLLoss': 
+        criterion = nn.NLLLoss(weight=class_weights) 
+        criterion_synthetic_samples = nn.NLLLoss() 
+    else: 
+        raise('The required loss is not supported, '+ nn_config['training']['loss'])
+
     training_data = utils.move_data_to_device((x_train, y_train), device)
     val_data = utils.move_data_to_device((x_val, y_val), device)
     testing_data = utils.move_data_to_device((x_test, y_test), device)
@@ -533,7 +593,9 @@ def run_cnn(create_samples: Any, mean_prior_dict: Dict = None,
     # Post-training tasks
     model.load_state_dict(best_model)
     plot_training(range(len(train_loss_values)), train_loss_values, val_loss_values, train_accuracy_values, val_accuracy_values)
-
+    _, accuracy_test = evaluate_dataloader(model, test_dataloader, criterion, device)
+    if wandb_active: 
+        wandb.log({'acc_test:', accuracy_test})
     # Using the function
     _ = evaluate_and_plot_cm_from_dataloader(model, train_dataloader, label_encoder, 'Confusion Matrix - Training set')
     _ = evaluate_and_plot_cm_from_dataloader(model, val_dataloader, label_encoder, 'Confusion Matrix - Validation set')

@@ -112,7 +112,6 @@ def main(train_gmm: Optional[bool] = False, create_samples: Optional[bool] = Tru
     
     if train_gmm:
         print('Fitting Gaussian mixture models') 
-        #TODO: adapt to consider different lenth of features
         bgmm.fit_gausians(mean_prior_dict, columns= ['Type','Period', 'teff_val', '[Fe/H]_J95', 'abs_Gmag', 'radius_val', 'logg'])
         print('Gaussian were fitted')
 
@@ -120,7 +119,7 @@ def main(train_gmm: Optional[bool] = False, create_samples: Optional[bool] = Tru
         cnn.run_cnn(create_samples, mean_prior_dict=mean_prior_dict, vae_model=vae_model, PP=PP_list)
     
 if __name__ == "__main__": 
-    main(train_gmm = False, create_samples = True, 
-         train_classifier = True, sensitive_test= False, train_regressor=False)
+    main(train_gmm = True, create_samples = True, 
+         train_classifier = True, sensitive_test= False, train_regressor=True)
         # create_samples activate samples generation in cnn training
     

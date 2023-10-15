@@ -517,9 +517,9 @@ def load_id_period_to_sample(classes=[]):
         samples = []
         for t in classes:
             if t == 'ELL':
-                sample = df[df['Type'] == 'ECL'].sample(n=50)
+                sample = df[df['Type'] == 'ECL'].sample(n=100)
             else:
-                sample = df[df['Type'] == t].sample(n=50)        
+                sample = df[df['Type'] == t].sample(n=100)        
             samples.append(sample)
         df = pd.concat(samples, axis=0).reset_index(drop=True)
     return df
@@ -1579,11 +1579,10 @@ def get_only_time_sequence(n=1, star_class=['RRLYR']):
     for star in tqdm(star_class, desc='Selecting light curves'):
         counter = 0
         fail = True
-
         while(fail):
             counter = counter + 1
             try: 
-                if counter < 10:
+                if counter < 50:
                     new_label = df_id_period[df_id_period.Type==star].sample(1, replace=True)['OGLE_id'].to_list()[0]
                 else: 
                     new_label = df_id_period.sample(1, replace=True)['OGLE_id'].to_list()[0]
@@ -1597,14 +1596,13 @@ def get_only_time_sequence(n=1, star_class=['RRLYR']):
                 if (lcu.shape[0]>nn_config['data']['minimum_lenght_real_curves']) and (lcu['time'].is_monotonic_increasing) and (time_range>period):
                     times = lcu['time'].to_list()
                     lc_adapted = ensure_n_elements(times)
-                    lc_adapted_to_real_sequence = ensure_n_elements(times, n=350)
+                    lc_adapted_to_real_sequence = ensure_n_elements(times, n=500)
                     lc_phased = ((lc_adapted-np.min(lc_adapted))%period)/period
                     sorted_lc_phased = np.sort(lc_phased)
                     time_sequences.append(sorted_lc_phased)
                     original_sequences.append(lc_adapted_to_real_sequence)
                     fail = False
             except Exception as error:
-                #print(error)  #TODO: check ID ELL
                 fail = True    
                 logging.error(f"[get_only_time_sequence] The light curve was not loaded: {error}")
 

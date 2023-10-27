@@ -118,9 +118,12 @@ class ModifiedGaussianSampler:
 
 
     def modify_and_sample(self, path: str, n_samples=5, mode='allcomponents') -> np.ndarray:
+        np.set_printoptions(suppress=True)
+
         print(n_samples)
         self.load_p(path)
         print('Model loaded: ', self.model)
+        print(self.model.means_)
         if mode == 'onecomponent':
             samples = self.metropolis_hasting(n_samples=n_samples)
         elif mode == 'allcomponents': 

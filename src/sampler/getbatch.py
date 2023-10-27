@@ -79,10 +79,12 @@ class SyntheticDataBatcher:
         except Exception as e:
             raise Exception(f"Failed to load samples from model {model_name}. Error: {str(e)}")
 
-    def create_time_sequences(self, lb, based_on_real_lc = True): 
-        
+    def create_time_sequences(self, lb, period, based_on_real_lc = True):
+        np.set_printoptions(suppress=True)
+        print(lb)
+        print(period)
         if based_on_real_lc:
-            times, original_sequences =  utils.get_only_time_sequence(n=1, star_class=lb)
+            times, original_sequences =  utils.get_only_time_sequence(n=1, star_class=lb, period = period)
             times = np.array(times) 
             original_sequences = np.array(original_sequences) 
             times = torch.from_numpy(times).to(self.device)
@@ -120,9 +122,10 @@ class SyntheticDataBatcher:
             n_values = len(np.unique(encoded_labels))
             onehot_to_train = np.eye(n_values)[encoded_labels]
 
-
             components = self.count_subclasses(self.mean_prior_dict['StarTypes'][star_class])
+
             print(star_class +' includes '+ str(components) +' components ')
+
             sampler: mgmm.ModifiedGaussianSampler = mgmm.ModifiedGaussianSampler(b=b, components=components, features=self.PP)
             model_name = self.construct_model_name(star_class, PATH_MODELS)
             samples, error = self.attempt_sample_load(model_name, sampler)
@@ -137,7 +140,7 @@ class SyntheticDataBatcher:
                 raise ValueError("The model can't be loaded." + str(error))
 
             if 'all_classes_samples' in locals() and all_classes_samples is not None: 
-                all_classes_samples = np.vstack((samples, all_classes_samples))
+                all_classes_samples = np.vstack((all_classes_samples, samples))
             else: 
                 all_classes_samples = samples
                 print(all_classes_samples.shape)
@@ -160,7 +163,7 @@ class SyntheticDataBatcher:
 
         # Clear GPU cache
         vae, _ = utils.load_model_list(ID=self.vae_model, device=self.device)
-        times, original_sequences = self.create_time_sequences(lb)
+        times, original_sequences = self.create_time_sequences(lb, all_classes_samples[:,index_period])
 
         torch.cuda.empty_cache()
         xhat_mu = self.process_in_batches(vae, mu_, times, onehot, pp, 8)
@@ -169,7 +172,7 @@ class SyntheticDataBatcher:
         sampled_arrays = xhat_mu[indices, :, :]
 
         utils.plot_wall_lcs_sampling(sampled_arrays, sampled_arrays,  cls=lb[indices],  column_to_sensivity=index_period,
-                                to_title = pp[indices], sensivity = 'Period', all_columns=columns, save=True) 
+                                to_title = pp[indices], sensivity = 'Period', all_columns=columns, save=False) 
 
         lc_reverted = utils.revert_light_curve(pp[:,index_period], xhat_mu, original_sequences, classes = lb)
 

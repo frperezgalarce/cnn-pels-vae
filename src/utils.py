@@ -144,18 +144,31 @@ def load_light_curve_ogle():
     return numpy_array_lcus_train, numpy_array_lcus_test, numpy_y_test, numpy_y_train
 
 def light_curve_preprocessing(lcu):
+    # Drop NaN values
     lcu.dropna(axis=0, inplace=True)
+    
+    # Calculate delta_time and delta_mag
     lcu['delta_time'] = lcu['time'].diff()
     lcu['delta_mag'] = lcu['magnitude'].diff()
-    threshold_mag = lcu['delta_mag'].quantile(0.99)
-    lcu = lcu[lcu.delta_mag < threshold_mag]
-    lcu = lcu[lcu.delta_time < nn_config['data']['delta_time_max']]
-    threshold_delta = lcu['delta_mag'].quantile(0.001)
-    lcu = lcu[lcu.delta_mag > threshold_delta]
-    threshold_time = lcu['delta_time'].quantile(0.001)
-    lcu = lcu[lcu.delta_time > threshold_time]
+
+    # Calculate quantiles once for efficiency
+    quantile_99 = lcu['delta_mag'].quantile(0.999)
+    quantile_001 = lcu['delta_mag'].quantile(0.001)
+    delta_time_max = nn_config['data']['delta_time_max']
+    
+    # Filter by quantiles and delta_time_max
+    lcu = lcu[(lcu['delta_mag'] < quantile_99) & (lcu['delta_mag'] > quantile_001)]
+    lcu = lcu[lcu['delta_time'] < delta_time_max]
+    
+    # Filter by delta_time quantile
+    quantile_time_001 = lcu['delta_time'].quantile(0.001)
+    lcu = lcu[lcu['delta_time'] > quantile_time_001]
+    
+    # Call delete_by_std function if needed
     lcu = delete_by_std(lcu)
+    
     return lcu
+
 
 def add_ell(new_element, ELL, lc): 
     if (new_element in ['ECL']): 
@@ -369,7 +382,8 @@ def plot_cm(cm: np.ndarray,
             title: str = 'Confusion Matrix',
             save: bool = True,
             filename: Optional[str] = None,
-            normed: bool = False) -> None:
+            normed: bool = False, 
+            wandb_active: bool = True) -> None:
     """
     Plots a confusion matrix using Matplotlib.
 
@@ -424,6 +438,9 @@ def plot_cm(cm: np.ndarray,
             title_formatted = title.replace(' ', '_')
             filename = f"{title_formatted}_confusion_matrix_{current_date}.png"
         plt.savefig(filename)
+        if wandb_active: 
+            wandb.log({title: wandb.Image(plt)})
+
     else:
         plt.show()
 
@@ -506,7 +523,7 @@ def get_ids(n=1):
 
     return example_test, example_train, values_count
 
-def load_id_period_to_sample(classes=[]): 
+def load_id_period_to_sample(classes=[], period=[], factor1=0.8, factor2=1.2): 
     print('Loading from:\n', PATH_DATA_FOLDER+PATH_ZIP_GAIA)
     with gzip.open(PATH_DATA_FOLDER+PATH_ZIP_GAIA, 'rb') as f:
         np_data = np.load(f, allow_pickle=True)
@@ -515,12 +532,18 @@ def load_id_period_to_sample(classes=[]):
         df = df.sample(1)
     else:
         samples = []
+        counter = 0
         for t in classes:
             if t == 'ELL':
                 sample = df[df['Type'] == 'ECL'].sample(n=100)
             else:
-                sample = df[df['Type'] == t].sample(n=100)        
+                sample = df[((df['Type'] == t) & 
+                            (df['Period'] > factor1*period[counter]) &
+                            (df['Period'] < factor2*period[counter]))].sample(n=200)
+                if sample.shape[0]==0:
+                    raise('There is not objects in the sample.') 
             samples.append(sample)
+            counter = counter + 1
         df = pd.concat(samples, axis=0).reset_index(drop=True)
     return df
 
@@ -630,6 +653,22 @@ def load_yaml_priors(file_path):
     with open(file_path, 'r') as file:
         return yaml.safe_load(file)
 
+def extract_maximum_of_max_periods(configuration):
+    maximum_periods = []
+    
+    # Extract maximum periods for each category
+    for _ , properties in configuration.items():
+        print(properties)
+        if 'Period' in properties:
+            print(properties['Period'])
+            max_period = max(properties['Period'])
+            maximum_periods.append(max_period)
+    
+    # Find the maximum of all maximum periods
+    max_of_max_periods = max(maximum_periods)
+    
+    return max_of_max_periods
+
 def extract_midpoints(class_data):
     # Initialize the result list
     result = []
@@ -645,7 +684,7 @@ def extract_midpoints(class_data):
         radius_val_mid = subclass_data['Midpoints']['radius_val']
         logg_mid = subclass_data['Midpoints']['logg']
 
-        result.append([teff_mid, period_mid, admagg_mid, feh_95_mid,radius_val_mid,logg_mid])
+        result.append([teff_mid, period_mid, admagg_mid, feh_95_mid, radius_val_mid, logg_mid])
 
     return result
     
@@ -1262,7 +1301,7 @@ def plot_wall_lcs(lc_gen, lc_real, cls=[], lc_gen2=None, save=False, wandb_activ
         plt.show()
     return 
 
-def plot_wall_lcs_sampling(lc_gen, lc_real, cls=[], lc_gen2=None, save=False, wandb_active=False, 
+def plot_wall_lcs_sampling(lc_gen, lc_real, cls=[], lc_gen2=None, save=False, wandb_active=True, 
                 to_title=None, sensivity=None, column_to_sensivity=None, all_columns=[]):
     """Creates a wall of light curves plot with real and reconstruction
     sequences, paper-ready.
@@ -1346,9 +1385,7 @@ def plot_wall_lcs_sampling(lc_gen, lc_real, cls=[], lc_gen2=None, save=False, wa
         feature = str(sensivity).replace('[', '').replace(']','').replace('_','').replace('/','')
         plt.savefig(PATH_FIGURES+'/epoch_recon_lc_'+reg_conf_file['model_parameters']['ID']+'_'+str(cls[0])+'_'+feature+'.pdf', format='pdf', bbox_inches='tight')
     elif wandb_active:
-        wandb.init(project="cnn-pelsvae")
-        wandb.log({"test": plt})
-        wandb.finish()
+        wandb.log({"epochs": wandb.Image(plt)})
     else: 
         plt.show()
     return 'done'
@@ -1435,8 +1472,8 @@ def revert_light_curve(period, folded_normed_light_curve, original_sequences, fa
         original_magnitudes = ((normed_magnitudes * (original_max - original_min)) + original_min) * faintness
 
         # Ensure a sequence length for real_time
-        real_time = ensure_n_elements(real_time, n=350)
-        original_magnitudes = ensure_n_elements(original_magnitudes, n=350)
+        real_time = ensure_n_elements(real_time, n=500)
+        original_magnitudes = ensure_n_elements(original_magnitudes, n=500)
         # Convert real_time to NumPy array if it's a PyTorch tensor
         if isinstance(real_time, torch.Tensor):
             if real_time.is_cuda:
@@ -1531,8 +1568,8 @@ def get_time_sequence(n=1, star_class=['RRLYR']):
             counter = counter + 1
 
             try: 
-                if counter < 10:
-                    quantile_series = lc_train[lc_train.CLASS == star].Amplitude.quantile(0.5)
+                if counter < 50:
+                    quantile_series = lc_train[lc_train.CLASS == star].Amplitude.quantile(0.25)
                     quantile_value = float(quantile_series)
                     new_label = (lc_train[(lc_train.CLASS==star) 
                                                                 & (lc_train.Amplitude > quantile_value)]
@@ -1540,7 +1577,7 @@ def get_time_sequence(n=1, star_class=['RRLYR']):
                                                                 .to_list()[0]
                                 )
                 else:
-                    quantile_series = lc_train.Amplitude.quantile(0.5)
+                    quantile_series = lc_train.Amplitude.quantile(0.25)
                     quantile_value = float(quantile_series)
                     new_label = (lc_train[(lc_train.Amplitude > quantile_value)]
                                                                 .sample(1, replace=True)['ID']
@@ -1562,7 +1599,7 @@ def get_time_sequence(n=1, star_class=['RRLYR']):
 
     return time_sequences
 
-def get_only_time_sequence(n=1, star_class=['RRLYR']):
+def get_only_time_sequence(n=1, star_class=['RRLYR'], period=[1.0], factor1 = 0.9, factor2=1.1):
     """
     Retrieve time sequences from light curves data for 'n' objects.
     Parameters:
@@ -1571,10 +1608,12 @@ def get_only_time_sequence(n=1, star_class=['RRLYR']):
         list: A list of lists containing time sequences from the light curves of 'n' objects.
     """
     n = int(n)
-    df_id_period = load_id_period_to_sample(star_class)
+    df_id_period = load_id_period_to_sample(star_class, period=period, factor1=factor1, factor2=factor2)
     df_id_period[['SURVEY', 'FIELD', 'CLASS', 'NUMBER']] = df_id_period['OGLE_id'].str.split('-', expand=True)
     time_sequences = []
     original_sequences = []
+    print(star_class)
+    star_counter = 0
 
     for star in tqdm(star_class, desc='Selecting light curves'):
         counter = 0
@@ -1582,18 +1621,26 @@ def get_only_time_sequence(n=1, star_class=['RRLYR']):
         while(fail):
             counter = counter + 1
             try: 
-                if counter < 50:
-                    new_label = df_id_period[df_id_period.Type==star].sample(1, replace=True)['OGLE_id'].to_list()[0]
+                if counter < 100:
+                    new_label = (df_id_period[((df_id_period.Type==star) & 
+                                               (df_id_period.Period > factor1*period[star_counter]) &
+                                               (df_id_period.Period < factor2*period[star_counter])) ]
+                                                .sample(1, replace=True)['OGLE_id']
+                                                .to_list()[0])
                 else: 
                     new_label = df_id_period.sample(1, replace=True)['OGLE_id'].to_list()[0]
                 
                 path_lc = (PATH_LIGHT_CURVES_OGLE + new_label.split('-')[1].lower() +
                     '/' + new_label.split('-')[2].lower() + '/phot/I/' + new_label + '.dat')
-                lcu = pd.read_table(path_lc, sep=" ", names=['time', 'magnitude', 'error'])               
+                lcu = pd.read_table(path_lc, sep=" ", names=['time', 'magnitude', 'error'])
+                lcu = lcu.reset_index()
+                if 'level_0' in lcu.columns: 
+                    lcu = lcu.dropna(axis=1)
+                    lcu.columns = ['time', 'magnitude', 'error']
+                lcu = lcu.dropna(axis=0) 
                 period = df_id_period[df_id_period.OGLE_id==new_label].Period.values[0]
                 time_range = lcu.time.max() -lcu.time.min()
-
-                if (lcu.shape[0]>nn_config['data']['minimum_lenght_real_curves']) and (lcu['time'].is_monotonic_increasing) and (time_range>period):
+                if  (lcu.shape[0]>nn_config['data']['minimum_lenght_real_curves']) and (lcu['time'].is_monotonic_increasing) and (time_range>period):
                     times = lcu['time'].to_list()
                     lc_adapted = ensure_n_elements(times)
                     lc_adapted_to_real_sequence = ensure_n_elements(times, n=500)
@@ -1605,7 +1652,7 @@ def get_only_time_sequence(n=1, star_class=['RRLYR']):
             except Exception as error:
                 fail = True    
                 logging.error(f"[get_only_time_sequence] The light curve was not loaded: {error}")
-
+        star_counter = star_counter + 1
     return time_sequences, original_sequences
 
 def ensure_n_elements(lst, n=600):
@@ -1629,7 +1676,7 @@ def ensure_n_elements(lst, n=600):
         # Calculate the cumulative sum of differences and add it to the last element to complete the list
         last_element = lst[-1]
         while len(lst) < n:
-            last_element += np.mean(differences)
+            last_element += np.mean(differences) + np.random.uniform(np.min(differences), np.max(differences), 1)
             lst.append(last_element)
     elif len(lst) > n:
         # If the list has more elements than 'n', remove elements from the end of the list

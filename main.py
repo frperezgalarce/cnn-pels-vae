@@ -7,6 +7,7 @@ import torch
 import argparse
 import yaml
 from typing import List, Optional, Any, Dict
+import wandb
 
 with open('src/paths.yaml', 'r') as file:
     YAML_FILE: Dict[str, Any] = yaml.safe_load(file)
@@ -24,74 +25,24 @@ print('#'*50)
 print('SETUP')
 print('#'*50)
 
-vae_model: str =   config_file['model_parameters']['ID']   # '1pjeearx'#'20twxmei' trained using TPM using GAIA3 ... using 5 PP 1pjeearx
-print('Using vae model: '+ vae_model)
-sufix_path: str =   config_file['model_parameters']['sufix_path']
-print('sufix path: '+ sufix_path)
 
 
-def config_wandb(): 
-    ## Config ##
-    parser = argparse.ArgumentParser(description='Masked CNN to mitigate biases using synthetic samples')
-    parser.add_argument('--dry-run', dest='dry_run', action='store_true',
-                        default=False,
-                        help='Load data and initialize models [False]')
 
-    parser.add_argument('--machine', dest='machine', type=str, default='karimsala6s',
-                        help='were to is running (Jorges-MBP, karimsala6s, [exalearn])')
-
-    parser.add_argument('--data', dest='data', type=str, default='OGLE3_lcs_I_meta_snr5_augmented_folded_trim600_GAIA3_6PP.npy',
-                        help='data used for training ([OGLE3], EROS2)')
-    parser.add_argument('--use-err', dest='use_err', type=str, default='T',
-                        help='use magnitude errors ([T],F)')
-    parser.add_argument('--cls', dest='cls', type=str, default='all',
-                        help='drop or select ony one class '+
-                        '([all],drop_"vartype",only_"vartype")')
-
-    parser.add_argument('--lr', dest='lr', type=float, default=1e-3,
-                        help='learning rate [1e-4]')
-    parser.add_argument('--lr-sch', dest='lr_sch', type=str, default='cos',
-                        help='learning rate shceduler '+
-                        '([None], step, exp,cosine, plateau)')
-    parser.add_argument('--beta', dest='beta', type=str, default='4',
-                        help='beta factor for latent KL div ([1],step)')
-    parser.add_argument('--batch-size', dest='batch_size', type=int, default=128,
-                        help='batch size [128]')
-    parser.add_argument('--num-epochs', dest='num_epochs', type=int, default=200,
-                        help='total number of training epochs [150]') 
-
-    parser.add_argument('--cond', dest='cond', type=str, default='T',
-                        help='label conditional VAE (F,[T])')
-    parser.add_argument('--phy', dest='phy', type=str, default='PTARMG',
-                        help='physical parameters to use for conditioning ([],[tm])')
-    parser.add_argument('--latent-dim', dest='latent_dim', type=int, default=6,
-                        help='dimension of latent space [6]')
-    parser.add_argument('--latent-mode', dest='latent_mode', type=str,
-                        default='repeat',
-                        help='wheather to sample from a 3d or 2d tensor '+
-                        '([repeat],linear,convt)')
-    parser.add_argument('--arch', dest='arch', type=str, default='tcn',
-                        help='architecture for Enc & Dec ([tcn],lstm,gru)')
-    parser.add_argument('--transpose', dest='transpose', type=str, default='F',
-                        help='use tranpose convolution in Dec ([F],T)')
-    parser.add_argument('--units', dest='units', type=int, default=48,
-                        help='number of hidden units [32]')
-    parser.add_argument('--layers', dest='layers', type=int, default=9,
-                        help='number of layers/levels for lstm/tcn [5]')
-    parser.add_argument('--dropout', dest='dropout', type=float, default=0.2,
-                        help='dropout for lstm/tcn layers [0.2]')
-    parser.add_argument('--kernel-size', dest='kernel_size', type=int, default=4,
-                        help='kernel size for tcn conv, use odd ints [5]')
-
-    parser.add_argument('--comment', dest='comment', type=str, default='GAIA3_LOG_IMPUTED_BY_CLASS_6PP - log_cosh_loss',
-                        help='extra comments')
-    args = parser.parse_args()
-
-
-def main(train_gmm: Optional[bool] = False, create_samples: Optional[bool] = True, 
+def main(train_gmm: Optional[bool] = True, create_samples: Optional[bool] = True, 
          train_classifier: Optional[bool]=True, sensitive_test: bool = False, 
-         train_regressor: bool = False) -> None:
+         train_regressor: bool = True, wandb_active = True) -> None:
     torch.cuda.empty_cache()
+
+    if wandb_active:
+        wandb.init(project='train-classsifier', entity='fjperez10')
+        torch.cuda.empty_cache()
+        vae_model = wandb.config.vae_model
+        sufix_path = wandb.config.sufix_path
+    else: 
+        vae_model: str =   config_file['model_parameters']['ID']   # '1pjeearx'#'20twxmei' trained using TPM using GAIA3 ... using 5 PP 1pjeearx
+        print('Using vae model: '+ vae_model)
+        sufix_path: str =   config_file['model_parameters']['sufix_path']
+        print('sufix path: '+ sufix_path)
 
     PP_list = load_pp_list(vae_model)
     print('FEATURES: ', PP_list)
@@ -119,7 +70,38 @@ def main(train_gmm: Optional[bool] = False, create_samples: Optional[bool] = Tru
         cnn.run_cnn(create_samples, mean_prior_dict=mean_prior_dict, vae_model=vae_model, PP=PP_list)
     
 if __name__ == "__main__": 
-    main(train_gmm = True, create_samples = True, 
-         train_classifier = True, sensitive_test= False, train_regressor=True)
-        # create_samples activate samples generation in cnn training
+
+    wandb_active = True
+    if wandb_active: 
+        sweep_config = {
+            'method': 'bayes',
+            'metric': {'goal': 'maximize', 'name': 'f1_val'},
+            'parameters': {
+                'learning_rate': {'min': 0.001, 'max': 0.01},
+                'batch_size': {'values': [32, 64, 128]},
+                'patience':{'values': [20, 30, 50, 100]},
+                'repetitions': {'values': [1, 3, 5, 10, 20]},
+                'sinthetic_samples_by_class': {'values': [8, 16, 32]},
+                'threshold_acc_synthetic': {'min': 0.85, 'max': 0.95},
+                'beta_decay_factor': {'min': 0.9, 'max': 0.99}, 
+                'EPS': {'min': 0.01, 'max': 0.05},
+                'scaling_factor': {'min': 0.1, 'max': 1.0}, 
+                'vae_model': {'values': ['1ojzq1t5','16f09v2s', '1j9gn236', '2b0tvacd', '2uioeni3',
+                                        '3iyiphkn', '3pbpvynz', '16f09v2s', '22my5dmi', '39snao1w', 
+                                        'gn42liaz', 'hu69iv0r']}, #iqf fail
+                'sufix_path': {'values': ['GAIA3_6PP', 'GAIA3_IMPUTED_6PP','GAIA3_LOG_6PP','GAIA3_LOG_IMPUTED_6PP', 'GAIA3_LOG_IMPUTED_BY_CLASS_6PP']}, 
+                'layers': {'values': [2, 3, 4]},
+                'loss': {'values': ['CrossEntropyLoss']},
+            }
+        }
+        with open("sweep.yaml", "w") as sweep_file:
+            yaml.safe_dump(sweep_config, sweep_file)
+        sweep_id = wandb.sweep(sweep_config, project="train-classsifier")
+        wandb.agent(sweep_id, function=main)
+    else: 
+        main(train_gmm = True, create_samples = False, 
+            train_classifier = False, sensitive_test= False, train_regressor=False)
+    # create_samples activate samples generation in cnn training
+    
+
     

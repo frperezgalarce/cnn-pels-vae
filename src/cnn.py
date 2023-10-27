@@ -17,6 +17,8 @@ import yaml
 from src.sampler.getbatch import SyntheticDataBatcher
 import src.utils as utils
 import torch.optim as optim
+import torch.nn.init as init
+from sklearn.metrics import accuracy_score, f1_score
 
 with open('src/nn_config.yaml', 'r') as file:
     nn_config = yaml.safe_load(file)
@@ -47,31 +49,51 @@ class CNN(nn.Module):
 
         self.layers = layers
         self.conv1 = nn.Conv1d(in_channels=2, out_channels=30, kernel_size=6, stride=1)
+        init.xavier_uniform_(self.conv1.weight)  # Xavier initialization for conv1
+
         self.bn1 = nn.BatchNorm1d(30)
         self.pool1 = nn.MaxPool1d(2)
         
         self.conv2 = nn.Conv1d(in_channels=30, out_channels=60, kernel_size=6, stride=1)
+        init.xavier_uniform_(self.conv2.weight)  # Xavier initialization for conv2
+
         self.bn2 = nn.BatchNorm1d(60)
         self.pool2 = nn.MaxPool1d(2)
 
         if self.layers == 3: 
             self.conv3 = nn.Conv1d(in_channels=60, out_channels=60, kernel_size=6, stride=1)
+            init.xavier_uniform_(self.conv3.weight)  # Xavier initialization for conv3
+
             self.bn3 = nn.BatchNorm1d(60)
             self.pool3 = nn.MaxPool1d(2)  
         
         if self.layers == 4: 
             self.conv3 = nn.Conv1d(in_channels=60, out_channels=60, kernel_size=6, stride=1)
+            init.xavier_uniform_(self.conv3.weight)  # Xavier initialization for conv3
             self.bn3 = nn.BatchNorm1d(60)
             self.pool3 = nn.MaxPool1d(2)  
 
             self.conv4 = nn.Conv1d(in_channels=60, out_channels=60, kernel_size=6, stride=1)
+            init.xavier_uniform_(self.conv4.weight)  # Xavier initialization for conv3
+
             self.bn4 = nn.BatchNorm1d(60)
             self.pool4 = nn.MaxPool1d(2)  
 
-        self.fc1 = nn.Linear(4260, 200)  # Adjust this number based on your actual output size
+        if self.layers == 2:
+            self.fc1 = nn.Linear(4260, 200)
+            init.xavier_uniform_(self.fc1.weight)  # Xavier initialization for fc1
+        elif self.layers == 3:
+            self.fc1 = nn.Linear(1980, 200)
+            init.xavier_uniform_(self.fc1.weight)  # Xavier initialization for fc1
+        elif self.layers == 4:
+            self.fc1 = nn.Linear(840, 200)
+            init.xavier_uniform_(self.fc1.weight)  # Xavier initialization for fc1
+
         self.dropout1 = nn.Dropout(0.2)
         
         self.fc2 = nn.Linear(200, num_classes)
+        init.xavier_uniform_(self.fc2.weight)  # Xavier initialization for fc2
+
         self.dropout2 = nn.Dropout(0.2)
 
 
@@ -79,40 +101,43 @@ class CNN(nn.Module):
     def forward(self, x):
         x = self.conv1(x)
         x = self.bn1(x)
-        x = F.relu(x)
+        x = F.tanh(x)
         x = self.pool1(x)
         
         x = self.conv2(x)
         x = self.bn2(x)
-        x = F.relu(x)
+        x = F.tanh(x)
         x = self.pool2(x)
 
         if self.layers == 3: 
             x = self.conv3(x)
             x = self.bn3(x)
-            x = F.relu(x)
+            x = F.tanh(x)
             x = self.pool3(x)
 
         if self.layers == 4: 
             x = self.conv3(x)
             x = self.bn3(x)
-            x = F.relu(x)
+            x = F.tanh(x)
             x = self.pool3(x)
             
             x = self.conv4(x)
             x = self.bn4(x)
-            x = F.relu(x)
+            x = F.tanh(x)
             x = self.pool4(x)
 
+        
         x = x.view(x.size(0), -1)  # Flatten the tensor
         x = self.fc1(x)
-        x = F.relu(x)
+        x = F.tanh(x)
         #x = self.dropout1(x)
         
         x = self.fc2(x)
         #x = self.dropout2(x)
-
-        return F.log_softmax(x, dim=1)  # Optional softmax at the end
+        if nn_config['training']['loss']=='NLLLoss':
+            return F.log_softmax(x, dim=1)  # Optional softmax at the end
+        else: 
+            return x
 
 def setup_environment() -> torch.device:
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -161,7 +186,7 @@ def evaluate_and_plot_cm_from_dataloader(model, dataloader, label_encoder, title
     
     # Compute confusion matrix
     try:
-        cm = confusion_matrix(all_y_data, all_predicted, normalize=None)
+        cm = confusion_matrix(all_y_data, all_predicted, normalize='pred')
     except ValueError as e:
         print(f"An error occurred: {e}")
         print(f"y_data shape: {len(all_y_data)}, predicted shape: {len(all_predicted)}")
@@ -190,7 +215,7 @@ def train_one_epoch_alternative(
     
     running_loss = 0.0
     num_batches = 0
-
+    val_loss = 0
     if mode=='oneloss':
         for inputs, labels in dataloader:
             num_batches += 1
@@ -203,7 +228,7 @@ def train_one_epoch_alternative(
             torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=6.0, norm_type=2)
             optimizer.step()
             running_loss += loss.item()
-        val_loss, _ = evaluate_dataloader(model, val_dataloader, criterion, device)
+        val_loss, _, val_f1 = evaluate_dataloader_weighted_metrics(model, val_dataloader, criterion, device)
 
         return running_loss, model, val_loss
     
@@ -220,7 +245,7 @@ def train_one_epoch_alternative(
             _, labels_indices = torch.max(labels, 1)  # Convert one-hot to indices
             loss = criterion(outputs, labels_indices)
             loss.backward()
-            torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=4.0, norm_type=2)
+            torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=6.0, norm_type=2)
             for name, param in model.named_parameters():
                 if name in locked_masks2:
                     mask = locked_masks2[name].float().to(param.grad.data.device)
@@ -229,7 +254,14 @@ def train_one_epoch_alternative(
             optimizer.step()
             running_loss += loss.item()   
         
-        val_loss, _ = evaluate_dataloader(model, val_dataloader, criterion, device)
+        for inputs, labels in val_dataloader:
+            inputs, labels = inputs.to(device), labels.to(device)
+            outputs = model(inputs)
+            _, labels_indices = torch.max(labels, 1)  # Convert one-hot to indices
+            loss = criterion(outputs, labels_indices)
+            val_loss += loss.item()   
+
+        #val_loss, _ = evaluate_dataloader(model, val_dataloader, criterion, device)
 
         num_batches = 0
         for _ in range(repetitions):
@@ -242,13 +274,12 @@ def train_one_epoch_alternative(
                 _, labels_indices = torch.max(labels, 1)  # Convert one-hot to indices
                 loss_prior = criterion_2(outputs, labels_indices)
                 loss_prior.backward()
-                torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=1.0, norm_type=2)
+                torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=0.5, norm_type=2)
                 for name, param in model.named_parameters():
                     if name in locked_masks:
                         mask = locked_masks[name].float().to(param.grad.data.device)
                         param.grad.data *= (mask == 0).float()
                         param.grad.data += mask * param.grad.data.clone()
-                
                 optimizer_2.step()
                 running_loss_prior += loss_prior.item() 
                
@@ -302,6 +333,61 @@ def evaluate_dataloader(model, dataloader, criterion, device):
     
     return total_loss, avg_accuracy
 
+def evaluate_dataloader_weighted_metrics(model, dataloader, criterion, device):
+    """
+    Evaluate the model on a given dataset.
+
+    Parameters:
+    - model: The PyTorch model to evaluate.
+    - dataloader: DataLoader containing the dataset to evaluate.
+    - criterion: The loss function.
+    - device: The computing device (CPU or GPU).
+
+    Returns:
+    - avg_loss: Average loss over the entire dataset.
+    - avg_accuracy: Average accuracy over the entire dataset.
+    - f1_score_val: F1 score over the entire dataset.
+    """
+    
+    model.eval()  # Set the model to evaluation mode
+    
+    total_loss = 0.0
+    total_correct = 0
+    total_samples = 0
+    all_predicted = []
+    all_labels = []
+    
+    with torch.no_grad():
+        for batch in dataloader:
+            inputs, labels = batch
+            inputs, labels = inputs.to(device), labels.to(device)
+            inputs = inputs.float()
+
+            # Forward pass
+            outputs = model(inputs)
+            
+            # Calculate loss
+            _, labels_indices = torch.max(labels, 1)  # Convert one-hot to indices
+            loss = criterion(outputs, labels_indices)
+            
+            # Calculate predictions
+            predicted = torch.max(outputs, 1)[1]
+            
+            # Update statistics
+            total_loss += loss.item()
+            total_correct += (predicted == labels_indices).sum().item()
+            total_samples += len(labels_indices)
+            
+            all_predicted.extend(predicted.cpu().numpy())
+            all_labels.extend(labels_indices.cpu().numpy())
+
+    avg_accuracy = total_correct / total_samples
+    f1_score_val = f1_score(all_labels, all_predicted, average='weighted')
+    
+    model.train()  # Set the model back to training mode
+    
+    return total_loss, avg_accuracy, f1_score_val
+
 def create_dataloader(data, batch_size):
     data = TensorDataset(*data)
     dataloader = DataLoader(data, batch_size=batch_size, shuffle=True)
@@ -317,31 +403,31 @@ def initialize_masks(model, device='cuda', EPS=0.25, layers=2):
     if layers > 4: 
         raise('The current implementation does not support more than 4 layers')
     for name, param in model.named_parameters():
-        if "conv1" in name and "weight" in name:
+        if ("conv1" in name) and ("weight" in name):
             print(utils.quantile(torch.abs(param.mean(dim=[1, 2])), EPS))
             quantile = utils.quantile(torch.abs(param.mean(dim=[1, 2])), EPS)
-            mask_value = (torch.abs(param.mean(dim=[1, 2])) >= quantile).float()
+            mask_value = (torch.abs(param.mean(dim=[1, 2])) > quantile).float()
             mask = mask_value.view(-1, 1, 1).repeat(1, param.shape[1], param.shape[2])
             locked_masks[name] = mask
             conv1_bias_mask = mask_value  # Save for bias
-        elif "conv2" in name and "weight" in name:
+        elif ("conv2" in name) and ("weight" in name):
             print(utils.quantile(torch.abs(param.mean(dim=[1, 2])), EPS))
             quantile = utils.quantile(torch.abs(param.mean(dim=[1, 2])), EPS)
-            mask_value = (torch.abs(param.mean(dim=[1, 2])) >= quantile).float()
+            mask_value = (torch.abs(param.mean(dim=[1, 2])) > quantile).float()
             mask = mask_value.view(-1, 1, 1).repeat(1, param.shape[1], param.shape[2])
             locked_masks[name] = mask
             conv2_bias_mask = mask_value  # Save for bias
         elif "conv3" in name and "weight" in name:
             print(utils.quantile(torch.abs(param.mean(dim=[1, 2])), EPS))
             quantile = utils.quantile(torch.abs(param.mean(dim=[1, 2])), EPS)
-            mask_value = (torch.abs(param.mean(dim=[1, 2])) >= quantile).float()
+            mask_value = (torch.abs(param.mean(dim=[1, 2])) > quantile).float()
             mask = mask_value.view(-1, 1, 1).repeat(1, param.shape[1], param.shape[2])
             locked_masks[name] = mask
             conv3_bias_mask = mask_value  # Save for bias
         elif "conv4" in name and "weight" in name:
             print(utils.quantile(torch.abs(param.mean(dim=[1, 2])), EPS))
             quantile = utils.quantile(torch.abs(param.mean(dim=[1, 2])), EPS)
-            mask_value = (torch.abs(param.mean(dim=[1, 2])) >= quantile).float()
+            mask_value = (torch.abs(param.mean(dim=[1, 2])) > quantile).float()
             mask = mask_value.view(-1, 1, 1).repeat(1, param.shape[1], param.shape[2])
             locked_masks[name] = mask
             conv4_bias_mask = mask_value  # Save for bias
@@ -353,16 +439,16 @@ def initialize_masks(model, device='cuda', EPS=0.25, layers=2):
             locked_masks[name] = conv3_bias_mask
         elif "conv4.bias" in name:
             locked_masks[name] = conv4_bias_mask
-        if "fc1" in name and "weight" in name:
+        elif "fc1" in name and "weight" in name:
             print(utils.quantile(torch.abs(param.mean(dim=[1])), EPS))
             quantile = utils.quantile(torch.abs(param.mean(dim=[1])), EPS)
-            mask_value = (torch.abs(param.mean(dim=1)) >= quantile).float()
+            mask_value = (torch.abs(param.mean(dim=1)) > quantile).float()
             mask = mask_value.view(-1, 1).repeat(1, param.shape[1])
             locked_masks[name] = mask
         elif "fc2" in name and "weight" in name:
             print(utils.quantile(torch.abs(param.mean(dim=[1])), EPS))
             quantile = utils.quantile(torch.abs(param.mean(dim=[1])), EPS)
-            mask_value = (torch.abs(param.mean(dim=1)) >= quantile).float()
+            mask_value = (torch.abs(param.mean(dim=1)) > quantile).float()
             mask = mask_value.view(-1, 1).repeat(1, param.shape[1])
             locked_masks[name] = mask
         else:
@@ -380,6 +466,7 @@ def initialize_masks(model, device='cuda', EPS=0.25, layers=2):
     print("Summary for locked_masks2:")
     for name, mask in locked_masks2.items():
         print(f"For parameter {name}, number of trainable weights: {mask.sum().item()}")
+
     return locked_masks, locked_masks2
 
 def initialize_optimizers(model, opt_method, EPS=0.35, base_learning_rate=0.001, scaling_factor=0.5):
@@ -428,9 +515,7 @@ def run_cnn(create_samples: Any, mean_prior_dict: Dict = None,
     None
     """
     wandb_active = True
-    if wandb_active:
-        wandb.init(project='train-classsifier', entity='fjperez10')
-        torch.cuda.empty_cache()
+    hyperparam_opt = True
 
     print('#'*50)
     print('TRAINING CNN')
@@ -475,20 +560,25 @@ def run_cnn(create_samples: Any, mean_prior_dict: Dict = None,
     train_accuracy_values = []
     val_accuracy_values = []
     counter = 0
-    epochs = nn_config['training']['epochs']
-    patience =  nn_config['training']['patience']
-    batch_size = nn_config['training']['batch_size']
-    repetitions = nn_config['training']['repetitions']
-    sinthetic_samples_by_class = nn_config['training']['sinthetic_samples_by_class']
-    threshold_acc_synthetic = nn_config['training']['threshold_acc_synthetic'] 
-    beta_decay_factor= nn_config['training']['beta_decay_factor'] 
-    beta_initial= nn_config['training']['beta_initial'] 
-    EPS= nn_config['training']['EPS'] 
-    base_learning_rate= nn_config['training']['base_learning_rate'] 
-    scaling_factor= nn_config['training']['scaling_factor'] 
-    opt_method= nn_config['training']['opt_method']
     
     if wandb_active:
+        if hyperparam_opt:
+            nn_config['training']['base_learning_rate'] = wandb.config.learning_rate
+            nn_config['training']['batch_size'] = wandb.config.batch_size
+            nn_config['training']['patience'] =  wandb.config.patience
+            nn_config['training']['repetitions'] =  wandb.config.repetitions
+            nn_config['training']['sinthetic_samples_by_class'] = wandb.config.sinthetic_samples_by_class
+            nn_config['training']['threshold_acc_synthetic'] = wandb.config.threshold_acc_synthetic
+            nn_config['training']['beta_decay_factor'] = wandb.config.beta_decay_factor
+            nn_config['training']['EPS'] = wandb.config.EPS
+            nn_config['training']['scaling_factor'] = wandb.config.scaling_factor
+            vae_model = wandb.config.vae_model
+            sufix_path = wandb.config.sufix_path
+            nn_config['training']['layers'] = wandb.config.layers
+            nn_config['training']['loss'] = wandb.config.loss
+            config_file['model_parameters']['ID'] =  wandb.config.vae_model
+            config_file['model_parameters']['sufix_path'] = wandb.config.sufix_path
+
         wandb.config.epochs = nn_config['training']['epochs']
         wandb.config.patience = nn_config['training']['patience']
         wandb.config.batch_size = nn_config['training']['batch_size']
@@ -509,6 +599,23 @@ def run_cnn(create_samples: Any, mean_prior_dict: Dict = None,
         wandb.config.sn_ratio =  nn_config['data']['sn_ratio']
         wandb.config.upper_limit_majority_classes =  nn_config['data']['upper_limit_majority_classes']
         wandb.config.limit_to_define_minority_Class =  nn_config['data']['limit_to_define_minority_Class']
+        wandb.config.layers =  nn_config['training']['layers']
+        wandb.config.loss =  nn_config['training']['loss']
+
+
+    epochs = nn_config['training']['epochs']
+    patience =  nn_config['training']['patience']
+    batch_size = nn_config['training']['batch_size']
+    repetitions = nn_config['training']['repetitions']
+    sinthetic_samples_by_class = nn_config['training']['sinthetic_samples_by_class']
+    threshold_acc_synthetic = nn_config['training']['threshold_acc_synthetic'] 
+    beta_decay_factor= nn_config['training']['beta_decay_factor'] 
+    beta_initial= nn_config['training']['beta_initial'] 
+    EPS= nn_config['training']['EPS'] 
+    base_learning_rate= nn_config['training']['base_learning_rate'] 
+    scaling_factor= nn_config['training']['scaling_factor'] 
+    opt_method= nn_config['training']['opt_method']
+
 
 
     train_dataloader = create_dataloader(training_data, batch_size)
@@ -542,14 +649,14 @@ def run_cnn(create_samples: Any, mean_prior_dict: Dict = None,
                                         optimizer_2 = optimizer2, locked_masks2 = locked_masks2, 
                                         locked_masks = locked_masks, repetitions = repetitions)
                                  
-        _, accuracy_val = evaluate_dataloader(model, val_dataloader, criterion, device)
-        _, accuracy_train = evaluate_dataloader(model, train_dataloader, criterion, device)
+        _, accuracy_val, f1_val = evaluate_dataloader_weighted_metrics(model, val_dataloader, criterion, device)
+        _, accuracy_train, f1_train = evaluate_dataloader_weighted_metrics(model, train_dataloader, criterion, device)
 
         try:
-            synthetic_loss, accuracy_train_synthetic =  evaluate_dataloader(model, synthetic_data_loader, 
+            synthetic_loss, accuracy_train_synthetic, f1_synthetic =  evaluate_dataloader_weighted_metrics(model, synthetic_data_loader, 
                                                                         criterion_synthetic_samples, device)
             condition1 = (accuracy_train_synthetic>threshold_acc_synthetic)
-            condition3 = (counter > 30) 
+            condition3 = (counter > 50) 
             condition4 = (counter > 2)
             
             if condition4: 
@@ -584,18 +691,32 @@ def run_cnn(create_samples: Any, mean_prior_dict: Dict = None,
             break
 
         if wandb_active:
-            wandb.log({'epoch': epoch, 'loss': running_loss, 'accuracy_train':accuracy_train, 'synthetic_loss':synthetic_loss, 
-                'acc_synthetic_samples': accuracy_train_synthetic, 'val_loss': val_loss, 'val_accu': accuracy_val})
+            wandb.log({'epoch': epoch, 'loss': running_loss, 'accuracy_train':accuracy_train, 
+                        'synthetic_loss':synthetic_loss, 'acc_synthetic_samples': accuracy_train_synthetic, 
+                        'val_loss': val_loss, 'val_accu': accuracy_val, 'f1_val': f1_val, 
+                        'f1_train': f1_train, 'f1_synthetic': f1_synthetic})
 
-        print('epoch:', epoch, ' loss:', running_loss, ' acc_train:', accuracy_train, ' synth_loss:',synthetic_loss, 
-                ' acc_synth:', accuracy_train_synthetic, ' val_loss', val_loss, ' val_accu:', accuracy_val)
+        print('epoch:', epoch, ' loss:', running_loss, ' acc_train:', accuracy_train,  ' f1_train:', f1_train,
+                                ' synth_loss:', synthetic_loss, ' acc_synth:', accuracy_train_synthetic, ' f1_synthetic:', f1_synthetic, 
+                                ' val_loss', val_loss, ' val_accu:', accuracy_val, ' val_f1:', f1_val)
     
     # Post-training tasks
     model.load_state_dict(best_model)
-    plot_training(range(len(train_loss_values)), train_loss_values, val_loss_values, train_accuracy_values, val_accuracy_values)
-    _, accuracy_test = evaluate_dataloader(model, test_dataloader, criterion, device)
+    #plot_training(range(len(train_loss_values)), train_loss_values, val_loss_values, train_accuracy_values, val_accuracy_values)
+    _, accuracy_test, f1_test = evaluate_dataloader_weighted_metrics(model, test_dataloader, criterion, device)
+    _, accuracy_train, f1_train = evaluate_dataloader_weighted_metrics(model, train_dataloader, criterion, device)
+    _, accuracy_val, f1_val = evaluate_dataloader_weighted_metrics(model, synthetic_data_loader, criterion, device)
+    _, accuracy_train_synthetic, f1_synthetic = evaluate_dataloader_weighted_metrics(model, test_dataloader, criterion, device)
+
+    if wandb_active:
+        wandb.log({'loss': running_loss, 'accuracy_train':accuracy_train, 
+                    'synthetic_loss':synthetic_loss, 'acc_synthetic_samples': accuracy_train_synthetic, 
+                    'val_loss': val_loss, 'val_accu': accuracy_val, 'f1_val': f1_val, 
+                    'f1_train': f1_train, 'f1_synthetic': f1_synthetic, 'epoch': epoch})
+
     if wandb_active: 
-        wandb.log({'acc_test:', accuracy_test})
+        wandb.config.acc_test =  accuracy_test
+        wandb.config.f1_test =  f1_test
     # Using the function
     _ = evaluate_and_plot_cm_from_dataloader(model, train_dataloader, label_encoder, 'Confusion Matrix - Training set')
     _ = evaluate_and_plot_cm_from_dataloader(model, val_dataloader, label_encoder, 'Confusion Matrix - Validation set')

@@ -4,7 +4,7 @@ import pandas as pd
 import matplotlib.pyplot as plt
 from sklearn.mixture import BayesianGaussianMixture
 from typing import Optional, Dict, Union, Tuple, ClassVar
-from src.utils import load_yaml_priors, extract_midpoints
+from src.utils import load_yaml_priors, extract_midpoints, extract_maximum_of_max_periods
 from sklearn.neighbors import NearestNeighbors
 import yaml
 from itertools import combinations
@@ -178,10 +178,14 @@ def train_and_save(priors: bool = True, columns=['Type','Period', 'teff_val', '[
     for star_class in classes:
         print(star_class)
         star_type_data = mean_prior_dict['StarTypes'][star_class]
-        components = len([key for key in star_type_data.keys() if key != 'CompleteName'])
+        components = len([key for key in star_type_data.keys() if (key != 'CompleteName') and (key!='max_period')])
         df_filtered_by_class = df_selected_columns[df_selected_columns.Type==star_class]
         X = df_filtered_by_class[columns]
         X = X.dropna()
+        print(mean_prior_dict['StarTypes'][star_class]['max_period'])
+        period_upper_limit = mean_prior_dict['StarTypes'][star_class]['max_period']
+        X = X[X.Period<period_upper_limit]
+        print(X)
         if X.shape[0] > 30:
             bgmm = BayesianGaussianMixtureModel(n_components=components, random_state=42)
             if priors:
@@ -195,6 +199,7 @@ def train_and_save(priors: bool = True, columns=['Type','Period', 'teff_val', '[
                     bgmm.train(X, mean_prior=None)
             else: 
                 bgmm.train(X, mean_prior=None)
+
             bgmm.save_model('models/bgm_model_'+str(star_class)+'_priors_'+str(priors)+'_PP_'+str(len(columns))+'.pkl')
 
             if plot_or_save_figs:
@@ -205,10 +210,4 @@ def train_and_save(priors: bool = True, columns=['Type','Period', 'teff_val', '[
 
 
 def fit_gausians(priors_dict, columns = ['Type','Period', 'teff_val', '[Fe/H]_J95', 'abs_Gmag', 'radius_val', 'logg']):
-    #TODO:refactor code in order to manage priors here and only fit in train and save
     train_and_save(priors = False, columns= columns)
-
-def get_load_and_sample(star_class: str = 'RRLYR') -> None:
-    train_and_save(components=2)
-    loaded_bgmm = BayesianGaussianMixtureModel.load_model('bgm_model_'+str(star_class)+'.pkl')
-    generated_samples = loaded_bgmm.generate_samples(n_samples=5)

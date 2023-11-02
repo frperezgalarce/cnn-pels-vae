@@ -93,12 +93,12 @@ class ModifiedGaussianSampler:
         for selected_component_index in range(len(weights)):
             weight = self.model.weights_[selected_component_index]
             iterations_component = int(iterations*weight)
-            selected_mean = self.model.means_[selected_component_index] + np.random.normal(0, 0.01, size=len(self.features))
+            selected_mean = self.model.means_[selected_component_index] + np.random.normal(0, 0.1, size=len(self.features))
             current_x = selected_mean
             sample_interval = (iterations_component - burn_in) // int(n_samples*weight)
         
             for i in range(iterations_component):
-                proposal_x = current_x + np.random.normal(0, 0.001, size=len(self.features)) 
+                proposal_x = current_x + np.random.normal(0, 0.01, size=len(self.features))*current_x 
                 acceptance_ratio = (self.p(proposal_x) ** self.b) / (self.p(current_x) ** self.b)           
                 if np.random.rand() < acceptance_ratio:
                     current_x = proposal_x

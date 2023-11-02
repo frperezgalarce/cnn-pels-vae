@@ -184,7 +184,9 @@ def train_and_save(priors: bool = True, columns=['Type','Period', 'teff_val', '[
         X = X.dropna()
         print(mean_prior_dict['StarTypes'][star_class]['max_period'])
         period_upper_limit = mean_prior_dict['StarTypes'][star_class]['max_period']
+        period_lower_limit = mean_prior_dict['StarTypes'][star_class]['min_period']
         X = X[X.Period<period_upper_limit]
+        X = X[X.Period>period_lower_limit]
         print(X)
         if X.shape[0] > 30:
             bgmm = BayesianGaussianMixtureModel(n_components=components, random_state=42)

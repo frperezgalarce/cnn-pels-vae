@@ -78,22 +78,22 @@ if __name__ == "__main__":
             'metric': {'goal': 'maximize', 'name': 'f1_val'},
             'parameters': {
                 'learning_rate': {'min': 0.001, 'max': 0.01},
-                'batch_size': {'values': [32, 64, 128]},
+                'batch_size': {'values': [64]},
                 'patience':{'values': [20, 30, 50, 100]},
-                'repetitions': {'values': [1, 3, 5, 10, 20]},
+                'repetitions': {'min': 1, 'max':3},
                 'sinthetic_samples_by_class': {'values': [8, 16, 32]},
-                'threshold_acc_synthetic': {'min': 0.85, 'max': 0.95},
-                'beta_decay_factor': {'min': 0.9, 'max': 0.99}, 
-                'EPS': {'min': 0.01, 'max': 0.05},
-                'scaling_factor': {'min': 0.1, 'max': 1.0}, 
-                'vae_model': {'values': ['1ojzq1t5','16f09v2s', '1j9gn236', '2b0tvacd', '2uioeni3',
-                                        '3iyiphkn', '3pbpvynz', '16f09v2s', '22my5dmi', '39snao1w', 
-                                        'gn42liaz', 'hu69iv0r']}, #iqf fail
-                'sufix_path': {'values': ['GAIA3_6PP', 'GAIA3_IMPUTED_6PP','GAIA3_LOG_6PP','GAIA3_LOG_IMPUTED_6PP', 'GAIA3_LOG_IMPUTED_BY_CLASS_6PP']}, 
-                'layers': {'values': [2, 3, 4]},
+                'threshold_acc_synthetic': {'min': 0.65, 'max': 0.95},
+                'beta_decay_factor': {'min': 0.95, 'max': 0.99}, 
+                'EPS': {'min': 0.01, 'max': 0.04},
+                'scaling_factor': {'min': 0.1, 'max': 0.9}, 
+                'vae_model': {'values': ['2b0tvacd', '16f09v2s']}, #'1ojzq1t5', '2uioeni3',, 'gn42liaz', 
+                'sufix_path': {'values': ['GAIA3_LOG_6PP']}, 
+                'layers': {'values': [2]},
                 'loss': {'values': ['CrossEntropyLoss']},
             }
         }
+        
+
         with open("sweep.yaml", "w") as sweep_file:
             yaml.safe_dump(sweep_config, sweep_file)
         sweep_id = wandb.sweep(sweep_config, project="train-classsifier")

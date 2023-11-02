@@ -186,7 +186,7 @@ def evaluate_and_plot_cm_from_dataloader(model, dataloader, label_encoder, title
     
     # Compute confusion matrix
     try:
-        cm = confusion_matrix(all_y_data, all_predicted, normalize='pred')
+        cm = confusion_matrix(all_y_data, all_predicted, normalize='true')
     except ValueError as e:
         print(f"An error occurred: {e}")
         print(f"y_data shape: {len(all_y_data)}, predicted shape: {len(all_predicted)}")
@@ -705,14 +705,14 @@ def run_cnn(create_samples: Any, mean_prior_dict: Dict = None,
     #plot_training(range(len(train_loss_values)), train_loss_values, val_loss_values, train_accuracy_values, val_accuracy_values)
     _, accuracy_test, f1_test = evaluate_dataloader_weighted_metrics(model, test_dataloader, criterion, device)
     _, accuracy_train, f1_train = evaluate_dataloader_weighted_metrics(model, train_dataloader, criterion, device)
-    _, accuracy_val, f1_val = evaluate_dataloader_weighted_metrics(model, synthetic_data_loader, criterion, device)
-    _, accuracy_train_synthetic, f1_synthetic = evaluate_dataloader_weighted_metrics(model, test_dataloader, criterion, device)
+    _, accuracy_val, f1_val = evaluate_dataloader_weighted_metrics(model, val_dataloader, criterion, device)
+    _, accuracy_train_synthetic, f1_synthetic = evaluate_dataloader_weighted_metrics(model, synthetic_data_loader, criterion, device)
 
     if wandb_active:
-        wandb.log({'loss': running_loss, 'accuracy_train':accuracy_train, 
+        wandb.log({'epoch': epoch, 'loss': running_loss, 'accuracy_train':accuracy_train, 
                     'synthetic_loss':synthetic_loss, 'acc_synthetic_samples': accuracy_train_synthetic, 
-                    'val_loss': val_loss, 'val_accu': accuracy_val, 'f1_val': f1_val, 
-                    'f1_train': f1_train, 'f1_synthetic': f1_synthetic, 'epoch': epoch})
+                    'val_loss': val_loss, 'val_accu': accuracy_val, 'f1_val': f1_val, 'f1_train': f1_train,
+                     'f1_synthetic': f1_synthetic})
 
     if wandb_active: 
         wandb.config.acc_test =  accuracy_test

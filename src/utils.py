@@ -382,7 +382,7 @@ def plot_cm(cm: np.ndarray,
             title: str = 'Confusion Matrix',
             save: bool = True,
             filename: Optional[str] = None,
-            normed: bool = False, 
+            normed: bool = True, 
             wandb_active: bool = True) -> None:
     """
     Plots a confusion matrix using Matplotlib.
@@ -537,11 +537,21 @@ def load_id_period_to_sample(classes=[], period=[], factor1=0.8, factor2=1.2):
             if t == 'ELL':
                 sample = df[df['Type'] == 'ECL'].sample(n=100)
             else:
-                sample = df[((df['Type'] == t) & 
+                size = df[((df['Type'] == t) & 
                             (df['Period'] > factor1*period[counter]) &
-                            (df['Period'] < factor2*period[counter]))].sample(n=200)
-                if sample.shape[0]==0:
-                    raise('There is not objects in the sample.') 
+                            (df['Period'] < factor2*period[counter]))].shape[0]
+                size2 = df[((df['Type'] == t))].shape[0]
+                print(size)
+                if size > 100:
+                    sample = df[((df['Type'] == t) & 
+                            (df['Period'] > factor1*period[counter]) &
+                            (df['Period'] < factor2*period[counter]))].sample(n=100)
+                elif sample.shape[0]==0: 
+                     df[(df['Type'] == t)].sample(n=size2)
+                else: 
+                    sample = df[((df['Type'] == t) & 
+                            (df['Period'] > factor1*period[counter]) &
+                            (df['Period'] < factor2*period[counter]))].sample(n=size) 
             samples.append(sample)
             counter = counter + 1
         df = pd.concat(samples, axis=0).reset_index(drop=True)
@@ -1461,6 +1471,11 @@ def revert_light_curve(period, folded_normed_light_curve, original_sequences, fa
     for i in range(num_sequences):
         # Extract the time (period) and magnitude values from the folded and normed light curve
         time = original_sequences[i] #folded_normed_light_curve[i,:,0]
+        if np.max(folded_normed_light_curve[i,:,0])<0.95: 
+            continue
+        else: 
+            print(np.max(folded_normed_light_curve[i,:,0]))
+
         normed_magnitudes = folded_normed_light_curve[i,:,1]
 
         # Generate the time values for the reverted light curve

@@ -84,7 +84,9 @@ class SyntheticDataBatcher:
         print(lb)
         print(period)
         if based_on_real_lc:
-            times, original_sequences =  utils.get_only_time_sequence(n=1, star_class=lb, period = period)
+            times, original_sequences =  utils.get_only_time_sequence(n=1, star_class=lb, 
+                                                                     period = period, factor1=0.8, 
+                                                                     factor2= 1.2)
             times = np.array(times) 
             original_sequences = np.array(original_sequences) 
             times = torch.from_numpy(times).to(self.device)
@@ -168,6 +170,9 @@ class SyntheticDataBatcher:
         torch.cuda.empty_cache()
         xhat_mu = self.process_in_batches(vae, mu_, times, onehot, pp, 8)
         xhat_mu = torch.cat([times.unsqueeze(-1), xhat_mu], dim=-1).cpu().detach().numpy()
+
+        #TODO: filter here light curves
+
         indices = np.random.choice(xhat_mu.shape[0], 24, replace=False)
         sampled_arrays = xhat_mu[indices, :, :]
 

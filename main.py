@@ -30,7 +30,7 @@ print('#'*50)
 
 def main(train_gmm: Optional[bool] = True, create_samples: Optional[bool] = True, 
          train_classifier: Optional[bool]=True, sensitive_test: bool = False, 
-         train_regressor: bool = True, wandb_active = True) -> None:
+         train_regressor: bool = True, wandb_active = True, prior=True) -> None:
     torch.cuda.empty_cache()
 
     if wandb_active:
@@ -67,7 +67,9 @@ def main(train_gmm: Optional[bool] = True, create_samples: Optional[bool] = True
         print('Gaussian were fitted')
 
     if train_classifier: 
-        cnn.run_cnn(create_samples, mean_prior_dict=mean_prior_dict, vae_model=vae_model, PP=PP_list)
+        cnn.run_cnn(create_samples, mean_prior_dict=mean_prior_dict, 
+                    vae_model=vae_model, PP=PP_list, 
+                    wandb_active = wandb_active, prior=prior)
     
 if __name__ == "__main__": 
 
@@ -75,21 +77,21 @@ if __name__ == "__main__":
     if wandb_active: 
         sweep_config = {
             'method': 'bayes',
-            'metric': {'goal': 'maximize', 'name': 'f1_val'},
+            'metric': {'goal': 'maximize', 'name': 'weighted_f1'},
             'parameters': {
-                'learning_rate': {'min': 0.001, 'max': 0.01},
-                'batch_size': {'values': [64]},
-                'patience':{'values': [20, 30, 50, 100]},
-                'repetitions': {'min': 1, 'max':3},
-                'sinthetic_samples_by_class': {'values': [8, 16, 32]},
-                'threshold_acc_synthetic': {'min': 0.65, 'max': 0.95},
-                'beta_decay_factor': {'min': 0.95, 'max': 0.99}, 
-                'EPS': {'min': 0.01, 'max': 0.04},
-                'scaling_factor': {'min': 0.1, 'max': 0.9}, 
-                'vae_model': {'values': ['2b0tvacd', '16f09v2s']}, #'1ojzq1t5', '2uioeni3',, 'gn42liaz', 
-                'sufix_path': {'values': ['GAIA3_LOG_6PP']}, 
-                'layers': {'values': [2]},
-                'loss': {'values': ['CrossEntropyLoss']},
+                'learning_rate': {'min': 0.001, 'max': 0.005},
+                'batch_size': {'values': [32]},
+                'patience':{'values': [30]},
+                'repetitions': {'values': [1]},
+                'sinthetic_samples_by_class': {'values': [8]},
+                'threshold_acc_synthetic': {'min': 0.75, 'max': 0.95},
+                'beta_decay_factor': {'min': 0.96, 'max': 0.99}, 
+                'EPS': {'min': 0.2, 'max': 0.4},
+                'scaling_factor': {'min': 0.3, 'max': 0.6}, 
+                'vae_model': {'values': ['16f09v2s','2uioeni3']}, #, '2b0tvacd','1ojzq1t5', 
+                'sufix_path': {'values': ['GAIA3_LOG_6PP', 'GAIA3_LOG_IMPUTED_BY_CLASS_6PP']}, 
+                'layers': {'values': [3, 4]},
+                'loss': {'values': ['focalLoss']},
             }
         }
         
@@ -97,10 +99,11 @@ if __name__ == "__main__":
         with open("sweep.yaml", "w") as sweep_file:
             yaml.safe_dump(sweep_config, sweep_file)
         sweep_id = wandb.sweep(sweep_config, project="train-classsifier")
-        wandb.agent(sweep_id, function=main)
+        wandb.agent(sweep_id, function=main, count=50, project="train-classsifier")
     else: 
-        main(train_gmm = True, create_samples = False, 
-            train_classifier = False, sensitive_test= False, train_regressor=False)
+        main(train_gmm = True, create_samples = True, 
+            train_classifier = True, sensitive_test= False, train_regressor=True,
+             wandb_active = wandb_active, prior=True)
     # create_samples activate samples generation in cnn training
     
 

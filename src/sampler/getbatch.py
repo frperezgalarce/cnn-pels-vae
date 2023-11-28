@@ -17,18 +17,18 @@ with open('src/nn_config.yaml', 'r') as file:
 class SyntheticDataBatcher:
     def __init__(self, config_file_path: str = 'src/regressor.yaml', 
                  nn_config_path: str = 'src/nn_config.yaml', paths: str = 'src/paths.yaml', PP=[], vae_model=None, 
-                 n_samples=16, seq_length = 100, batch_size=128):
+                 n_samples=16, seq_length = 100, batch_size=128, prior=False):
         self.device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
         self.config_file = self.load_yaml(config_file_path)
         self.nn_config = self.load_yaml(nn_config_path)
         self.path = self.load_yaml(paths)['paths']
         self.mean_prior_dict = self.load_yaml(self.path['PATH_PRIOS'])  # to be filled in later
-        self.priors = False
+        self.priors = prior
         self.PP = PP
         self.vae_model = vae_model
         self.n_samples = n_samples
         self.seq_length = seq_length
-        self.delta_max = 10
+        self.delta_max = 100
         self.CLASSES = ['ACEP','CEP', 'DSCT', 'ECL',  'ELL', 'LPV',  'RRLYR', 'T2CEP']
         self.batch_size = batch_size
         self.x_array = None
@@ -101,7 +101,7 @@ class SyntheticDataBatcher:
         
         return times, original_sequences
 
-    def create_synthetic_batch(self, plot_example=False, b=1.0):
+    def create_synthetic_batch(self, plot_example=False, b=1.0, wandb_active=False):
         print(self.path)
         PATH_MODELS = self.path['PATH_MODELS']
         PATH_DATA = self.path['PATH_DATA_FOLDER']
@@ -130,6 +130,7 @@ class SyntheticDataBatcher:
 
             sampler: mgmm.ModifiedGaussianSampler = mgmm.ModifiedGaussianSampler(b=b, components=components, features=self.PP)
             model_name = self.construct_model_name(star_class, PATH_MODELS)
+            print(model_name)
             samples, error = self.attempt_sample_load(model_name, sampler)
             
             # If we have priors and failed to load the model, try with priors=False
@@ -177,7 +178,7 @@ class SyntheticDataBatcher:
         sampled_arrays = xhat_mu[indices, :, :]
 
         utils.plot_wall_lcs_sampling(sampled_arrays, sampled_arrays,  cls=lb[indices],  column_to_sensivity=index_period,
-                                to_title = pp[indices], sensivity = 'Period', all_columns=columns, save=False) 
+                                to_title = pp[indices], sensivity = 'Period', all_columns=columns, save=False, wandb_active=wandb_active) 
 
         lc_reverted = utils.revert_light_curve(pp[:,index_period], xhat_mu, original_sequences, classes = lb)
 

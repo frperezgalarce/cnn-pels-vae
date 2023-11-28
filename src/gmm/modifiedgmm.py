@@ -55,14 +55,15 @@ class ModifiedGaussianSampler:
         selected_component_index = self.randomly_select_component()
         selected_mean = self.model.means_[selected_component_index] + np.random.normal(0, 0.01, size=len(self.features))
         current_x = selected_mean
+
         sample_interval = (iterations - burn_in) // n_samples
-        
-        for i in range(iterations):
+
+        for i in range(1, iterations+100):
             proposal_x = current_x + np.random.normal(0, 0.001, size=len(self.features)) 
             acceptance_ratio = (self.p(proposal_x) ** self.b) / (self.p(current_x) ** self.b)           
             if np.random.rand() < acceptance_ratio:
                 current_x = proposal_x
-            if i > burn_in and (i - burn_in) % sample_interval == 0:
+            if i > burn_in and ((i - burn_in) % sample_interval) == 0:
                 samples.append(current_x.copy())
             if len(samples) == n_samples: 
                 break
@@ -70,7 +71,6 @@ class ModifiedGaussianSampler:
 
         print('#'*50)
         print('Samples: ')
-
         print(len(samples))
 
         return np.array(samples)
@@ -95,9 +95,9 @@ class ModifiedGaussianSampler:
             iterations_component = int(iterations*weight)
             selected_mean = self.model.means_[selected_component_index] + np.random.normal(0, 0.1, size=len(self.features))
             current_x = selected_mean
-            sample_interval = (iterations_component - burn_in) // int(n_samples*weight)
+            sample_interval = (iterations_component - burn_in) // np.ceil(n_samples*weight)
         
-            for i in range(iterations_component):
+            for i in range(1, iterations_component+100):
                 proposal_x = current_x + np.random.normal(0, 0.01, size=len(self.features))*current_x 
                 acceptance_ratio = (self.p(proposal_x) ** self.b) / (self.p(current_x) ** self.b)           
                 if np.random.rand() < acceptance_ratio:
@@ -127,6 +127,7 @@ class ModifiedGaussianSampler:
         if mode == 'onecomponent':
             samples = self.metropolis_hasting(n_samples=n_samples)
         elif mode == 'allcomponents': 
+            print('Sampling from all components')
             samples = self.metropolis_hasting_all_components(n_samples=n_samples)
         else: 
             raise('the mmmmm')

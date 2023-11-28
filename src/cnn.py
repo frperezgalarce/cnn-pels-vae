@@ -15,11 +15,11 @@ import wandb
 from typing import Union, Tuple, Optional, Any, Dict, List
 import yaml 
 from src.sampler.getbatch import SyntheticDataBatcher
+from src.focalloss import  FocalLossMultiClass as focal_loss
 import src.utils as utils
 import torch.optim as optim
 import torch.nn.init as init
 from sklearn.metrics import accuracy_score, f1_score
-
 with open('src/nn_config.yaml', 'r') as file:
     nn_config = yaml.safe_load(file)
 
@@ -134,7 +134,7 @@ class CNN(nn.Module):
         
         x = self.fc2(x)
         #x = self.dropout2(x)
-        if nn_config['training']['loss']=='NLLLoss':
+        if (nn_config['training']['loss']=='NLLLoss') or (nn_config['training']['loss']=='focalLoss'):
             return F.log_softmax(x, dim=1)  # Optional softmax at the end
         else: 
             return x
@@ -499,7 +499,7 @@ def initialize_optimizers(model, opt_method, EPS=0.35, base_learning_rate=0.001,
     return optimizer1, optimizer2, locked_masks, locked_masks2
 
 def run_cnn(create_samples: Any, mean_prior_dict: Dict = None, 
-            vae_model=None, PP=[]) -> None:
+            vae_model=None, PP=[], wandb_active = True, prior=False) -> None:
     """
     Main function to run a Convolutional Neural Network (CNN) for classification tasks.
 
@@ -514,7 +514,7 @@ def run_cnn(create_samples: Any, mean_prior_dict: Dict = None,
     Returns:
     None
     """
-    wandb_active = True
+    
     hyperparam_opt = True
 
     print('#'*50)
@@ -526,23 +526,40 @@ def run_cnn(create_samples: Any, mean_prior_dict: Dict = None,
 
     print('------ Data loading -------------------')
     print('mode: ', nn_config['data']['mode_running'], nn_config['data']['sample_size'])
-    x_train, x_test, y_train, y_test, x_val, y_val, label_encoder, y_train_labeled = get_data(nn_config['data']['sample_size'],
-                                                                             nn_config['data']['mode_running'])
+    x_train, x_test, y_train, y_test, x_val, y_val, \
+    label_encoder, y_train_labeled, y_test_labeled = get_data(nn_config['data']['sample_size'], 
+                                                              nn_config['data']['mode_running'])
+    print('Training set')
     classes = np.unique(y_train_labeled.numpy())
     num_classes = len(classes)
     print('num_classes: ', num_classes)
+    # Count the occurrences of each unique value
+    unique_classes, counts = np.unique(y_train_labeled.numpy(), return_counts=True)
+    # Display the counts for each class
+    for cls, count in zip(unique_classes, counts):
+        print(f"Class {cls}: {count} occurrences")      
 
+    print('Testing set')
+    unique_classes, counts = np.unique(y_test_labeled.numpy(), return_counts=True)
+    # Display the counts for each class
+    for cls, count in zip(unique_classes, counts):
+        print(f"Class {cls}: {count} occurrences")    
 
     model = setup_model(num_classes, device)
     class_weights = compute_class_weight('balanced', np.unique(y_train_labeled.numpy()), y_train_labeled.numpy())
+    class_weights = np.sqrt(class_weights)
     class_weights = torch.tensor(class_weights).to(device, dtype=x_train.dtype)
     
+    print(class_weights)
     if nn_config['training']['loss']=='CrossEntropyLoss':
         criterion = nn.CrossEntropyLoss(weight=class_weights) 
-        criterion_synthetic_samples = nn.CrossEntropyLoss() 
+        criterion_synthetic_samples = nn.CrossEntropyLoss(weight=class_weights) 
     elif nn_config['training']['loss']=='NLLLoss': 
         criterion = nn.NLLLoss(weight=class_weights) 
-        criterion_synthetic_samples = nn.NLLLoss() 
+        criterion_synthetic_samples = nn.NLLLoss(weight=class_weights) 
+    elif  nn_config['training']['loss']=='focalLoss':
+        criterion = focal_loss(alpha=class_weights, gamma=1.5)
+        criterion_synthetic_samples = focal_loss(alpha=class_weights, gamma=1.5)      
     else: 
         raise('The required loss is not supported, '+ nn_config['training']['loss'])
 
@@ -552,7 +569,7 @@ def run_cnn(create_samples: Any, mean_prior_dict: Dict = None,
 
     # Main training loop
     best_val_loss = float('inf')
-    best_accuracy_val = 0
+    best_f1_val = 0
     harder_samples = True
     no_improvement_count = 0
     train_loss_values = []
@@ -629,11 +646,12 @@ def run_cnn(create_samples: Any, mean_prior_dict: Dict = None,
                                                                                 scaling_factor=scaling_factor)
 
     batcher = SyntheticDataBatcher(PP = PP, vae_model=vae_model, n_samples=sinthetic_samples_by_class, 
-                                    seq_length = x_train.size(-1))
+                                    seq_length = x_train.size(-1), prior=prior)
 
     for epoch in range(epochs):
+        print(opt_method, create_samples, harder_samples)
         if opt_method=='twolosses' and create_samples and harder_samples: 
-            synthetic_data_loader = batcher.create_synthetic_batch(b=beta_actual)
+            synthetic_data_loader = batcher.create_synthetic_batch(b=beta_actual, wandb_active=wandb_active)
             beta_actual = beta_actual*beta_decay_factor
             harder_samples = False
         elif  opt_method=='twolosses' and create_samples: 
@@ -656,7 +674,7 @@ def run_cnn(create_samples: Any, mean_prior_dict: Dict = None,
             synthetic_loss, accuracy_train_synthetic, f1_synthetic =  evaluate_dataloader_weighted_metrics(model, synthetic_data_loader, 
                                                                         criterion_synthetic_samples, device)
             condition1 = (accuracy_train_synthetic>threshold_acc_synthetic)
-            condition3 = (counter > 50) 
+            condition3 = (counter > 20) 
             condition4 = (counter > 2)
             
             if condition4: 
@@ -671,17 +689,21 @@ def run_cnn(create_samples: Any, mean_prior_dict: Dict = None,
             print(error) 
             synthetic_loss=0
             accuracy_train_synthetic=0
-            print('Sinthetic data loader is: ', synthetic_data_loader)
+            f1_synthetic = 0
+            print('Synthetic data loader is: ', synthetic_data_loader)
 
         train_loss_values.append(running_loss)
         val_loss_values.append(val_loss)
         train_accuracy_values.append(accuracy_train)
         val_accuracy_values.append(accuracy_val)
-
+        
+        if opt_method=='twolosses':
+            weighted_f1 = f1_synthetic*0.3 + f1_val*0.7
+        else: 
+            weighted_f1 = f1_val
         # Early stopping criteria
-        if (val_loss < best_val_loss) or (accuracy_val > best_accuracy_val):
-            best_val_loss = val_loss
-            best_accuracy_val = accuracy_val
+        if  (weighted_f1 > best_f1_val):
+            best_f1_val = weighted_f1
             best_model = model.state_dict()
             no_improvement_count = 0
         else:
@@ -694,7 +716,7 @@ def run_cnn(create_samples: Any, mean_prior_dict: Dict = None,
             wandb.log({'epoch': epoch, 'loss': running_loss, 'accuracy_train':accuracy_train, 
                         'synthetic_loss':synthetic_loss, 'acc_synthetic_samples': accuracy_train_synthetic, 
                         'val_loss': val_loss, 'val_accu': accuracy_val, 'f1_val': f1_val, 
-                        'f1_train': f1_train, 'f1_synthetic': f1_synthetic})
+                        'f1_train': f1_train, 'f1_synthetic': f1_synthetic, 'weighted_f1': weighted_f1})
 
         print('epoch:', epoch, ' loss:', running_loss, ' acc_train:', accuracy_train,  ' f1_train:', f1_train,
                                 ' synth_loss:', synthetic_loss, ' acc_synth:', accuracy_train_synthetic, ' f1_synthetic:', f1_synthetic, 
@@ -706,13 +728,15 @@ def run_cnn(create_samples: Any, mean_prior_dict: Dict = None,
     _, accuracy_test, f1_test = evaluate_dataloader_weighted_metrics(model, test_dataloader, criterion, device)
     _, accuracy_train, f1_train = evaluate_dataloader_weighted_metrics(model, train_dataloader, criterion, device)
     _, accuracy_val, f1_val = evaluate_dataloader_weighted_metrics(model, val_dataloader, criterion, device)
-    _, accuracy_train_synthetic, f1_synthetic = evaluate_dataloader_weighted_metrics(model, synthetic_data_loader, criterion, device)
+    if opt_method == 'twolosses':
+        _, accuracy_train_synthetic, f1_synthetic = evaluate_dataloader_weighted_metrics(model, synthetic_data_loader, criterion, device)
 
     if wandb_active:
+        weighted_f1 = f1_synthetic*0.3 + f1_val*0.7
         wandb.log({'epoch': epoch, 'loss': running_loss, 'accuracy_train':accuracy_train, 
                     'synthetic_loss':synthetic_loss, 'acc_synthetic_samples': accuracy_train_synthetic, 
                     'val_loss': val_loss, 'val_accu': accuracy_val, 'f1_val': f1_val, 'f1_train': f1_train,
-                     'f1_synthetic': f1_synthetic})
+                     'f1_synthetic': f1_synthetic, 'weighted_f1': weighted_f1})
 
     if wandb_active: 
         wandb.config.acc_test =  accuracy_test

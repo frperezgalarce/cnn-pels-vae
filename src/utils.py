@@ -501,8 +501,8 @@ def get_ids(n=1):
 
     example_train = delete_low_represented_classes(example_train, column='class', threshold=20)
 
-    example_train = custom_sample(example_train, 'class', nn_config['data']['limit_to_define_minority_Class'], 
-                                nn_config['data']['upper_limit_majority_classes'])
+    #example_train = custom_sample(example_train, 'class', nn_config['data']['limit_to_define_minority_Class'], 
+    #                            nn_config['data']['upper_limit_majority_classes'])
 
     print(example_train['class'].value_counts())
 
@@ -534,9 +534,17 @@ def load_id_period_to_sample(classes=[], period=[], factor1=0.8, factor2=1.2):
         samples = []
         counter = 0
         for t in classes:
+            print(classes)
             if t == 'ELL':
                 sample = df[df['Type'] == 'ECL'].sample(n=100)
             else:
+                print(len(classes))
+                print(len(period))
+                print(factor1*period[counter]) 
+                print(factor2*period[counter])
+                print(df[((df['Type'] == t) & 
+                            (df['Period'] > factor1*period[counter]) &
+                            (df['Period'] < factor2*period[counter]))])
                 size = df[((df['Type'] == t) & 
                             (df['Period'] > factor1*period[counter]) &
                             (df['Period'] < factor2*period[counter]))].shape[0]
@@ -546,7 +554,7 @@ def load_id_period_to_sample(classes=[], period=[], factor1=0.8, factor2=1.2):
                     sample = df[((df['Type'] == t) & 
                             (df['Period'] > factor1*period[counter]) &
                             (df['Period'] < factor2*period[counter]))].sample(n=100)
-                elif sample.shape[0]==0: 
+                elif size == 0: 
                      df[(df['Type'] == t)].sample(n=size2)
                 else: 
                     sample = df[((df['Type'] == t) & 
@@ -573,7 +581,6 @@ def get_data(sample_size, mode):
     print('MODE DATA: ', mode)
     if mode=='create':
         id_test, id_train, values_count  = get_ids(n=sample_size) 
-        #TODO: get objects by class and oversample
         x_train, x_test, y_test, y_train  = read_light_curve_ogle(id_test, id_train, values_count, lenght_lc=nn_config['data']['seq_length'])
     elif mode == 'load':
         x_train, x_test, y_test, y_train  = load_light_curve_ogle()
@@ -624,6 +631,7 @@ def get_data(sample_size, mode):
 
     # Convert the encoded labels to a PyTorch tensor
     y_labels = torch.from_numpy(encoded_labels).long()
+    y_labels_test = torch.from_numpy(encoded_labels_test).long()
     y_train_onehot = torch.from_numpy(y_train).long()
     y_test_onehot = torch.from_numpy(y_test).long()
 
@@ -637,9 +645,11 @@ def get_data(sample_size, mode):
 
     y_train, y_test = torch.from_numpy(np.asarray(y_train_onehot)), torch.from_numpy(np.asarray(y_test_onehot))
  
-    x_train, x_val, y_train, y_val= train_test_split(x_train, y_train, test_size=0.2, random_state=42, stratify=y_train)
+    x_train, x_val, y_train, y_val= train_test_split(x_train, y_train, test_size=0.3, random_state=42, stratify=y_labels)
 
-    return x_train, x_test,  y_train, y_test, x_val, y_val, modified_labelencoder_classes, y_labels
+    return x_train, x_test,  y_train, y_test, x_val,\
+           y_val, modified_labelencoder_classes,\
+           y_labels, y_labels_test
 
 def export_recall_latex(true_labels, predicted_labels, label_encoder): 
     # Calculate the recall for each class
@@ -685,8 +695,9 @@ def extract_midpoints(class_data):
 
     # Iterate through the subclasses and extract midpoints
     for subclass_name, subclass_data in class_data.items():
-        if subclass_name == "CompleteName":
+        if (subclass_name == "CompleteName") or (subclass_name == "max_period") or (subclass_name == "min_period"):
             continue
+        print(subclass_name)
         teff_mid = subclass_data['Midpoints']['teff_val']
         period_mid = subclass_data['Midpoints']['Period']
         admagg_mid = subclass_data['Midpoints']['abs_Gmag']
@@ -1303,7 +1314,7 @@ def plot_wall_lcs(lc_gen, lc_real, cls=[], lc_gen2=None, save=False, wandb_activ
     if save:
         feature = str(sensivity).replace('[', '').replace(']','').replace('_','').replace('/','')
         plt.savefig(PATH_FIGURES+'/recon_lc_'+reg_conf_file['model_parameters']['ID']+'_'+str(cls[0])+'_'+feature+'.pdf', format='pdf', bbox_inches='tight')
-    elif wandb_active:
+    if wandb_active:
         wandb.init(project="cnn-pelsvae")
         wandb.log({"test": plt})
         wandb.finish()
@@ -1311,7 +1322,7 @@ def plot_wall_lcs(lc_gen, lc_real, cls=[], lc_gen2=None, save=False, wandb_activ
         plt.show()
     return 
 
-def plot_wall_lcs_sampling(lc_gen, lc_real, cls=[], lc_gen2=None, save=False, wandb_active=True, 
+def plot_wall_lcs_sampling(lc_gen, lc_real, cls=[], lc_gen2=None, save=False, wandb_active=False, 
                 to_title=None, sensivity=None, column_to_sensivity=None, all_columns=[]):
     """Creates a wall of light curves plot with real and reconstruction
     sequences, paper-ready.
@@ -1394,7 +1405,7 @@ def plot_wall_lcs_sampling(lc_gen, lc_real, cls=[], lc_gen2=None, save=False, wa
     if save:
         feature = str(sensivity).replace('[', '').replace(']','').replace('_','').replace('/','')
         plt.savefig(PATH_FIGURES+'/epoch_recon_lc_'+reg_conf_file['model_parameters']['ID']+'_'+str(cls[0])+'_'+feature+'.pdf', format='pdf', bbox_inches='tight')
-    elif wandb_active:
+    if wandb_active:
         wandb.log({"epochs": wandb.Image(plt)})
     else: 
         plt.show()
@@ -1476,12 +1487,17 @@ def revert_light_curve(period, folded_normed_light_curve, original_sequences, fa
         else: 
             print(np.max(folded_normed_light_curve[i,:,0]))
 
-        normed_magnitudes = folded_normed_light_curve[i,:,1]
+        normed_magnitudes_min = np.min(folded_normed_light_curve[i,:,1])
+        normed_magnitudes_max = np.max(folded_normed_light_curve[i,:,1])
+        normed_magnitudes = ((folded_normed_light_curve[i,:,1]-normed_magnitudes_min)/
+                            (normed_magnitudes_max-normed_magnitudes_min))
 
         # Generate the time values for the reverted light curve
         [original_min, original_max] = time_sequences[i]
 
-        real_time =  time #get_time_from_period(period[i], time, example_sequence, sequence_length=600)
+        #real_time =  time #get_time_from_period(period[i], time, example_sequence, sequence_length=600)
+
+        real_time =  get_time_from_period(period[i],  folded_normed_light_curve[i,:,0], time, sequence_length=600)
 
         # Revert the normed magnitudes back to the original magnitudes using min-max scaling and faintness factor
         original_magnitudes = ((normed_magnitudes * (original_max - original_min)) + original_min) * faintness
@@ -1633,17 +1649,30 @@ def get_only_time_sequence(n=1, star_class=['RRLYR'], period=[1.0], factor1 = 0.
     for star in tqdm(star_class, desc='Selecting light curves'):
         counter = 0
         fail = True
+        new_factor1 = 1
+        new_factor2 = 1
         while(fail):
+            print(counter)
+            print(star_counter)
+            print(period)
+            print(period[star_counter])
             counter = counter + 1
             try: 
                 if counter < 100:
+                    print('if condition')
                     new_label = (df_id_period[((df_id_period.Type==star) & 
-                                               (df_id_period.Period > factor1*period[star_counter]) &
-                                               (df_id_period.Period < factor2*period[star_counter])) ]
+                                                (df_id_period.Period > factor1*period[star_counter]) &
+                                                (df_id_period.Period < factor2*period[star_counter])) ]
                                                 .sample(1, replace=True)['OGLE_id']
                                                 .to_list()[0])
+                    print(new_label)
                 else: 
-                    new_label = df_id_period.sample(1, replace=True)['OGLE_id'].to_list()[0]
+                    print('period: ', period[star_counter])
+                    print(new_factor1, new_factor2)
+                    new_factor1 = factor1*new_factor1
+                    new_factor2 = factor2*new_factor2
+                    new_label = df_id_period[(df_id_period.Period > new_factor1*period[star_counter]) &
+                                                (df_id_period.Period < new_factor2*period[star_counter])].sample(1, replace=True)['OGLE_id'].to_list()[0]
                 
                 path_lc = (PATH_LIGHT_CURVES_OGLE + new_label.split('-')[1].lower() +
                     '/' + new_label.split('-')[2].lower() + '/phot/I/' + new_label + '.dat')
@@ -1653,18 +1682,19 @@ def get_only_time_sequence(n=1, star_class=['RRLYR'], period=[1.0], factor1 = 0.
                     lcu = lcu.dropna(axis=1)
                     lcu.columns = ['time', 'magnitude', 'error']
                 lcu = lcu.dropna(axis=0) 
-                period = df_id_period[df_id_period.OGLE_id==new_label].Period.values[0]
+                period_i = df_id_period[df_id_period.OGLE_id==new_label].Period.values[0]
                 time_range = lcu.time.max() -lcu.time.min()
-                if  (lcu.shape[0]>nn_config['data']['minimum_lenght_real_curves']) and (lcu['time'].is_monotonic_increasing) and (time_range>period):
+                if  (lcu.shape[0]>nn_config['data']['minimum_lenght_real_curves']) and (lcu['time'].is_monotonic_increasing) and (time_range>period_i):
                     times = lcu['time'].to_list()
                     lc_adapted = ensure_n_elements(times)
-                    lc_adapted_to_real_sequence = ensure_n_elements(times, n=500)
-                    lc_phased = ((lc_adapted-np.min(lc_adapted))%period)/period
+                    lc_adapted_to_real_sequence = ensure_n_elements(times, n=350)
+                    lc_phased = ((lc_adapted-np.min(lc_adapted))/period_i)%1
                     sorted_lc_phased = np.sort(lc_phased)
                     time_sequences.append(sorted_lc_phased)
                     original_sequences.append(lc_adapted_to_real_sequence)
                     fail = False
             except Exception as error:
+                print(error)
                 fail = True    
                 logging.error(f"[get_only_time_sequence] The light curve was not loaded: {error}")
         star_counter = star_counter + 1
@@ -1722,8 +1752,8 @@ def get_time_from_period(period, phased_time,  example_sequence, sequence_length
     """
     # Calculate the range for 'k' values based on the minimum and maximum values of example_sequence
     if len(example_sequence) > 0:
-        k_min = (np.quantile(example_sequence, 0.3) / period)
-        k_max = (np.quantile(example_sequence, 0.7) / period)
+        k_min = (np.quantile(example_sequence, 0.01) / period)
+        k_max = (np.quantile(example_sequence, 0.99) / period)
         print(k_min, k_max)
     else:
         k_min =  40.0

@@ -21,7 +21,7 @@ PATH_FIGURES: str = PATHS['PATH_FIGURES']
 
 class BayesianGaussianMixtureModel:
     def __init__(self, n_components: int = 2, random_state: Optional[int] = None, 
-                covariance_type = 'full', max_iter = 500):
+                covariance_type = 'full', max_iter = 5000):
         self.n_components = n_components
         self.random_state = random_state
         self.covariance_type = covariance_type
@@ -210,6 +210,5 @@ def train_and_save(priors: bool = True, columns=['Type','Period', 'teff_val', '[
                                     feature2= col2, priors=priors, 
                                     number_of_features=len(columns), save=False)
 
-
 def fit_gausians(priors_dict, columns = ['Type','Period', 'teff_val', '[Fe/H]_J95', 'abs_Gmag', 'radius_val', 'logg']):
-    train_and_save(priors = False, columns= columns)
+    train_and_save(priors = True, columns= columns)

@@ -197,6 +197,44 @@ def evaluate_and_plot_cm_from_dataloader(model, dataloader, label_encoder, title
     
     return cm
 
+def get_dict_class_priorization(model, dataloader):
+    all_y_data = []
+    all_predicted = []
+    model.eval()  # Switch to evaluation mode
+    with torch.no_grad():  # No need to calculate gradients in evaluation
+        for batch in dataloader:
+            x_data, y_data = batch
+            x_data, y_data = x_data.float(), y_data.float()
+            outputs = model(x_data)
+            _, predicted = torch.max(outputs.data, 1)
+            
+            # Check if y_data is one-hot encoded and convert to label encoding if it is
+            if len(y_data.shape) > 1 and y_data.shape[1] > 1:
+                y_data = torch.argmax(y_data, dim=1)
+            
+            # Move data to CPU and append to lists
+            all_y_data.extend(y_data.cpu().numpy())
+            all_predicted.extend(predicted.cpu().numpy()) 
+    try:
+        cm = confusion_matrix(all_y_data, all_predicted, normalize='true')
+    except ValueError as e:
+        print(f"An error occurred: {e}")
+        print(f"y_data shape: {len(all_y_data)}, predicted shape: {len(all_predicted)}")
+        return None
+    print(cm)
+    ranking = rank_classes(cm)
+    return ranking
+
+def rank_classes(confusion_matrix):
+    # Calculate Correct Classification Rate (CCR) for each class
+    ccrs = np.diag(confusion_matrix) / np.sum(confusion_matrix, axis=1)
+    
+    # Rank classes based on CCR
+    class_ranking = np.argsort(ccrs)[::-1]  # Sorting in descending order
+
+    # Return the ranking and corresponding CCRs
+    return class_ranking, ccrs[class_ranking]
+
 def train_one_epoch_alternative(
         model: torch.nn.Module, 
         criterion: Module,  # Here
@@ -529,6 +567,9 @@ def run_cnn(create_samples: Any, mean_prior_dict: Dict = None,
     x_train, x_test, y_train, y_test, x_val, y_val, \
     label_encoder, y_train_labeled, y_test_labeled = get_data(nn_config['data']['sample_size'], 
                                                               nn_config['data']['mode_running'])
+
+
+    print(label_encoder)
     print('Training set')
     classes = np.unique(y_train_labeled.numpy())
     num_classes = len(classes)
@@ -593,6 +634,7 @@ def run_cnn(create_samples: Any, mean_prior_dict: Dict = None,
             sufix_path = wandb.config.sufix_path
             nn_config['training']['layers'] = wandb.config.layers
             nn_config['training']['loss'] = wandb.config.loss
+            nn_config['training']['alpha'] = wandb.config.alpha
             config_file['model_parameters']['ID'] =  wandb.config.vae_model
             config_file['model_parameters']['sufix_path'] = wandb.config.sufix_path
 
@@ -618,6 +660,7 @@ def run_cnn(create_samples: Any, mean_prior_dict: Dict = None,
         wandb.config.limit_to_define_minority_Class =  nn_config['data']['limit_to_define_minority_Class']
         wandb.config.layers =  nn_config['training']['layers']
         wandb.config.loss =  nn_config['training']['loss']
+        wandb.config.alpha =  nn_config['training']['alpha']
 
 
     epochs = nn_config['training']['epochs']
@@ -632,6 +675,7 @@ def run_cnn(create_samples: Any, mean_prior_dict: Dict = None,
     base_learning_rate= nn_config['training']['base_learning_rate'] 
     scaling_factor= nn_config['training']['scaling_factor'] 
     opt_method= nn_config['training']['opt_method']
+    alpha = nn_config['training']['alpha']
 
 
 
@@ -648,10 +692,29 @@ def run_cnn(create_samples: Any, mean_prior_dict: Dict = None,
     batcher = SyntheticDataBatcher(PP = PP, vae_model=vae_model, n_samples=sinthetic_samples_by_class, 
                                     seq_length = x_train.size(-1), prior=prior)
 
+    priorization = True
     for epoch in range(epochs):
         print(opt_method, create_samples, harder_samples)
         if opt_method=='twolosses' and create_samples and harder_samples: 
-            synthetic_data_loader = batcher.create_synthetic_batch(b=beta_actual, wandb_active=wandb_active)
+            if epoch>10 and priorization:
+
+                ranking, _ = get_dict_class_priorization(model, train_dataloader)
+                dict_priorization = {}
+                ranking_penalization = 2
+                
+                for o in ranking:
+                    dict_priorization[label_encoder[o]] =  int(sinthetic_samples_by_class*ranking_penalization)
+                    if ranking_penalization>0.5:
+                        ranking_penalization = ranking_penalization/2
+
+                synthetic_data_loader = batcher.create_synthetic_batch(b=beta_actual, 
+                                                                    wandb_active=wandb_active, 
+                                                                    samples_dict = dict_priorization)
+            else: 
+                synthetic_data_loader = batcher.create_synthetic_batch(b=beta_actual, 
+                                                    wandb_active=wandb_active, 
+                                                    samples_dict = None)
+
             beta_actual = beta_actual*beta_decay_factor
             harder_samples = False
         elif  opt_method=='twolosses' and create_samples: 
@@ -674,7 +737,7 @@ def run_cnn(create_samples: Any, mean_prior_dict: Dict = None,
             synthetic_loss, accuracy_train_synthetic, f1_synthetic =  evaluate_dataloader_weighted_metrics(model, synthetic_data_loader, 
                                                                         criterion_synthetic_samples, device)
             condition1 = (accuracy_train_synthetic>threshold_acc_synthetic)
-            condition3 = (counter > 20) 
+            condition3 = (counter > 15) 
             condition4 = (counter > 2)
             
             if condition4: 
@@ -698,7 +761,7 @@ def run_cnn(create_samples: Any, mean_prior_dict: Dict = None,
         val_accuracy_values.append(accuracy_val)
         
         if opt_method=='twolosses':
-            weighted_f1 = f1_synthetic*0.3 + f1_val*0.7
+            weighted_f1 = f1_synthetic*alpha + f1_val*(1-alpha)
         else: 
             weighted_f1 = f1_val
         # Early stopping criteria
@@ -732,7 +795,7 @@ def run_cnn(create_samples: Any, mean_prior_dict: Dict = None,
         _, accuracy_train_synthetic, f1_synthetic = evaluate_dataloader_weighted_metrics(model, synthetic_data_loader, criterion, device)
 
     if wandb_active:
-        weighted_f1 = f1_synthetic*0.3 + f1_val*0.7
+        weighted_f1 = f1_synthetic*alpha + f1_val*(1-alpha)
         wandb.log({'epoch': epoch, 'loss': running_loss, 'accuracy_train':accuracy_train, 
                     'synthetic_loss':synthetic_loss, 'acc_synthetic_samples': accuracy_train_synthetic, 
                     'val_loss': val_loss, 'val_accu': accuracy_val, 'f1_val': f1_val, 'f1_train': f1_train,

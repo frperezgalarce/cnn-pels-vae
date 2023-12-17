@@ -79,30 +79,31 @@ if __name__ == "__main__":
             'method': 'bayes',
             'metric': {'goal': 'maximize', 'name': 'weighted_f1'},
             'parameters': {
-                'learning_rate': {'min': 0.001, 'max': 0.005},
+                'learning_rate': {'min': 0.002, 'max': 0.003},
                 'batch_size': {'values': [32]},
-                'patience':{'values': [30]},
+                'patience':{'min': 30, 'max': 150},
                 'repetitions': {'values': [1]},
                 'sinthetic_samples_by_class': {'values': [8]},
-                'threshold_acc_synthetic': {'min': 0.75, 'max': 0.95},
-                'beta_decay_factor': {'min': 0.96, 'max': 0.99}, 
-                'EPS': {'min': 0.2, 'max': 0.4},
-                'scaling_factor': {'min': 0.3, 'max': 0.6}, 
-                'vae_model': {'values': ['16f09v2s','2uioeni3']}, #, '2b0tvacd','1ojzq1t5', 
+                'threshold_acc_synthetic': {'min': 0.75, 'max': 0.90},
+                'beta_decay_factor': {'min': 0.96, 'max': 0.98}, 
+                'EPS': {'min': 0.2, 'max': 0.3},
+                'scaling_factor': {'min': 0.3, 'max': 0.4}, 
+                'vae_model': {'values': ['hu69iv0r', '3iyiphkn']}, 
                 'sufix_path': {'values': ['GAIA3_LOG_6PP', 'GAIA3_LOG_IMPUTED_BY_CLASS_6PP']}, 
-                'layers': {'values': [3, 4]},
+                'layers': {'values': [4]},
                 'loss': {'values': ['focalLoss']},
+                'alpha': {'min': 0.2, 'max': 0.4},
             }
         }
         
 
         with open("sweep.yaml", "w") as sweep_file:
             yaml.safe_dump(sweep_config, sweep_file)
-        sweep_id = wandb.sweep(sweep_config, project="train-classsifier")
-        wandb.agent(sweep_id, function=main, count=50, project="train-classsifier")
+        #sweep_id = wandb.sweep(sweep_config, project="train-classsifier")
+        wandb.agent("brjgpjsx", function=main, count=100, project="train-classsifier")
     else: 
         main(train_gmm = True, create_samples = True, 
-            train_classifier = True, sensitive_test= False, train_regressor=True,
+            train_classifier = True, sensitive_test= False, train_regressor=False,
              wandb_active = wandb_active, prior=True)
     # create_samples activate samples generation in cnn training
     

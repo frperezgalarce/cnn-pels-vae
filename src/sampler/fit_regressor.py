@@ -43,7 +43,7 @@ def process_regressors(reg_conf_file: Dict[str, Any],
                        samples: Optional[List[float]] = None,
                        from_vae: bool = True,
                        train_rf: bool = False, 
-                       grid_search: bool = False) -> None:
+                       grid_search: bool = True) -> None:
     """
     Process the regressors.
 
@@ -171,15 +171,14 @@ def save_model(model: Any, filename: str = 'filename_model.pkl') -> None:
 def train_rf_with_gs(p: np.ndarray, z: np.ndarray):
 
     # Split the data into training and test sets (70% train, 30% test)
-    p_train, p_test, z_train, z_test = train_test_split(p, z, test_size=0.1, random_state=42)
+    p_train, p_test, z_train, z_test = train_test_split(p, z, test_size=0.2, random_state=42)
 
     # Define the hyperparameters and their possible values for RandomForestRegressor
     param_grid = {
         'n_estimators': [10, 50, 100, 200],
-        'max_depth': [None, 3, 5, 7, 10],
+        'max_depth': [3, 5, 7, 10],
         'min_samples_split': [2, 5, 10],
         'min_samples_leaf': [1, 2, 4],
-        'bootstrap': [True, False]
     }
 
     # Setup the GridSearch with 5-fold Cross-Validation

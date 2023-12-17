@@ -3,7 +3,7 @@ import pickle
 import pandas as pd
 import matplotlib.pyplot as plt
 from sklearn.mixture import BayesianGaussianMixture
-from typing import Optional, Dict, Union, Tuple, ClassVar
+from typing import Optional, Dict, Union, Tuple, ClassVar, Any
 from src.utils import load_yaml_priors, extract_midpoints, extract_maximum_of_max_periods
 from sklearn.neighbors import NearestNeighbors
 import yaml
@@ -18,6 +18,13 @@ PATHS: str = YAML_FILE['paths']
 PATH_PRIOS: str = PATHS['PATH_PRIOS']
 PATH_PP: str = PATHS['PATH_PP']
 PATH_FIGURES: str = PATHS['PATH_FIGURES']
+
+
+with open('src/regressor.yaml', 'r') as file:
+    config_file: Dict[str, Any] = yaml.safe_load(file)
+
+sufix_path: str = config_file['model_parameters']['sufix_path']
+
 
 class BayesianGaussianMixtureModel:
     def __init__(self, n_components: int = 2, random_state: Optional[int] = None, 
@@ -178,7 +185,7 @@ def train_and_save(priors: bool = True, columns=['Type','Period', 'teff_val', '[
     for star_class in classes:
         print(star_class)
         star_type_data = mean_prior_dict['StarTypes'][star_class]
-        components = len([key for key in star_type_data.keys() if (key != 'CompleteName') and (key!='max_period')])
+        components = len([key for key in star_type_data.keys()])-3
         df_filtered_by_class = df_selected_columns[df_selected_columns.Type==star_class]
         X = df_filtered_by_class[columns]
         X = X.dropna()
@@ -194,11 +201,15 @@ def train_and_save(priors: bool = True, columns=['Type','Period', 'teff_val', '[
                 array_midpoints = extract_midpoints(mean_prior_dict['StarTypes'][star_class])
                 try:
                     array_midpoints = extract_midpoints(mean_prior_dict['StarTypes'][star_class])
+                    if 'LOG' in sufix_path: 
+                        array_midpoints[:, [0, 1, 4]] = np.log(array_midpoints[:, [0, 1, 4]])
                     print('array_midpoints: ', array_midpoints)
+                    print(array_midpoints)
                     bgmm.train(X, mean_prior=array_midpoints)
                 except Exception as error:
                     print(error)
                     bgmm.train(X, mean_prior=None)
+                    raise
             else: 
                 bgmm.train(X, mean_prior=None)
 

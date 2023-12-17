@@ -46,7 +46,8 @@ class SyntheticDataBatcher:
 
     @staticmethod
     def count_subclasses(star_type_data: Dict[str, Any]) -> int:
-        return len([key for key in star_type_data.keys() if key != 'CompleteName'])
+        excluded_keys = ['CompleteName', 'min_period', 'max_period']
+        return len([key for key in star_type_data.keys() if key not in excluded_keys])
 
     def process_in_batches(self, model, mu_, times, onehot, phy, batch_size):
         # Split tensors into smaller batches
@@ -72,9 +73,10 @@ class SyntheticDataBatcher:
         xhat_mu = torch.cat(results, dim=0)
         return xhat_mu
 
-    def attempt_sample_load(self, model_name: str, sampler: 'YourSamplerType') -> Tuple[Union[np.ndarray, None], bool]:
+    def attempt_sample_load(self, model_name: str, sampler: 'YourSamplerType', n_samples=nn_config['training']['sinthetic_samples_by_class']) -> Tuple[Union[np.ndarray, None], bool]:
         try:
-            samples = sampler.modify_and_sample(model_name, n_samples=self.n_samples, mode= nn_config['sampling']['mode'])
+            samples = sampler.modify_and_sample(model_name, n_samples=n_samples, 
+                                                mode= nn_config['sampling']['mode'])
             return samples, True
         except Exception as e:
             raise Exception(f"Failed to load samples from model {model_name}. Error: {str(e)}")
@@ -101,7 +103,7 @@ class SyntheticDataBatcher:
         
         return times, original_sequences
 
-    def create_synthetic_batch(self, plot_example=False, b=1.0, wandb_active=False):
+    def create_synthetic_batch(self, plot_example=False, b=1.0, wandb_active=False, samples_dict = None):
         print(self.path)
         PATH_MODELS = self.path['PATH_MODELS']
         PATH_DATA = self.path['PATH_DATA_FOLDER']
@@ -112,9 +114,17 @@ class SyntheticDataBatcher:
 
         for star_class in list(self.nn_config['data']['classes']):
             torch.cuda.empty_cache()
-
             print('------- sampling ' +star_class+'---------')
-            lb += [star_class] * self.n_samples
+            
+            if samples_dict==None:
+                n_samples = self.n_samples
+                lb += [star_class] * self.n_samples
+            else: 
+                n_samples = int(samples_dict[star_class])
+                lb += [star_class] * n_samples
+            
+            print(samples_dict)
+
 
             integer_encoded = label_encoder.transform(lb)
             n_values = len(label_encoder.classes_)
@@ -128,15 +138,16 @@ class SyntheticDataBatcher:
 
             print(star_class +' includes '+ str(components) +' components ')
 
-            sampler: mgmm.ModifiedGaussianSampler = mgmm.ModifiedGaussianSampler(b=b, components=components, features=self.PP)
+            sampler: mgmm.ModifiedGaussianSampler = mgmm.ModifiedGaussianSampler(b=b, 
+                                                                                components=components, 
+                                                                                features=self.PP)
             model_name = self.construct_model_name(star_class, PATH_MODELS)
-            print(model_name)
-            samples, error = self.attempt_sample_load(model_name, sampler)
+            samples, error = self.attempt_sample_load(model_name, sampler, n_samples=n_samples)
             
             # If we have priors and failed to load the model, try with priors=False
             if self.priors and samples is None:
                 model_name = self.construct_model_name(star_class, PATH_MODELS)
-                samples, error = self.attempt_sample_load(model_name, sampler, n_samples=self.n_samples)
+                samples, error = self.attempt_sample_load(model_name, sampler, n_samples=n_samples)
             
             # If still not loaded, raise an error
             if samples is None:
@@ -169,7 +180,7 @@ class SyntheticDataBatcher:
         times, original_sequences = self.create_time_sequences(lb, all_classes_samples[:,index_period])
 
         torch.cuda.empty_cache()
-        xhat_mu = self.process_in_batches(vae, mu_, times, onehot, pp, 8)
+        xhat_mu = self.process_in_batches(vae, mu_, times, onehot, pp, 1)
         xhat_mu = torch.cat([times.unsqueeze(-1), xhat_mu], dim=-1).cpu().detach().numpy()
 
         #TODO: filter here light curves

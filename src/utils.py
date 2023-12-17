@@ -28,7 +28,7 @@ from concurrent.futures import ThreadPoolExecutor
 
 logging.basicConfig(filename='error_log.txt', level=logging.ERROR)
 #from src.utils import load_yaml
-
+MIN_PERIOD_VALUE = 0.1
 with open('src/paths.yaml', 'r') as file:
     YAML_FILE = yaml.safe_load(file)
 
@@ -243,8 +243,10 @@ def insert_lc(examples, np_array, np_array_y, values_count= None, lenght_lc = 0,
                 k_samples_by_object = int(nn_config['data']['upper_limit_majority_classes']/(class_counter)) #TODO: 1/3 of majority class
                 if verbose: 
                     print(k_samples_by_object)
-                for _ in range(k_samples_by_object): 
-                    lcu_data = np.asarray(lcu[['delta_time', 'delta_mag']].sample(lenght_lc))
+                for _ in range(k_samples_by_object):
+                    first_positive_index = lcu[lcu['delta_mag'] > 0].index[0]
+                    filtered_df = lcu.loc[:first_positive_index - 1]
+                    lcu_data = np.asarray(filtered_df[['delta_time', 'delta_mag']].sample(lenght_lc))
                     try: 
                         new_element = lc.split('-')[2]
                         new_element = add_ell(new_element, ELL, lc)
@@ -1656,6 +1658,8 @@ def get_only_time_sequence(n=1, star_class=['RRLYR'], period=[1.0], factor1 = 0.
             print(star_counter)
             print(period)
             print(period[star_counter])
+            if period[star_counter]<=0: 
+                period[star_counter] = MIN_PERIOD_VALUE
             counter = counter + 1
             try: 
                 if counter < 100:

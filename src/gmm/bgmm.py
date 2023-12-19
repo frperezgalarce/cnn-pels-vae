@@ -181,35 +181,42 @@ def train_and_save(priors: bool = True, columns=['Type','Period', 'teff_val', '[
     columns.remove('Type')
 
     mean_prior_dict = load_yaml_priors(PATH_PRIOS)
-    print(mean_prior_dict)
+    #print(mean_prior_dict)
     for star_class in classes:
-        print(star_class)
+        #print(star_class)
         star_type_data = mean_prior_dict['StarTypes'][star_class]
         components = len([key for key in star_type_data.keys()])-3
         df_filtered_by_class = df_selected_columns[df_selected_columns.Type==star_class]
         X = df_filtered_by_class[columns]
         X = X.dropna()
-        print(mean_prior_dict['StarTypes'][star_class]['max_period'])
-        period_upper_limit = mean_prior_dict['StarTypes'][star_class]['max_period']
-        period_lower_limit = mean_prior_dict['StarTypes'][star_class]['min_period']
+        if 'LOG' in sufix_path:
+            X['Period']=np.log(X['Period']) 
+            X['teff_val']=np.log(X['teff_val']) 
+            X['radius_val']=np.log(X['radius_val']) 
+            period_upper_limit = np.log(mean_prior_dict['StarTypes'][star_class]['max_period'])
+            period_lower_limit = np.log(mean_prior_dict['StarTypes'][star_class]['min_period'])
+        else: 
+            period_upper_limit = mean_prior_dict['StarTypes'][star_class]['max_period']
+            period_lower_limit = mean_prior_dict['StarTypes'][star_class]['min_period']
         X = X[X.Period<period_upper_limit]
         X = X[X.Period>period_lower_limit]
-        print(X)
+        #print(X)
         if X.shape[0] > 30:
             bgmm = BayesianGaussianMixtureModel(n_components=components, random_state=42)
             if priors:
-                array_midpoints = extract_midpoints(mean_prior_dict['StarTypes'][star_class])
                 try:
                     array_midpoints = extract_midpoints(mean_prior_dict['StarTypes'][star_class])
+                    array_midpoints = np.array(array_midpoints)
+                    #print(sufix_path)
                     if 'LOG' in sufix_path: 
                         array_midpoints[:, [0, 1, 4]] = np.log(array_midpoints[:, [0, 1, 4]])
-                    print('array_midpoints: ', array_midpoints)
-                    print(array_midpoints)
+                    #print('array_midpoints: ', array_midpoints)
+                    #print(array_midpoints)
                     bgmm.train(X, mean_prior=array_midpoints)
                 except Exception as error:
-                    print(error)
-                    bgmm.train(X, mean_prior=None)
-                    raise
+                    #print(error)
+                    #bgmm.train(X, mean_prior=None)
+                    raise('The model was not trained')
             else: 
                 bgmm.train(X, mean_prior=None)
 

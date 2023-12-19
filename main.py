@@ -81,15 +81,15 @@ if __name__ == "__main__":
             'parameters': {
                 'learning_rate': {'min': 0.002, 'max': 0.003},
                 'batch_size': {'values': [32]},
-                'patience':{'min': 30, 'max': 150},
+                'patience':{'min': 20, 'max': 40},
                 'repetitions': {'values': [1]},
                 'sinthetic_samples_by_class': {'values': [8]},
                 'threshold_acc_synthetic': {'min': 0.75, 'max': 0.90},
                 'beta_decay_factor': {'min': 0.96, 'max': 0.98}, 
                 'EPS': {'min': 0.2, 'max': 0.3},
                 'scaling_factor': {'min': 0.3, 'max': 0.4}, 
-                'vae_model': {'values': ['hu69iv0r', '3iyiphkn']}, 
-                'sufix_path': {'values': ['GAIA3_LOG_6PP', 'GAIA3_LOG_IMPUTED_BY_CLASS_6PP']}, 
+                'vae_model': {'values': ['hu69iv0r']}, 
+                'sufix_path': {'values': ['GAIA3_LOG_6PP']}, 
                 'layers': {'values': [4]},
                 'loss': {'values': ['focalLoss']},
                 'alpha': {'min': 0.2, 'max': 0.4},
@@ -99,8 +99,8 @@ if __name__ == "__main__":
 
         with open("sweep.yaml", "w") as sweep_file:
             yaml.safe_dump(sweep_config, sweep_file)
-        #sweep_id = wandb.sweep(sweep_config, project="train-classsifier")
-        wandb.agent("brjgpjsx", function=main, count=100, project="train-classsifier")
+        sweep_id = wandb.sweep(sweep_config, project="train-classsifier")
+        wandb.agent(sweep_id, function=main, count=100, project="train-classsifier")
     else: 
         main(train_gmm = True, create_samples = True, 
             train_classifier = True, sensitive_test= False, train_regressor=False,

@@ -53,6 +53,7 @@ with open('src/regressor.yaml', 'r') as file:
 with open('src/nn_config.yaml', 'r') as file:
     nn_config = yaml.safe_load(file)
 
+data_sufix: str =   reg_conf_file['model_parameters']['sufix_path']  
 
 def plot_training(epochs_range, train_loss_values, val_loss_values,train_accuracy_values,  val_accuracy_values):
     plt.figure(figsize=(12, 4))
@@ -525,47 +526,66 @@ def get_ids(n=1):
 
     return example_test, example_train, values_count
 
-def load_id_period_to_sample(classes=[], period=[], factor1=0.8, factor2=1.2): 
-    print('Loading from:\n', PATH_DATA_FOLDER+PATH_ZIP_GAIA)
-    with gzip.open(PATH_DATA_FOLDER+PATH_ZIP_GAIA, 'rb') as f:
+def load_id_period_to_sample(classes: List[str] = [], period: List[float] = [], 
+                             factor1: float = 0.8, factor2: float = 1.2) -> pd.DataFrame:
+    """
+    Load and sample data based on specified classes and periods.
+
+    This function loads data from a specified path, filters and samples it according to the given classes and period criteria.
+    It supports handling of log-transformed period values.
+
+    Parameters:
+    classes (List[str]): List of classes to filter the data. If empty, a random sample is returned.
+    period (List[float]): List of period values to use for filtering, corresponding to each class.
+    factor1 (float): Lower multiplicative factor for period filtering.
+    factor2 (float): Upper multiplicative factor for period filtering.
+
+    Returns:
+    pd.DataFrame: A DataFrame containing the sampled data based on the provided criteria.
+    """
+        # Assume PATH_DATA_FOLDER and data_sufix are predefined elsewhere
+    PATH_ZIP_LCs = (PATH_DATA_FOLDER + '/time_series/real/OGLE3_lcs_I_meta_snr5_augmented_folded_trim600_' + 
+                   data_sufix + '.npy.gz')
+    print('Loading from:\n', PATH_ZIP_LCs)
+    
+    with gzip.open(PATH_ZIP_LCs, 'rb') as f:
         np_data = np.load(f, allow_pickle=True)
-    df = np_data.item()['meta'][['OGLE_id','Period','Type']]
-    if len(classes)==0: 
+
+    df = np_data.item()['meta'][['OGLE_id', 'Period', 'Type']]
+
+    if 'LOG' in data_sufix: 
+        df['Period'] = np.log(df['Period'])
+
+    if len(classes) == 0: 
         df = df.sample(1)
     else:
         samples = []
         counter = 0
         for t in classes:
-            print(classes)
+            # Initialize 'sample' at the start of each iteration
+            sample = pd.DataFrame()
             if t == 'ELL':
                 sample = df[df['Type'] == 'ECL'].sample(n=100)
             else:
-                print(len(classes))
-                print(len(period))
-                print(factor1*period[counter]) 
-                print(factor2*period[counter])
-                print(df[((df['Type'] == t) & 
-                            (df['Period'] > factor1*period[counter]) &
-                            (df['Period'] < factor2*period[counter]))])
-                size = df[((df['Type'] == t) & 
-                            (df['Period'] > factor1*period[counter]) &
-                            (df['Period'] < factor2*period[counter]))].shape[0]
-                size2 = df[((df['Type'] == t))].shape[0]
-                print(size)
+                filtered_df = df[(df['Type'] == t)]
+                period_filtered_df = filtered_df[(filtered_df['Period'] > factor1 * period[counter]) &
+                                                 (filtered_df['Period'] < factor2 * period[counter])]
+                size = period_filtered_df.shape[0]
+
                 if size > 100:
-                    sample = df[((df['Type'] == t) & 
-                            (df['Period'] > factor1*period[counter]) &
-                            (df['Period'] < factor2*period[counter]))].sample(n=100)
+                    sample = period_filtered_df.sample(n=100)
                 elif size == 0: 
-                     df[(df['Type'] == t)].sample(n=size2)
+                    sample = filtered_df.sample(n=filtered_df.shape[0])
                 else: 
-                    sample = df[((df['Type'] == t) & 
-                            (df['Period'] > factor1*period[counter]) &
-                            (df['Period'] < factor2*period[counter]))].sample(n=size) 
+                    sample = period_filtered_df.sample(n=size)
+
             samples.append(sample)
-            counter = counter + 1
+            counter += 1
+
         df = pd.concat(samples, axis=0).reset_index(drop=True)
+
     return df
+
 
 def transform_to_consecutive(input_list, label_encoder):
     unique_elements = sorted(set(input_list))
@@ -699,7 +719,7 @@ def extract_midpoints(class_data):
     for subclass_name, subclass_data in class_data.items():
         if (subclass_name == "CompleteName") or (subclass_name == "max_period") or (subclass_name == "min_period"):
             continue
-        print(subclass_name)
+        #print(subclass_name)
         teff_mid = subclass_data['Midpoints']['teff_val']
         period_mid = subclass_data['Midpoints']['Period']
         admagg_mid = subclass_data['Midpoints']['abs_Gmag']
@@ -707,7 +727,7 @@ def extract_midpoints(class_data):
         radius_val_mid = subclass_data['Midpoints']['radius_val']
         logg_mid = subclass_data['Midpoints']['logg']
 
-        result.append([teff_mid, period_mid, admagg_mid, feh_95_mid, radius_val_mid, logg_mid])
+        result.append([ period_mid, teff_mid, feh_95_mid, admagg_mid,  radius_val_mid, logg_mid])
 
     return result
     
@@ -1486,8 +1506,6 @@ def revert_light_curve(period, folded_normed_light_curve, original_sequences, fa
         time = original_sequences[i] #folded_normed_light_curve[i,:,0]
         if np.max(folded_normed_light_curve[i,:,0])<0.95: 
             continue
-        else: 
-            print(np.max(folded_normed_light_curve[i,:,0]))
 
         normed_magnitudes_min = np.min(folded_normed_light_curve[i,:,1])
         normed_magnitudes_max = np.max(folded_normed_light_curve[i,:,1])
@@ -1645,7 +1663,7 @@ def get_only_time_sequence(n=1, star_class=['RRLYR'], period=[1.0], factor1 = 0.
     df_id_period[['SURVEY', 'FIELD', 'CLASS', 'NUMBER']] = df_id_period['OGLE_id'].str.split('-', expand=True)
     time_sequences = []
     original_sequences = []
-    print(star_class)
+    #print(star_class)
     star_counter = 0
 
     for star in tqdm(star_class, desc='Selecting light curves'):
@@ -1654,25 +1672,17 @@ def get_only_time_sequence(n=1, star_class=['RRLYR'], period=[1.0], factor1 = 0.
         new_factor1 = 1
         new_factor2 = 1
         while(fail):
-            print(counter)
-            print(star_counter)
-            print(period)
-            print(period[star_counter])
             if period[star_counter]<=0: 
                 period[star_counter] = MIN_PERIOD_VALUE
             counter = counter + 1
             try: 
                 if counter < 100:
-                    print('if condition')
                     new_label = (df_id_period[((df_id_period.Type==star) & 
                                                 (df_id_period.Period > factor1*period[star_counter]) &
                                                 (df_id_period.Period < factor2*period[star_counter])) ]
                                                 .sample(1, replace=True)['OGLE_id']
                                                 .to_list()[0])
-                    print(new_label)
                 else: 
-                    print('period: ', period[star_counter])
-                    print(new_factor1, new_factor2)
                     new_factor1 = factor1*new_factor1
                     new_factor2 = factor2*new_factor2
                     new_label = df_id_period[(df_id_period.Period > new_factor1*period[star_counter]) &
@@ -1698,9 +1708,9 @@ def get_only_time_sequence(n=1, star_class=['RRLYR'], period=[1.0], factor1 = 0.
                     original_sequences.append(lc_adapted_to_real_sequence)
                     fail = False
             except Exception as error:
-                print(error)
+                #print(error)
                 fail = True    
-                logging.error(f"[get_only_time_sequence] The light curve was not loaded: {error}")
+                #logging.error(f"[get_only_time_sequence] The light curve was not loaded: {error}")
         star_counter = star_counter + 1
     return time_sequences, original_sequences
 
@@ -1758,7 +1768,7 @@ def get_time_from_period(period, phased_time,  example_sequence, sequence_length
     if len(example_sequence) > 0:
         k_min = (np.quantile(example_sequence, 0.01) / period)
         k_max = (np.quantile(example_sequence, 0.99) / period)
-        print(k_min, k_max)
+        #print(k_min, k_max)
     else:
         k_min =  40.0
         k_max =  200.0

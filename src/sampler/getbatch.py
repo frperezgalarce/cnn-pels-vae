@@ -14,6 +14,7 @@ gpu: bool = True
 with open('src/nn_config.yaml', 'r') as file:
     nn_config = yaml.safe_load(file)
 
+    
 class SyntheticDataBatcher:
     def __init__(self, config_file_path: str = 'src/regressor.yaml', 
                  nn_config_path: str = 'src/nn_config.yaml', paths: str = 'src/paths.yaml', PP=[], vae_model=None, 
@@ -22,7 +23,7 @@ class SyntheticDataBatcher:
         self.config_file = self.load_yaml(config_file_path)
         self.nn_config = self.load_yaml(nn_config_path)
         self.path = self.load_yaml(paths)['paths']
-        self.mean_prior_dict = self.load_yaml(self.path['PATH_PRIOS'])  # to be filled in later
+        self.mean_prior_dict = self.load_yaml(self.path['PATH_PRIOS'])  
         self.priors = prior
         self.PP = PP
         self.vae_model = vae_model
@@ -31,8 +32,6 @@ class SyntheticDataBatcher:
         self.delta_max = 100
         self.CLASSES = ['ACEP','CEP', 'DSCT', 'ECL',  'ELL', 'LPV',  'RRLYR', 'T2CEP']
         self.batch_size = batch_size
-        self.x_array = None
-        self.y_array = None
 
     @staticmethod
     def load_yaml(path: str) -> Dict[str, Any]:
@@ -48,8 +47,9 @@ class SyntheticDataBatcher:
     def count_subclasses(star_type_data: Dict[str, Any]) -> int:
         excluded_keys = ['CompleteName', 'min_period', 'max_period']
         return len([key for key in star_type_data.keys() if key not in excluded_keys])
-
-    def process_in_batches(self, model, mu_, times, onehot, phy, batch_size):
+    
+    @staticmethod
+    def process_in_batches(model, mu_, times, onehot, phy, batch_size):
         # Split tensors into smaller batches
         total_samples = mu_.size(0)
         n_batches = (total_samples + batch_size - 1) // batch_size
@@ -72,8 +72,22 @@ class SyntheticDataBatcher:
         # Concatenate results from all batches
         xhat_mu = torch.cat(results, dim=0)
         return xhat_mu
-
-    def attempt_sample_load(self, model_name: str, sampler: 'YourSamplerType', n_samples=nn_config['training']['sinthetic_samples_by_class']) -> Tuple[Union[np.ndarray, None], bool]:
+    
+    @staticmethod
+    def plot_light_curve(array, label_y = 'Magnitude', label_x='MJD'):
+        fig, axis = plt.subplots(nrows=8, ncols=3, 
+                             figsize=(16,14),
+                             sharex=True, sharey=True)
+        axs = axis.flatten()
+        for i in range(len(array)):
+            axs[i].scatter(array[i][0], array[i][1], color='royalblue', s=4)
+        axis[-1,1].set_xlabel(label_x, fontsize=20)
+        axis[4,0].set_ylabel(label_y, fontsize=20)
+        plt.tight_layout()
+        plt.show()
+    
+    @staticmethod
+    def attempt_sample_load(model_name: str, sampler: 'YourSamplerType', n_samples=nn_config['training']['sinthetic_samples_by_class']) -> Tuple[Union[np.ndarray, None], bool]:
         try:
             samples = sampler.modify_and_sample(model_name, n_samples=n_samples, 
                                                 mode= nn_config['sampling']['mode'])
@@ -81,30 +95,19 @@ class SyntheticDataBatcher:
         except Exception as e:
             raise Exception(f"Failed to load samples from model {model_name}. Error: {str(e)}")
 
-    def create_time_sequences(self, lb, period, based_on_real_lc = True):
+    def create_time_sequences(self, lb, period):
         np.set_printoptions(suppress=True)
-        print(lb)
-        print(period)
-        if based_on_real_lc:
-            times, original_sequences =  utils.get_only_time_sequence(n=1, star_class=lb, 
-                                                                     period = period, factor1=0.8, 
-                                                                     factor2= 1.2)
-            times = np.array(times) 
-            original_sequences = np.array(original_sequences) 
-            times = torch.from_numpy(times).to(self.device)
-            times = times.to(dtype=torch.float32)
-        else: 
-            times = [i/600 for i in range(600)]
-            times = np.tile(times, (self.n_samples*len(list(self.nn_config['data']['classes'])), 1))
-            times = np.array(times)  
-            times = torch.from_numpy(times).to(self.device)
-            times = times.to(dtype=torch.float32)
-            original_sequences = None #TODO
+        times, original_sequences =  utils.get_only_time_sequence(n=1, star_class=lb, 
+                                                                 period = period, factor1=0.8, 
+                                                                 factor2= 1.2)
+        times = np.array(times) 
+        original_sequences = np.array(original_sequences) 
+        times = torch.from_numpy(times).to(self.device)
+        times = times.to(dtype=torch.float32)
         
         return times, original_sequences
 
-    def create_synthetic_batch(self, plot_example=False, b=1.0, wandb_active=False, samples_dict = None):
-        print(self.path)
+    def create_synthetic_batch(self, plot_example=False, b=1.0, wandb_active=False, samples_dict = None, oversampling = True, n_oversampling=12):
         PATH_MODELS = self.path['PATH_MODELS']
         PATH_DATA = self.path['PATH_DATA_FOLDER']
         lb = []
@@ -122,9 +125,6 @@ class SyntheticDataBatcher:
             else: 
                 n_samples = int(samples_dict[star_class])
                 lb += [star_class] * n_samples
-            
-            print(samples_dict)
-
 
             integer_encoded = label_encoder.transform(lb)
             n_values = len(label_encoder.classes_)
@@ -157,15 +157,10 @@ class SyntheticDataBatcher:
                 all_classes_samples = np.vstack((all_classes_samples, samples))
             else: 
                 all_classes_samples = samples
-                print(all_classes_samples.shape)
 
-        print('cuda: ', torch.cuda.is_available())
-        print('model: ', self.vae_model)
-
-
-        columns = ['Period', 'teff_val', '[Fe/H]_J95', 'abs_Gmag', 'radius_val', 'logg']
-        index_period = columns.index('Period')
-        mu_ = reg.process_regressors(self.config_file, phys2=columns, samples= all_classes_samples, 
+        #columns = ['Period', 'teff_val', '[Fe/H]_J95', 'abs_Gmag', 'radius_val', 'logg']
+        index_period = self.PP.index('Period')
+        mu_ = reg.process_regressors(self.config_file, phys2=self.PP, samples= all_classes_samples, 
                                             from_vae=False, train_rf=False)
 
 
@@ -175,7 +170,6 @@ class SyntheticDataBatcher:
         lb = np.array(lb)  
         pp = torch.tensor(all_classes_samples, device=self.device)
 
-        # Clear GPU cache
         vae, _ = utils.load_model_list(ID=self.vae_model, device=self.device)
         times, original_sequences = self.create_time_sequences(lb, all_classes_samples[:,index_period])
 
@@ -183,27 +177,22 @@ class SyntheticDataBatcher:
         xhat_mu = self.process_in_batches(vae, mu_, times, onehot, pp, 1)
         xhat_mu = torch.cat([times.unsqueeze(-1), xhat_mu], dim=-1).cpu().detach().numpy()
 
-        #TODO: filter here light curves
-
         indices = np.random.choice(xhat_mu.shape[0], 24, replace=False)
         sampled_arrays = xhat_mu[indices, :, :]
 
         utils.plot_wall_lcs_sampling(sampled_arrays, sampled_arrays,  cls=lb[indices],  column_to_sensivity=index_period,
-                                to_title = pp[indices], sensivity = 'Period', all_columns=columns, save=False, wandb_active=wandb_active) 
+                                to_title = pp[indices], sensivity = 'Period', all_columns=self.PP, save=False, wandb_active=wandb_active) 
 
         lc_reverted = utils.revert_light_curve(pp[:,index_period], xhat_mu, original_sequences, classes = lb)
 
         if plot_example:
-            plt.figure()
-            plt.scatter(lc_reverted[0][1], lc_reverted[0][0])
-            plt.show()
+            self.plot_light_curve(lc_reverted[indices], label_y = 'Magnitude', label_x='MJD')
 
         mean_value = np.nanmean(lc_reverted)
         lc_reverted[np.isnan(lc_reverted)] = mean_value
-        oversampling = True
 
         if oversampling: 
-            sampler = LightCurveRandomSampler(lc_reverted, onehot_to_train, self.seq_length, 12)
+            sampler = LightCurveRandomSampler(lc_reverted, onehot_to_train, self.seq_length, n_oversampling)
             lc_reverted, onehot_to_train = sampler.sample()
         else:
             lc_reverted = lc_reverted[:, :, :self.seq_length]
@@ -213,9 +202,7 @@ class SyntheticDataBatcher:
         lc_reverted[(lc_reverted)> self.delta_max] = mean_value
 
         if plot_example:
-            plt.figure()
-            plt.scatter(lc_reverted[0][1], lc_reverted[0][0])
-            plt.show()
+            self.plot_light_curve(lc_reverted[indices], label_y = 'Delta magnitude', label_x='delta time')
 
         if np.sum(np.isnan(lc_reverted)) > 0:
             print(f"Number of NaN values detected: {np.sum(np.isnan(lc_reverted))}")
@@ -225,14 +212,6 @@ class SyntheticDataBatcher:
 
         numpy_array_x = np.load(PATH_DATA+'/x_batch_pelsvae.npy', allow_pickle=True)
         numpy_array_y = np.load(PATH_DATA+'/y_batch_pelsvae.npy', allow_pickle=True)
-
-        self.x_array = numpy_array_x
-        self.y_array = numpy_array_y 
-        
-        if plot_example:
-            plt.figure()
-            plt.scatter(numpy_array_x[0][0], numpy_array_x[0][1])
-            plt.show()
 
         synth_data = utils.move_data_to_device((numpy_array_x, numpy_array_y), self.device)
         synthetic_dataset = TensorDataset(*synth_data)

@@ -442,28 +442,28 @@ def initialize_masks(model, device='cuda', EPS=0.25, layers=2):
         raise('The current implementation does not support more than 4 layers')
     for name, param in model.named_parameters():
         if ("conv1" in name) and ("weight" in name):
-            print(utils.quantile(torch.abs(param.mean(dim=[1, 2])), EPS))
+            #print(utils.quantile(torch.abs(param.mean(dim=[1, 2])), EPS))
             quantile = utils.quantile(torch.abs(param.mean(dim=[1, 2])), EPS)
             mask_value = (torch.abs(param.mean(dim=[1, 2])) > quantile).float()
             mask = mask_value.view(-1, 1, 1).repeat(1, param.shape[1], param.shape[2])
             locked_masks[name] = mask
             conv1_bias_mask = mask_value  # Save for bias
         elif ("conv2" in name) and ("weight" in name):
-            print(utils.quantile(torch.abs(param.mean(dim=[1, 2])), EPS))
+            #print(utils.quantile(torch.abs(param.mean(dim=[1, 2])), EPS))
             quantile = utils.quantile(torch.abs(param.mean(dim=[1, 2])), EPS)
             mask_value = (torch.abs(param.mean(dim=[1, 2])) > quantile).float()
             mask = mask_value.view(-1, 1, 1).repeat(1, param.shape[1], param.shape[2])
             locked_masks[name] = mask
             conv2_bias_mask = mask_value  # Save for bias
         elif "conv3" in name and "weight" in name:
-            print(utils.quantile(torch.abs(param.mean(dim=[1, 2])), EPS))
+            #print(utils.quantile(torch.abs(param.mean(dim=[1, 2])), EPS))
             quantile = utils.quantile(torch.abs(param.mean(dim=[1, 2])), EPS)
             mask_value = (torch.abs(param.mean(dim=[1, 2])) > quantile).float()
             mask = mask_value.view(-1, 1, 1).repeat(1, param.shape[1], param.shape[2])
             locked_masks[name] = mask
             conv3_bias_mask = mask_value  # Save for bias
         elif "conv4" in name and "weight" in name:
-            print(utils.quantile(torch.abs(param.mean(dim=[1, 2])), EPS))
+            #print(utils.quantile(torch.abs(param.mean(dim=[1, 2])), EPS))
             quantile = utils.quantile(torch.abs(param.mean(dim=[1, 2])), EPS)
             mask_value = (torch.abs(param.mean(dim=[1, 2])) > quantile).float()
             mask = mask_value.view(-1, 1, 1).repeat(1, param.shape[1], param.shape[2])
@@ -478,13 +478,13 @@ def initialize_masks(model, device='cuda', EPS=0.25, layers=2):
         elif "conv4.bias" in name:
             locked_masks[name] = conv4_bias_mask
         elif "fc1" in name and "weight" in name:
-            print(utils.quantile(torch.abs(param.mean(dim=[1])), EPS))
+            #print(utils.quantile(torch.abs(param.mean(dim=[1])), EPS))
             quantile = utils.quantile(torch.abs(param.mean(dim=[1])), EPS)
             mask_value = (torch.abs(param.mean(dim=1)) > quantile).float()
             mask = mask_value.view(-1, 1).repeat(1, param.shape[1])
             locked_masks[name] = mask
         elif "fc2" in name and "weight" in name:
-            print(utils.quantile(torch.abs(param.mean(dim=[1])), EPS))
+            #print(utils.quantile(torch.abs(param.mean(dim=[1])), EPS))
             quantile = utils.quantile(torch.abs(param.mean(dim=[1])), EPS)
             mask_value = (torch.abs(param.mean(dim=1)) > quantile).float()
             mask = mask_value.view(-1, 1).repeat(1, param.shape[1])

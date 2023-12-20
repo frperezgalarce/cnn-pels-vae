@@ -99,8 +99,8 @@ if __name__ == "__main__":
 
         with open("sweep.yaml", "w") as sweep_file:
             yaml.safe_dump(sweep_config, sweep_file)
-        sweep_id = wandb.sweep(sweep_config, project="train-classsifier")
-        wandb.agent(sweep_id, function=main, count=100, project="train-classsifier")
+        #sweep_id = wandb.sweep(sweep_config, project="train-classsifier")
+        wandb.agent("kxuukijf", function=main, count=100, project="train-classsifier")
     else: 
         main(train_gmm = True, create_samples = True, 
             train_classifier = True, sensitive_test= False, train_regressor=False,

@@ -1700,8 +1700,11 @@ def get_only_time_sequence(n=1, star_class=['RRLYR'], period=[1.0], factor1 = 0.
                 time_range = lcu.time.max() -lcu.time.min()
                 if  (lcu.shape[0]>nn_config['data']['minimum_lenght_real_curves']) and (lcu['time'].is_monotonic_increasing) and (time_range>period_i):
                     times = lcu['time'].to_list()
+
                     lc_adapted = ensure_n_elements(times)
+
                     lc_adapted_to_real_sequence = ensure_n_elements(times, n=350)
+
                     lc_phased = ((lc_adapted-np.min(lc_adapted))/period_i)%1
                     sorted_lc_phased = np.sort(lc_phased)
                     time_sequences.append(sorted_lc_phased)
@@ -1739,7 +1742,7 @@ def ensure_n_elements(lst, n=600):
             lst.append(last_element)
     elif len(lst) > n:
         # If the list has more elements than 'n', remove elements from the end of the list
-        lst = lst[:n]
+        lst = lst[:n] #T
 
     return lst
 

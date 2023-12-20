@@ -26,10 +26,10 @@ class LightCurveRandomSampler:
         for i, curve in enumerate(self.lc_reverted):
             for _ in range(self.m):
                 # Randomly select a start index
-                start_index = np.random.randint(0, self.n - self.new_length + 1)
-                
+                #start_index = np.random.randint(0, self.n - self.new_length + 1)
+                random_indexes = np.sort(np.random.choice(self.n, self.new_length, replace=False))
                 # Extract the sequence starting from the start index
-                sample = curve[:, start_index:start_index+self.new_length]
+                sample = curve[:, random_indexes]
                 
                 all_samples.append(sample[np.newaxis, :])  # Add an extra dimension to concatenate later
                 all_labels.append(self.labels[i][np.newaxis, :])

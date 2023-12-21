@@ -103,7 +103,7 @@ if __name__ == "__main__":
         wandb.agent("kxuukijf", function=main, count=100, project="train-classsifier")
     else: 
         main(train_gmm = True, create_samples = True, 
-            train_classifier = True, sensitive_test= False, train_regressor=False,
+            train_classifier = True, sensitive_test= False, train_regressor=True,
              wandb_active = wandb_active, prior=True)
     # create_samples activate samples generation in cnn training
     

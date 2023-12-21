@@ -631,12 +631,14 @@ def run_cnn(create_samples: Any, mean_prior_dict: Dict = None,
             nn_config['training']['EPS'] = wandb.config.EPS
             nn_config['training']['scaling_factor'] = wandb.config.scaling_factor
             vae_model = wandb.config.vae_model
-            sufix_path = wandb.config.sufix_path
+            sufix_path = wandb.config.sufix_path            
             nn_config['training']['layers'] = wandb.config.layers
             nn_config['training']['loss'] = wandb.config.loss
             nn_config['training']['alpha'] = wandb.config.alpha
             config_file['model_parameters']['ID'] =  wandb.config.vae_model
             config_file['model_parameters']['sufix_path'] = wandb.config.sufix_path
+            with open('src/regressor_output.yaml', 'w') as file:
+                yaml.dump(config_file, file)
 
         wandb.config.epochs = nn_config['training']['epochs']
         wandb.config.patience = nn_config['training']['patience']

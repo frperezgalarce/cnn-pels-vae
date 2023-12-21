@@ -25,10 +25,11 @@ from typing import Tuple, Any, Dict, Type, Union, List
 import logging
 import gzip
 from concurrent.futures import ThreadPoolExecutor
+import random 
 
 logging.basicConfig(filename='error_log.txt', level=logging.ERROR)
 #from src.utils import load_yaml
-MIN_PERIOD_VALUE = 0.1
+
 with open('src/paths.yaml', 'r') as file:
     YAML_FILE = yaml.safe_load(file)
 
@@ -54,6 +55,11 @@ with open('src/nn_config.yaml', 'r') as file:
     nn_config = yaml.safe_load(file)
 
 data_sufix: str =   reg_conf_file['model_parameters']['sufix_path']  
+
+if 'LOG' in data_sufix:
+    MIN_PERIOD_VALUE = 0.1
+else: 
+    MIN_PERIOD_VALUE = np.log(0.1)
 
 def plot_training(epochs_range, train_loss_values, val_loss_values,train_accuracy_values,  val_accuracy_values):
     plt.figure(figsize=(12, 4))
@@ -526,6 +532,8 @@ def get_ids(n=1):
 
     return example_test, example_train, values_count
 
+
+'''
 def load_id_period_to_sample(classes: List[str] = [], period: List[float] = [], 
                              factor1: float = 0.8, factor2: float = 1.2) -> pd.DataFrame:
     """
@@ -585,7 +593,50 @@ def load_id_period_to_sample(classes: List[str] = [], period: List[float] = [],
         df = pd.concat(samples, axis=0).reset_index(drop=True)
 
     return df
+'''
 
+def load_id_period_to_sample(classes: List[str] = [], period: List[float] = []) -> pd.DataFrame:
+    """
+    Load and sample data based on specified classes and periods.
+
+    This function loads data from a specified path, filters and samples it according to the given classes and period criteria.
+    It supports handling of log-transformed period values.
+
+    Parameters:
+    classes (List[str]): List of classes to filter the data. If empty, a random sample is returned.
+    period (List[float]): List of period values to use for filtering, corresponding to each class.
+
+    Returns:
+    pd.DataFrame: A DataFrame containing the sampled data based on the provided criteria.
+    """
+    PATH_ZIP_LCs = (PATH_DATA_FOLDER + '/time_series/real/OGLE3_lcs_I_meta_snr5_augmented_folded_trim600_' + 
+                   data_sufix + '.npy.gz')
+    print('Loading from:\n', PATH_ZIP_LCs)
+    with gzip.open(PATH_ZIP_LCs, 'rb') as f:
+        np_data = np.load(f, allow_pickle=True)
+
+    df = np_data.item()['meta'][['OGLE_id', 'Period', 'Type']]
+
+    black_list = pd.read_csv('data/black_list.csv')
+
+    df = df[~df.OGLE_id.isin(black_list.ID.to_list())]
+    if len(classes) == 0: 
+        raise('There is not a label for sampling')
+    else:
+        samples = []
+        counter = 0
+        for t in classes:
+            sample = pd.DataFrame()
+            if t == 'ELL':
+                sample = df[df['Type'] == 'ECL'].sample(n=1)
+            else:
+                filtered_df = df[(df['Type'] == t)]
+                closest_idx = (filtered_df['Period'] - period[counter]).abs().nsmallest(1).index
+                sample = filtered_df.loc[closest_idx]
+            samples.append(sample)
+            counter += 1
+        df = pd.concat(samples, axis=0).reset_index(drop=True)
+    return df
 
 def transform_to_consecutive(input_list, label_encoder):
     unique_elements = sorted(set(input_list))
@@ -1523,8 +1574,8 @@ def revert_light_curve(period, folded_normed_light_curve, original_sequences, fa
         original_magnitudes = ((normed_magnitudes * (original_max - original_min)) + original_min) * faintness
 
         # Ensure a sequence length for real_time
-        real_time = ensure_n_elements(real_time, n=500)
-        original_magnitudes = ensure_n_elements(original_magnitudes, n=500)
+        #real_time = ensure_n_elements(real_time, n=500)
+        #original_magnitudes = ensure_n_elements(original_magnitudes, n=500)
         # Convert real_time to NumPy array if it's a PyTorch tensor
         if isinstance(real_time, torch.Tensor):
             if real_time.is_cuda:
@@ -1650,6 +1701,7 @@ def get_time_sequence(n=1, star_class=['RRLYR']):
 
     return time_sequences
 
+'''
 def get_only_time_sequence(n=1, star_class=['RRLYR'], period=[1.0], factor1 = 0.9, factor2=1.1):
     """
     Retrieve time sequences from light curves data for 'n' objects.
@@ -1672,7 +1724,7 @@ def get_only_time_sequence(n=1, star_class=['RRLYR'], period=[1.0], factor1 = 0.
         new_factor1 = 1
         new_factor2 = 1
         while(fail):
-            if period[star_counter]<=0: 
+            if period[star_counter]< MIN_PERIOD_VALUE: 
                 period[star_counter] = MIN_PERIOD_VALUE
             counter = counter + 1
             try: 
@@ -1716,6 +1768,54 @@ def get_only_time_sequence(n=1, star_class=['RRLYR'], period=[1.0], factor1 = 0.
                 #logging.error(f"[get_only_time_sequence] The light curve was not loaded: {error}")
         star_counter = star_counter + 1
     return time_sequences, original_sequences
+'''
+
+def get_only_time_sequence(n=1, star_class=['RRLYR'], period=[1.0]):
+    """
+    Retrieve time sequences from light curves data for 'n' objects.
+    Parameters:
+        n (int): Number of objects to sample.
+    Returns:
+        list: A list of lists containing time sequences from the light curves of 'n' objects.
+    """
+    
+    n = int(n)
+    df_id_period = load_id_period_to_sample(star_class, period=period)
+    
+    df_id_period[['SURVEY', 'FIELD', 'CLASS', 'NUMBER']] = df_id_period['OGLE_id'].str.split('-', expand=True)
+    time_sequences = []
+    original_sequences = []
+
+    star_counter = 0
+    for star in tqdm(star_class, desc='Selecting light curves'):
+        if period[star_counter] < MIN_PERIOD_VALUE: 
+            period[star_counter] = MIN_PERIOD_VALUE
+        
+        closest_idx = (df_id_period['Period'] - period[star_counter]).abs().idxmin()
+
+        new_label = df_id_period.loc[closest_idx]['OGLE_id']
+
+        path_lc = (PATH_LIGHT_CURVES_OGLE + new_label.split('-')[1].lower() +
+            '/' + new_label.split('-')[2].lower() + '/phot/I/' + new_label + '.dat')
+
+        lcu = pd.read_table(path_lc, sep=" ", names=['time', 'magnitude', 'error'])
+        lcu = lcu.reset_index()
+
+        if 'level_0' in lcu.columns: 
+            lcu = lcu.dropna(axis=1)
+            lcu.columns = ['time', 'magnitude', 'error']
+
+        lcu = lcu.dropna(axis=0) 
+        period_i = df_id_period[df_id_period.OGLE_id==new_label].Period.values[0]
+        times = lcu['time'].to_list()
+        lc_adapted = ensure_n_elements(times)
+        lc_adapted_to_real_sequence = ensure_n_elements(times, n=350)
+        lc_phased = ((lc_adapted-np.min(lc_adapted))/period_i)%1
+        sorted_lc_phased = np.sort(lc_phased)
+        time_sequences.append(sorted_lc_phased)
+        original_sequences.append(lc_adapted_to_real_sequence)
+        star_counter = star_counter + 1
+    return time_sequences, original_sequences
 
 def ensure_n_elements(lst, n=600):
     """
@@ -1726,24 +1826,18 @@ def ensure_n_elements(lst, n=600):
         n (int): The desired number of elements.
 
     Returns:
-        list: The modified list with 'n' elements.
+        array: The modified array with 'n' elements.
     """
-    
-    #print('light curve length: ', len(lst))
     if len(lst) < n:
-        #print(lst)
-        # If the list has fewer elements than 'n', calculate the differences between consecutive elements
-        differences = [lst[i + 1] - lst[i] for i in range(len(lst) - 1)]
-
-        # Calculate the cumulative sum of differences and add it to the last element to complete the list
-        last_element = lst[-1]
+        differences = [j - i for i, j in zip(lst[:-1], lst[1:])]
+        mean_difference = sum(differences) / len(differences)
         while len(lst) < n:
-            last_element += np.mean(differences) + np.random.uniform(np.min(differences), np.max(differences), 1)
-            lst.append(last_element)
+            lst.append(lst[-1]+mean_difference)
     elif len(lst) > n:
-        # If the list has more elements than 'n', remove elements from the end of the list
-        lst = lst[:n] #T
+        lst = random.sample(lst, n)
+        lst.sort()
 
+    lst = np.array(lst, dtype=float)
     return lst
 
 def get_time_from_period(period, phased_time,  example_sequence, sequence_length=600): 
@@ -1771,11 +1865,8 @@ def get_time_from_period(period, phased_time,  example_sequence, sequence_length
     if len(example_sequence) > 0:
         k_min = (np.quantile(example_sequence, 0.01) / period)
         k_max = (np.quantile(example_sequence, 0.99) / period)
-        #print(k_min, k_max)
     else:
-        k_min =  40.0
-        k_max =  200.0
-        #raise ValueError("example_sequence is empty, cannot perform min/max operations.")
+        raise ValueError("example_sequence is empty, cannot perform min/max operations.")
 
     if isinstance(k_min, np.ndarray):
         k_min = torch.tensor(k_min).to(period.device)
@@ -1787,10 +1878,8 @@ def get_time_from_period(period, phased_time,  example_sequence, sequence_length
     k_values = torch.rand(sequence_length).to(period.device) * (k_max - k_min) + k_min
 
     # Calculate the minimum value of the example sequence
-    try:
-        min_sequence = np.min(example_sequence)
-    except: 
-        min_sequence = 400.0
+    min_sequence = np.min(example_sequence)
+
     # Ensure phased_time is a PyTorch tensor and on the same device as 'period'
     if isinstance(phased_time, np.ndarray):
         phased_time = torch.tensor(phased_time).to(period.device)
@@ -1798,7 +1887,6 @@ def get_time_from_period(period, phased_time,  example_sequence, sequence_length
     # Ensure min_sequence is a PyTorch tensor and on the same device as 'period'
     if isinstance(min_sequence, np.ndarray):
         min_sequence = torch.tensor(min_sequence).to(period.device)
-
 
     # Calculate the time sequence using vectorized operations
     time_sequence = min_sequence + (period)*(k_values + phased_time)

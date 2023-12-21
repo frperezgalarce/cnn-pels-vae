@@ -115,8 +115,7 @@ class SyntheticDataBatcher:
         
         np.set_printoptions(suppress=True)
         times, original_sequences =  utils.get_only_time_sequence(n=1, star_class=lb, 
-                                                                 period = period, factor1=0.8, 
-                                                                 factor2= 1.2)
+                                                                 period = period)
         times = np.array(times) 
         original_sequences = np.array(original_sequences) 
         times = torch.from_numpy(times).to(self.device)

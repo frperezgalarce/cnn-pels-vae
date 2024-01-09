@@ -18,7 +18,7 @@ from src.vae.vae_models import *
 import wandb
 from sklearn.model_selection import train_test_split
 import itertools
-from sklearn.preprocessing import LabelEncoder
+#from sklearn.preprocessing import LabelEncoder
 from sklearn.metrics import recall_score
 import pickle
 from typing import Tuple, Any, Dict, Type, Union, List
@@ -1840,7 +1840,7 @@ def ensure_n_elements(lst, n=600):
     lst = np.array(lst, dtype=float)
     return lst
 
-def get_time_from_period(period, phased_time,  example_sequence, sequence_length=600): 
+def get_time_from_period(period, phased_time,  example_sequence, sequence_length=600, verbose =False): 
     """
     Generate a time sequence based on the provided period, phased_time (folded times),
     sequence length, and example sequence.
@@ -1863,8 +1863,11 @@ def get_time_from_period(period, phased_time,  example_sequence, sequence_length
     """
     # Calculate the range for 'k' values based on the minimum and maximum values of example_sequence
     if len(example_sequence) > 0:
-        k_min = (np.quantile(example_sequence, 0.01) / period)
-        k_max = (np.quantile(example_sequence, 0.99) / period)
+        k_min = int(np.quantile(example_sequence, 0.001) / period)
+        k_max = int(np.quantile(example_sequence, 0.999) / period)
+        if k_min>k_max: 
+            k_min = 1000
+            k_max = 4000
     else:
         raise ValueError("example_sequence is empty, cannot perform min/max operations.")
 
@@ -1875,10 +1878,20 @@ def get_time_from_period(period, phased_time,  example_sequence, sequence_length
         k_max = torch.tensor(k_max).to(period.device)
 
     # Generate an array of random 'k' values within the specified range
-    k_values = torch.rand(sequence_length).to(period.device) * (k_max - k_min) + k_min
+    if verbose:
+        print('k_min, k_max: ', k_min, k_max)
+        
+    k_values = torch.randint(low=k_min, high=k_max + 1, size=(sequence_length,)).to(period.device)
+    k_values = k_values.float()  # Convert to float32
+
+    if verbose:
+        print('k_values: ', k_values)
 
     # Calculate the minimum value of the example sequence
     min_sequence = np.min(example_sequence)
+
+    if verbose: 
+        print('min_sequence: ', min_sequence)
 
     # Ensure phased_time is a PyTorch tensor and on the same device as 'period'
     if isinstance(phased_time, np.ndarray):
@@ -1889,8 +1902,14 @@ def get_time_from_period(period, phased_time,  example_sequence, sequence_length
         min_sequence = torch.tensor(min_sequence).to(period.device)
 
     # Calculate the time sequence using vectorized operations
+    period = period.float()  # Convert tensor1 to float32
+    phased_time = phased_time.float()  # Convert tensor2 to float32
+
     time_sequence = min_sequence + (period)*(k_values + phased_time)
 
+    if verbose: 
+        print('time_sequence: ', time_sequence)
+    
     return time_sequence
 
 def compare_folded_crude_lc(xhat_mu, lc_reverted, cls=[], period=[], wandb_active=False):

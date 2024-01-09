@@ -48,51 +48,44 @@ class CNN(nn.Module):
         super(CNN, self).__init__()
 
         self.layers = layers
-        self.conv1 = nn.Conv1d(in_channels=2, out_channels=30, kernel_size=6, stride=1)
-        init.xavier_uniform_(self.conv1.weight)  # Xavier initialization for conv1
+        self.conv1 = nn.Conv1d(in_channels=2, out_channels=8, kernel_size=6, stride=1)
+        init.xavier_uniform_(self.conv1.weight)  
 
-        self.bn1 = nn.BatchNorm1d(30)
+        self.bn1 = nn.BatchNorm1d(8)
         self.pool1 = nn.MaxPool1d(2)
         
-        self.conv2 = nn.Conv1d(in_channels=30, out_channels=60, kernel_size=6, stride=1)
-        init.xavier_uniform_(self.conv2.weight)  # Xavier initialization for conv2
+        self.conv2 = nn.Conv1d(in_channels=8, out_channels=16, kernel_size=6, stride=1)
+        init.xavier_uniform_(self.conv2.weight)  
 
-        self.bn2 = nn.BatchNorm1d(60)
+        self.bn2 = nn.BatchNorm1d(16)
         self.pool2 = nn.MaxPool1d(2)
 
-        if self.layers == 3: 
-            self.conv3 = nn.Conv1d(in_channels=60, out_channels=60, kernel_size=6, stride=1)
-            init.xavier_uniform_(self.conv3.weight)  # Xavier initialization for conv3
-
-            self.bn3 = nn.BatchNorm1d(60)
+        if self.layers > 2: 
+            self.conv3 = nn.Conv1d(in_channels=16, out_channels=32, kernel_size=6, stride=1)
+            init.xavier_uniform_(self.conv3.weight)  
+            self.bn3 = nn.BatchNorm1d(32)
             self.pool3 = nn.MaxPool1d(2)  
         
-        if self.layers == 4: 
-            self.conv3 = nn.Conv1d(in_channels=60, out_channels=60, kernel_size=6, stride=1)
-            init.xavier_uniform_(self.conv3.weight)  # Xavier initialization for conv3
-            self.bn3 = nn.BatchNorm1d(60)
-            self.pool3 = nn.MaxPool1d(2)  
-
-            self.conv4 = nn.Conv1d(in_channels=60, out_channels=60, kernel_size=6, stride=1)
-            init.xavier_uniform_(self.conv4.weight)  # Xavier initialization for conv3
-
-            self.bn4 = nn.BatchNorm1d(60)
+        if self.layers > 3: 
+            self.conv4 = nn.Conv1d(in_channels=32, out_channels=64, kernel_size=6, stride=1)
+            init.xavier_uniform_(self.conv4.weight)  
+            self.bn4 = nn.BatchNorm1d(64)
             self.pool4 = nn.MaxPool1d(2)  
 
         if self.layers == 2:
-            self.fc1 = nn.Linear(4260, 200)
-            init.xavier_uniform_(self.fc1.weight)  # Xavier initialization for fc1
+            self.fc1 = nn.Linear(1136, 200)
+            init.xavier_uniform_(self.fc1.weight)  
         elif self.layers == 3:
-            self.fc1 = nn.Linear(1980, 200)
-            init.xavier_uniform_(self.fc1.weight)  # Xavier initialization for fc1
+            self.fc1 = nn.Linear(1056, 200)
+            init.xavier_uniform_(self.fc1.weight) 
         elif self.layers == 4:
-            self.fc1 = nn.Linear(840, 200)
-            init.xavier_uniform_(self.fc1.weight)  # Xavier initialization for fc1
+            self.fc1 = nn.Linear(896, 200)
+            init.xavier_uniform_(self.fc1.weight) 
 
-        self.dropout1 = nn.Dropout(0.2)
+        self.dropout1 = nn.Dropout(0.1)
         
         self.fc2 = nn.Linear(200, num_classes)
-        init.xavier_uniform_(self.fc2.weight)  # Xavier initialization for fc2
+        init.xavier_uniform_(self.fc2.weight)  
 
         self.dropout2 = nn.Dropout(0.2)
 
@@ -102,11 +95,14 @@ class CNN(nn.Module):
         x = self.conv1(x)
         x = self.bn1(x)
         x = F.tanh(x)
-        x = self.pool1(x)
+        x = self.pool1(x)        
+
         
         x = self.conv2(x)
         x = self.bn2(x)
+        
         x = F.tanh(x)
+        
         x = self.pool2(x)
 
         if self.layers == 3: 
@@ -114,7 +110,7 @@ class CNN(nn.Module):
             x = self.bn3(x)
             x = F.tanh(x)
             x = self.pool3(x)
-
+            
         if self.layers == 4: 
             x = self.conv3(x)
             x = self.bn3(x)
@@ -125,17 +121,17 @@ class CNN(nn.Module):
             x = self.bn4(x)
             x = F.tanh(x)
             x = self.pool4(x)
-
         
-        x = x.view(x.size(0), -1)  # Flatten the tensor
+        x = x.view(x.size(0), -1)  
         x = self.fc1(x)
         x = F.tanh(x)
-        #x = self.dropout1(x)
+        x = self.dropout1(x)
         
         x = self.fc2(x)
-        #x = self.dropout2(x)
+        x = self.dropout2(x)
+        
         if (nn_config['training']['loss']=='NLLLoss') or (nn_config['training']['loss']=='focalLoss'):
-            return F.log_softmax(x, dim=1)  # Optional softmax at the end
+            return F.log_softmax(x, dim=1)  
         else: 
             return x
 
@@ -197,7 +193,7 @@ def evaluate_and_plot_cm_from_dataloader(model, dataloader, label_encoder, title
     
     return cm
 
-def get_dict_class_priorization(model, dataloader):
+def get_dict_class_priorization(model, dataloader, ranking_method='CCR'):
     all_y_data = []
     all_predicted = []
     model.eval()  # Switch to evaluation mode
@@ -216,24 +212,55 @@ def get_dict_class_priorization(model, dataloader):
             all_y_data.extend(y_data.cpu().numpy())
             all_predicted.extend(predicted.cpu().numpy()) 
     try:
-        cm = confusion_matrix(all_y_data, all_predicted, normalize='true')
+        cm = confusion_matrix(all_y_data, all_predicted)
     except ValueError as e:
         print(f"An error occurred: {e}")
         print(f"y_data shape: {len(all_y_data)}, predicted shape: {len(all_predicted)}")
         return None
     print(cm)
-    ranking = rank_classes(cm)
+    ranking = rank_classes(cm, method=ranking_method)
     return ranking
 
-def rank_classes(confusion_matrix):
-    # Calculate Correct Classification Rate (CCR) for each class
-    ccrs = np.diag(confusion_matrix) / np.sum(confusion_matrix, axis=1)
-    
-    # Rank classes based on CCR
-    class_ranking = np.argsort(ccrs)[::-1]  # Sorting in descending order
+def find_argmax_off_diagonal(matrix):
+    # Create a copy to avoid modifying the original matrix
+    matrix_copy = np.array(matrix)
+    # Zero out the diagonal elements
+    np.fill_diagonal(matrix_copy, 0)
+    # Finding the indices of the maximum off-diagonal value
+    argmax_indices = np.unravel_index(np.argmax(matrix_copy, axis=None), matrix_copy.shape)
+    return argmax_indices
 
-    # Return the ranking and corresponding CCRs
-    return class_ranking, ccrs[class_ranking]
+def rank_classes(confusion_matrix, method='CCR', verbose=False):
+    if method == 'CCR':
+        ccrs = np.diag(confusion_matrix) / np.sum(confusion_matrix, axis=1)
+        class_ranking = np.argsort(ccrs)
+        return class_ranking, ccrs[class_ranking]
+
+    elif method == 'max_confusion':
+        off_diagonal_sum = np.sum(confusion_matrix, axis=1) - np.diag(confusion_matrix)
+        class_ranking = np.argsort(off_diagonal_sum)[::-1]  
+        return class_ranking, off_diagonal_sum[class_ranking]
+
+    elif method == 'max_pairwise_confusion':
+        m = confusion_matrix
+        class_ranking = []
+        while len(class_ranking)<m.shape[0]:
+            if verbose:
+                print(find_argmax_off_diagonal(m))
+            (a,b) = find_argmax_off_diagonal(m)
+            m[a,b] = 0
+            m[b,a] = 0
+            if a not in class_ranking:
+                class_ranking.append(a)
+            if b not in class_ranking:
+                class_ranking.append(b)
+            if verbose:
+                print(a,b)
+                print(m)
+                print(class_ranking)
+        return np.asarray(class_ranking), m
+    else:
+        raise ValueError("Unknown method: {}".format(method))
 
 def train_one_epoch_alternative(
         model: torch.nn.Module, 
@@ -591,18 +618,7 @@ def run_cnn(create_samples: Any, mean_prior_dict: Dict = None,
     class_weights = np.sqrt(class_weights)
     class_weights = torch.tensor(class_weights).to(device, dtype=x_train.dtype)
     
-    print(class_weights)
-    if nn_config['training']['loss']=='CrossEntropyLoss':
-        criterion = nn.CrossEntropyLoss(weight=class_weights) 
-        criterion_synthetic_samples = nn.CrossEntropyLoss(weight=class_weights) 
-    elif nn_config['training']['loss']=='NLLLoss': 
-        criterion = nn.NLLLoss(weight=class_weights) 
-        criterion_synthetic_samples = nn.NLLLoss(weight=class_weights) 
-    elif  nn_config['training']['loss']=='focalLoss':
-        criterion = focal_loss(alpha=class_weights, gamma=1.5)
-        criterion_synthetic_samples = focal_loss(alpha=class_weights, gamma=1.5)      
-    else: 
-        raise('The required loss is not supported, '+ nn_config['training']['loss'])
+
 
     training_data = utils.move_data_to_device((x_train, y_train), device)
     val_data = utils.move_data_to_device((x_val, y_val), device)
@@ -637,6 +653,10 @@ def run_cnn(create_samples: Any, mean_prior_dict: Dict = None,
             nn_config['training']['alpha'] = wandb.config.alpha
             config_file['model_parameters']['ID'] =  wandb.config.vae_model
             config_file['model_parameters']['sufix_path'] = wandb.config.sufix_path
+            nn_config['training']['focal_loss_scale'] = wandb.config.focal_loss_scale
+            nn_config['training']['n_oversampling'] = wandb.config.n_oversampling
+            nn_config['training']['ranking_method'] = wandb.config.ranking_method
+
             with open('src/regressor_output.yaml', 'w') as file:
                 yaml.dump(config_file, file)
 
@@ -663,6 +683,9 @@ def run_cnn(create_samples: Any, mean_prior_dict: Dict = None,
         wandb.config.layers =  nn_config['training']['layers']
         wandb.config.loss =  nn_config['training']['loss']
         wandb.config.alpha =  nn_config['training']['alpha']
+        wandb.config.focal_loss_scale = nn_config['training']['focal_loss_scale']
+        wandb.config.n_oversampling = nn_config['training']['n_oversampling']
+        wandb.config.ranking_method = nn_config['training']['ranking_method']
 
 
     epochs = nn_config['training']['epochs']
@@ -678,12 +701,27 @@ def run_cnn(create_samples: Any, mean_prior_dict: Dict = None,
     scaling_factor= nn_config['training']['scaling_factor'] 
     opt_method= nn_config['training']['opt_method']
     alpha = nn_config['training']['alpha']
-
-
+    focal_loss_scale = nn_config['training']['focal_loss_scale']
+    n_oversampling = nn_config['training']['n_oversampling'] 
+    ranking_method = nn_config['training']['ranking_method']
 
     train_dataloader = create_dataloader(training_data, batch_size)
     val_dataloader = create_dataloader(val_data, batch_size)
     test_dataloader = create_dataloader(testing_data, batch_size)
+
+
+    print(class_weights)
+    if nn_config['training']['loss']=='CrossEntropyLoss':
+        criterion = nn.CrossEntropyLoss(weight=class_weights) 
+        criterion_synthetic_samples = nn.CrossEntropyLoss(weight=class_weights) 
+    elif nn_config['training']['loss']=='NLLLoss': 
+        criterion = nn.NLLLoss(weight=class_weights) 
+        criterion_synthetic_samples = nn.NLLLoss(weight=class_weights) 
+    elif  nn_config['training']['loss']=='focalLoss':
+        criterion = focal_loss(alpha=class_weights, gamma=focal_loss_scale)
+        criterion_synthetic_samples = focal_loss(alpha=class_weights, gamma=focal_loss_scale)      
+    else: 
+        raise('The required loss is not supported, '+ nn_config['training']['loss'])
 
     beta_actual = beta_initial
 
@@ -700,7 +738,7 @@ def run_cnn(create_samples: Any, mean_prior_dict: Dict = None,
         if opt_method=='twolosses' and create_samples and harder_samples: 
             if epoch>10 and priorization:
 
-                ranking, _ = get_dict_class_priorization(model, train_dataloader)
+                ranking, _ = get_dict_class_priorization(model, train_dataloader, ranking_method=ranking_method)
                 dict_priorization = {}
                 ranking_penalization = 2
                 
@@ -711,11 +749,12 @@ def run_cnn(create_samples: Any, mean_prior_dict: Dict = None,
 
                 synthetic_data_loader = batcher.create_synthetic_batch(b=beta_actual, 
                                                                     wandb_active=wandb_active, 
-                                                                    samples_dict = dict_priorization)
+                                                                    samples_dict = dict_priorization, 
+                                                                    oversampling = True, n_oversampling=n_oversampling)
             else: 
                 synthetic_data_loader = batcher.create_synthetic_batch(b=beta_actual, 
                                                     wandb_active=wandb_active, 
-                                                    samples_dict = None)
+                                                    samples_dict = None, oversampling = True, n_oversampling=n_oversampling)
 
             beta_actual = beta_actual*beta_decay_factor
             harder_samples = False

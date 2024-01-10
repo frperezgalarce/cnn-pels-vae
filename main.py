@@ -61,7 +61,7 @@ def main(train_gmm: Optional[bool] = True, create_samples: Optional[bool] = True
     
     if train_gmm:
         print('Fitting Gaussian mixture models') 
-        bgmm.fit_gausians(mean_prior_dict, columns= ['Type','Period', 'teff_val', '[Fe/H]_J95', 'abs_Gmag', 'radius_val', 'logg'])
+        bgmm.fit_gausians(prior, columns= ['Type','Period', 'teff_val', '[Fe/H]_J95', 'abs_Gmag', 'radius_val', 'logg'])
         print('Gaussian were fitted')
 
     if train_classifier: 

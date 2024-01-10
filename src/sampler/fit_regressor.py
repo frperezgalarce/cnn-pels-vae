@@ -253,15 +253,11 @@ def apply_regression(vae_model, samples: Union[np.ndarray, List] = None,  from_v
         print('after dropping duplicated objects')
         print('meta: ', meta_.shape)
         print('mu: ', mu_.shape)
-        #TODO: check if assess by class or using all the samples
         z_hat = process_regressors(reg_conf_file, phys2=dataset.phy_names, meta_= meta_, mu_=mu_,
                                   samples= None, from_vae=from_vae, 
-                                  train_rf=True)
+                                  train_rf=True, grid_search=False)
     else: 
         z_hat = process_regressors(reg_conf_file=reg_conf_file, meta_=None,
                                 phys2=phys2, mu_=None, samples=samples, 
-                                from_vae=from_vae, train_rf=False)
+                                from_vae=from_vae, train_rf=False, grid_search=False)
     return z_hat
-        
-if __name__ == "__main__":
-    main()

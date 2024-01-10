@@ -1560,6 +1560,7 @@ def revert_light_curve(period, folded_normed_light_curve, original_sequences, fa
 
         normed_magnitudes_min = np.min(folded_normed_light_curve[i,:,1])
         normed_magnitudes_max = np.max(folded_normed_light_curve[i,:,1])
+        
         normed_magnitudes = ((folded_normed_light_curve[i,:,1]-normed_magnitudes_min)/
                             (normed_magnitudes_max-normed_magnitudes_min))
 

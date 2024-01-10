@@ -82,12 +82,12 @@ class CNN(nn.Module):
             self.fc1 = nn.Linear(896, 200)
             init.xavier_uniform_(self.fc1.weight) 
 
-        self.dropout1 = nn.Dropout(0.1)
+        #self.dropout1 = nn.Dropout(0.1)
         
         self.fc2 = nn.Linear(200, num_classes)
         init.xavier_uniform_(self.fc2.weight)  
 
-        self.dropout2 = nn.Dropout(0.2)
+        #self.dropout2 = nn.Dropout(0.1)
 
 
 
@@ -125,10 +125,10 @@ class CNN(nn.Module):
         x = x.view(x.size(0), -1)  
         x = self.fc1(x)
         x = F.tanh(x)
-        x = self.dropout1(x)
+        #x = self.dropout1(x)
         
         x = self.fc2(x)
-        x = self.dropout2(x)
+        #x = self.dropout2(x)
         
         if (nn_config['training']['loss']=='NLLLoss') or (nn_config['training']['loss']=='focalLoss'):
             return F.log_softmax(x, dim=1)  
@@ -212,7 +212,7 @@ def get_dict_class_priorization(model, dataloader, ranking_method='CCR'):
             all_y_data.extend(y_data.cpu().numpy())
             all_predicted.extend(predicted.cpu().numpy()) 
     try:
-        cm = confusion_matrix(all_y_data, all_predicted)
+        cm = confusion_matrix(all_y_data, all_predicted, normalize='true')
     except ValueError as e:
         print(f"An error occurred: {e}")
         print(f"y_data shape: {len(all_y_data)}, predicted shape: {len(all_predicted)}")

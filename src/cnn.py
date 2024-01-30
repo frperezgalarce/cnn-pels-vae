@@ -242,7 +242,7 @@ def rank_classes(confusion_matrix, method='CCR', verbose=False):
         return class_ranking, off_diagonal_sum[class_ranking]
 
     elif method == 'max_pairwise_confusion':
-        m = confusion_matrix
+        m = confusion_matrix + confusion_matrix.T 
         class_ranking = []
         while len(class_ranking)<m.shape[0]:
             if verbose:
@@ -250,10 +250,10 @@ def rank_classes(confusion_matrix, method='CCR', verbose=False):
             (a,b) = find_argmax_off_diagonal(m)
             m[a,b] = 0
             m[b,a] = 0
-            if a not in class_ranking:
-                class_ranking.append(a)
             if b not in class_ranking:
                 class_ranking.append(b)
+            if a not in class_ranking:
+                class_ranking.append(a)
             if verbose:
                 print(a,b)
                 print(m)
@@ -625,7 +625,6 @@ def run_cnn(create_samples: Any, mean_prior_dict: Dict = None,
     testing_data = utils.move_data_to_device((x_test, y_test), device)
 
     # Main training loop
-    best_val_loss = float('inf')
     best_f1_val = 0
     harder_samples = True
     no_improvement_count = 0
@@ -650,7 +649,6 @@ def run_cnn(create_samples: Any, mean_prior_dict: Dict = None,
             sufix_path = wandb.config.sufix_path            
             nn_config['training']['layers'] = wandb.config.layers
             nn_config['training']['loss'] = wandb.config.loss
-            nn_config['training']['alpha'] = wandb.config.alpha
             config_file['model_parameters']['ID'] =  wandb.config.vae_model
             config_file['model_parameters']['sufix_path'] = wandb.config.sufix_path
             nn_config['training']['focal_loss_scale'] = wandb.config.focal_loss_scale
@@ -682,7 +680,6 @@ def run_cnn(create_samples: Any, mean_prior_dict: Dict = None,
         wandb.config.limit_to_define_minority_Class =  nn_config['data']['limit_to_define_minority_Class']
         wandb.config.layers =  nn_config['training']['layers']
         wandb.config.loss =  nn_config['training']['loss']
-        wandb.config.alpha =  nn_config['training']['alpha']
         wandb.config.focal_loss_scale = nn_config['training']['focal_loss_scale']
         wandb.config.n_oversampling = nn_config['training']['n_oversampling']
         wandb.config.ranking_method = nn_config['training']['ranking_method']
@@ -700,7 +697,7 @@ def run_cnn(create_samples: Any, mean_prior_dict: Dict = None,
     base_learning_rate= nn_config['training']['base_learning_rate'] 
     scaling_factor= nn_config['training']['scaling_factor'] 
     opt_method= nn_config['training']['opt_method']
-    alpha = nn_config['training']['alpha']
+    alpha = nn_config['training']['EPS']
     focal_loss_scale = nn_config['training']['focal_loss_scale']
     n_oversampling = nn_config['training']['n_oversampling'] 
     ranking_method = nn_config['training']['ranking_method']
@@ -719,7 +716,8 @@ def run_cnn(create_samples: Any, mean_prior_dict: Dict = None,
         criterion_synthetic_samples = nn.NLLLoss(weight=class_weights) 
     elif  nn_config['training']['loss']=='focalLoss':
         criterion = focal_loss(alpha=class_weights, gamma=focal_loss_scale)
-        criterion_synthetic_samples = focal_loss(alpha=class_weights, gamma=focal_loss_scale)      
+        criterion_synthetic_samples = focal_loss(alpha=class_weights, gamma=
+        focal_loss_scale)      
     else: 
         raise('The required loss is not supported, '+ nn_config['training']['loss'])
 
@@ -732,15 +730,14 @@ def run_cnn(create_samples: Any, mean_prior_dict: Dict = None,
     batcher = SyntheticDataBatcher(PP = PP, vae_model=vae_model, n_samples=sinthetic_samples_by_class, 
                                     seq_length = x_train.size(-1), prior=prior)
 
-    priorization = True
     for epoch in range(epochs):
         print(opt_method, create_samples, harder_samples)
         if opt_method=='twolosses' and create_samples and harder_samples: 
-            if epoch>10 and priorization:
+            if epoch>10 and ranking_method!='no_priority':
 
                 ranking, _ = get_dict_class_priorization(model, train_dataloader, ranking_method=ranking_method)
                 dict_priorization = {}
-                ranking_penalization = 2
+                ranking_penalization = 1.5
                 
                 for o in ranking:
                     dict_priorization[label_encoder[o]] =  int(sinthetic_samples_by_class*ranking_penalization)

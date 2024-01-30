@@ -2,11 +2,10 @@ import src.cnn as cnn
 import src.gmm.bgmm as bgmm 
 import src.sampler.create_lc as creator
 import src.sampler.fit_regressor as reg
-from src.utils import load_yaml_priors, load_pp_list, load_id_period_to_sample
+from src.utils import load_yaml_priors, load_pp_list
 import torch
-import argparse
 import yaml
-from typing import List, Optional, Any, Dict
+from typing import Optional, Any, Dict
 import wandb
 
 with open('src/paths.yaml', 'r') as file:
@@ -77,31 +76,30 @@ if __name__ == "__main__":
             'method': 'bayes',
             'metric': {'goal': 'maximize', 'name': 'weighted_f1'},
             'parameters': {
-                'learning_rate': {'min': 0.002, 'max': 0.003},
+                'learning_rate': {'values': [0.002]},
                 'batch_size': {'values': [32]},
-                'patience':{'min': 20, 'max': 40},
-                'repetitions': {'values': [1, 2]},
-                'sinthetic_samples_by_class': {'values': [8,16,32]},
-                'threshold_acc_synthetic': {'min': 0.75, 'max': 0.90},
-                'beta_decay_factor': {'min': 0.96, 'max': 0.98}, 
-                'EPS': {'min': 0.2, 'max': 0.3},
-                'scaling_factor': {'min': 0.3, 'max': 0.5}, 
-                'vae_model': {'values': ['1ojzq1t5', '1qfpknvn', '3iyiphkn', 'gn42liaz']}, 
-                'sufix_path': {'values': ['GAIA3_LOG_IMPUTED_BY_CLASS_6PP', 'GAIA3_6PP', 'GAIA3_LOG_6PP']}, 
-                'layers': {'values': [2, 3, 4]},
+                'patience':{'values': [35]},
+                'repetitions': {'values': [1]},
+                'sinthetic_samples_by_class': {'values': [8]},
+                'threshold_acc_synthetic': {'min': 0.8, 'max': 0.85},
+                'beta_decay_factor': {'min': 0.96, 'max': 0.97}, 
+                'EPS': {'min': 0.2, 'max': 0.25},
+                'scaling_factor': {'values': [0.45]}, 
+                'vae_model': {'values': ['3iyiphkn']}, 
+                'sufix_path': {'values': ['GAIA3_LOG_6PP']}, 
+                'layers': {'values': [4]},
                 'loss': {'values': ['focalLoss']},
-                'alpha': {'min': 0.2, 'max': 0.4},
-                'focal_loss_scale': {'min': 1.5, 'max': 4.0},
-                'n_oversampling': {'min': 1, 'max': 32},
-                'ranking_method': {'values': ['CCR', 'max_pairwise_confusion', 'max_confusion']},
+                'focal_loss_scale': {'min': 2.0, 'max': 4.0},
+                'n_oversampling': {'min': 1, 'max': 5},
+                'ranking_method': {'values': ['max_confusion', 'max_pairwise_confusion']},
             }
         }
         
 
         with open("sweep.yaml", "w") as sweep_file:
             yaml.safe_dump(sweep_config, sweep_file)
-        sweep_id = wandb.sweep(sweep_config, project="train-classsifier")
-        wandb.agent(sweep_id, function=main, count=100, project="train-classsifier")
+        #sweep_id = wandb.sweep(sweep_config, project="train-classsifier")
+        wandb.agent("xm6065ik", function=main, count=100, project="train-classsifier")
     else: 
         main(train_gmm = True, create_samples = True, 
             train_classifier = True, sensitive_test= False, train_regressor=True,

@@ -88,6 +88,7 @@ class SyntheticDataBatcher:
     @staticmethod
     def attempt_sample_load(model_name: str, sampler: 'YourSamplerType', n_samples=nn_config['training']['sinthetic_samples_by_class']) -> Tuple[Union[np.ndarray, None], bool]:
         try:
+            print('Trying samples')
             samples = sampler.modify_and_sample(model_name, n_samples=n_samples, 
                                                 mode= nn_config['sampling']['mode'])
             return samples, True
@@ -161,7 +162,7 @@ class SyntheticDataBatcher:
             lb = self.create_labels(star_class, lb, samples_dict)
         return lb
     
-    def get_latent_space(self, all_classes_samples, index_period):
+    def get_latent_space(self, all_classes_samples):
         z = reg.process_regressors(self.config_file, phys2=self.PP, samples= all_classes_samples, 
                                             from_vae=False, train_rf=False) 
         z = torch.tensor(z, device=self.device)
@@ -231,7 +232,7 @@ class SyntheticDataBatcher:
         
         index_period = self.PP.index('Period')
 
-        z = self.get_latent_space(all_classes_samples, index_period)
+        z = self.get_latent_space(all_classes_samples)
         
         lb = np.array(lb)  
         pp = torch.tensor(all_classes_samples, device=self.device)

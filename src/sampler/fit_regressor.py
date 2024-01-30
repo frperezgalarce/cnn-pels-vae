@@ -1,24 +1,22 @@
-# Import necessary libraries
 import socket
 import torch
 import numpy as np
 from sklearn.metrics import mean_squared_error, mean_absolute_error, r2_score
 from math import sqrt
 from sklearn.ensemble import RandomForestRegressor
-from sklearn.model_selection import GridSearchCV, KFold, train_test_split
-
+from sklearn.model_selection import train_test_split
 import pickle
+from sklearn.ensemble import RandomForestRegressor
+from typing import Dict, Type, Any, List, Union, Optional, Tuple
 import seaborn as sns
 import warnings
 import matplotlib.pyplot as plt
 import yaml
-import os
-from typing import Tuple, Any, Dict, Type, Union, List
-from sklearn import preprocessing
 
 #sys.path.append('./')
 from src.vae.datasets import Astro_lightcurves
 from src.utils import evaluate_encoder, load_model_list
+
 warnings.filterwarnings('ignore')
 
 # Read configurations from a YAML file
@@ -31,10 +29,8 @@ save_plots: bool = reg_conf_file['save_plots']
 save_tables: bool = reg_conf_file['save_tables']
 
 
-
-import pickle
-from sklearn.ensemble import RandomForestRegressor
-from typing import Dict, Type, Any, List, Union, Optional
+with open('src/regressor.yaml', 'r') as file:
+    reg_conf_file: Dict[str, Any] = yaml.safe_load(file)
 
 def process_regressors(reg_conf_file: Dict[str, Any],
                        meta_: Optional[Dict[str, Any]] = None,
@@ -168,44 +164,8 @@ def load_predict(pp: np.ndarray, filename: str = 'file.pkl') -> np.ndarray:
 def save_model(model: Any, filename: str = 'filename_model.pkl') -> None:
     pickle.dump(model, open(filename, 'wb'))
 
-def train_rf_with_gs(p: np.ndarray, z: np.ndarray):
-
-    # Split the data into training and test sets (70% train, 30% test)
-    p_train, p_test, z_train, z_test = train_test_split(p, z, test_size=0.2, random_state=42)
-
-    # Define the hyperparameters and their possible values for RandomForestRegressor
-    param_grid = {
-        'n_estimators': [10, 50, 100, 200],
-        'max_depth': [3, 5, 7, 10],
-        'min_samples_split': [2, 5, 10],
-        'min_samples_leaf': [1, 2, 4],
-    }
-
-    # Setup the GridSearch with 5-fold Cross-Validation
-    kf = KFold(n_splits=5, shuffle=True, random_state=42)
-    grid_search = GridSearchCV(RandomForestRegressor(), param_grid, cv=kf, verbose=1, scoring='neg_mean_absolute_error', n_jobs=-1)
-    print('p: ', p_train)
-    print('z: ', z_train)
-    # Fit the data to perform the grid search on training set
-    grid_search.fit(p_train, z_train)
-
-    # Get the best hyperparameters
-    best_params = grid_search.best_params_
-
-    # Train the RandomForestRegressor using the best hyperparameters on the full training set
-    rf_regressor = RandomForestRegressor(**best_params)
-
-    rf_regressor.fit(p_train, z_train)
-
-    # Evaluate the trained model on test set
-    z_pred = rf_regressor.predict(p_test)
-
-    print_metrics_regression(z_test, z_pred)
-
-    return rf_regressor, best_params
-    
 # Function to train the model using specified configurations
-def train_model(reg: Type, config_dic: Dict[str, Any], name: str, p: np.ndarray, z: np.ndarray, test_size=0.0) -> Any:
+def train_model(reg: Type, config_dic: Dict[str, Any], name: str, p: np.ndarray, z: np.ndarray, test_size=0.1) -> Any:
     model = reg(**config_dic[name])
     try:
         print('p: ', p.shape)
@@ -229,7 +189,6 @@ def train_model(reg: Type, config_dic: Dict[str, Any], name: str, p: np.ndarray,
         print('Fail') 
     return model
 
-# Main function to set up the model and training process
 def apply_regression(vae_model, samples: Union[np.ndarray, List] = None,  from_vae: bool = False, 
         train_rf: bool = True, 
         phys2 = ['abs_Gmag', 'teff_val', 'Period', 'radius_val', '[Fe/H]_J95']) -> None:

@@ -2,7 +2,7 @@ from src.sampler.getbatch import SyntheticDataBatcher
 from src.utils import plot_batch 
 import yaml 
 from typing import List, Optional, Any, Dict
-from src.utils import load_yaml_priors, load_pp_list, load_id_period_to_sample
+from src.utils import load_pp_list
 import pickle
 
 with open('src/regressor.yaml', 'r') as file:

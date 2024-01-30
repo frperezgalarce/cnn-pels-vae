@@ -59,7 +59,7 @@ class ModifiedGaussianSampler:
         sample_interval = (iterations - burn_in) // n_samples
 
         for i in range(1, iterations+100):
-            proposal_x = current_x + np.random.normal(0, 0.001, size=len(self.features)) 
+            proposal_x = current_x + np.random.normal(0, 0.001, size=len(self.features))*current_x 
             acceptance_ratio = (self.p(proposal_x) ** self.b) / (self.p(current_x) ** self.b)           
             if np.random.rand() < acceptance_ratio:
                 current_x = proposal_x
@@ -119,11 +119,7 @@ class ModifiedGaussianSampler:
 
     def modify_and_sample(self, path: str, n_samples=5, mode='allcomponents') -> np.ndarray:
         np.set_printoptions(suppress=True)
-
-        print(n_samples)
         self.load_p(path)
-        print('Model loaded: ', self.model)
-        print(self.model.means_)
         if mode == 'onecomponent':
             samples = self.metropolis_hasting(n_samples=n_samples)
         elif mode == 'allcomponents': 

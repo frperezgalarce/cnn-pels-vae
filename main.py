@@ -81,15 +81,21 @@ if __name__ == "__main__":
             for sample_size in sample_sizes:
                 for sn_ratio in sn_ratios:
                     for seq_length in seq_lengths:
-                        nn_config['sample_size'] = sample_size
-                        nn_config['sn_ratio'] = sn_ratio
-                        nn_config['seq_length'] = seq_length
-                        nn_config['opt_method'] = method
-                        with open('src/nn_config.yaml', 'w') as file:
+                        nn_config['data']['sample_size'] = sample_size
+                        nn_config['data']['sn_ratio'] = sn_ratio
+                        nn_config['data']['seq_length'] = seq_length
+                        nn_config['data']['opt_method'] = method
+                        try:
+                            with open('src/nn_config.yaml', 'w') as file:
                                 yaml.dump(nn_config, file)
+                                file.flush()  # Force flushing the file buffer to disk
+                        except Exception as e:
+                            print(f"Error writing to file: {e}")
+
                         print(nn_config)
                         wsetup.setup_hyper_opt(main, nn_config)
                         pbar.update(1)
+
     else:
         for sample_size in [10000, 20000, 40000, 80000, 160000, 320000]:
             for ranking_method in ['CCR', 'max_confusion', 'proportion', 'max_pairwise_confusion', 'no_priority']:

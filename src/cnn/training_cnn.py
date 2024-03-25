@@ -128,7 +128,6 @@ def train_one_epoch_alternative(
     val_loss = 0
     if mode=='oneloss':
         for inputs, labels in dataloader:
-            num_batches += 1
             inputs, labels = inputs.to(device), labels.to(device)
             optimizer.zero_grad()
             outputs = model(inputs)
@@ -138,7 +137,7 @@ def train_one_epoch_alternative(
             torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=6.0, norm_type=2)
             optimizer.step()
             running_loss += loss.item()
-        val_loss, _, val_f1 = evaluate_dataloader_weighted_metrics(model, val_dataloader, criterion, device)
+        val_loss, _, _ = evaluate_dataloader_weighted_metrics(model, val_dataloader, criterion, device)
 
         return running_loss, model, val_loss
     

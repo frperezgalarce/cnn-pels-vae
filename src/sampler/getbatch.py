@@ -16,8 +16,8 @@ with open('src/nn_config.yaml', 'r') as file:
 
     
 class SyntheticDataBatcher:
-    def __init__(self, config_file_path: str = 'src/regressor.yaml', 
-                 nn_config_path: str = 'src/nn_config.yaml', paths: str = 'src/paths.yaml', PP=[], 
+    def __init__(self, config_file_path: str = 'src/configuration/regressor.yaml', 
+                 nn_config_path: str = 'src/nn_config.yaml', paths: str = 'src/configuration/paths.yaml', PP=[], 
                  vae_model=None, 
                  n_samples=16, seq_length = 100, batch_size=128, prior=False):
         self.device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
@@ -86,7 +86,7 @@ class SyntheticDataBatcher:
         plt.show()
     
     @staticmethod
-    def attempt_sample_load(model_name: str, sampler: 'YourSamplerType', n_samples=nn_config['training']['sinthetic_samples_by_class']) -> Tuple[Union[np.ndarray, None], bool]:
+    def attempt_sample_load(model_name: str, sampler: 'YourSamplerType', n_samples=nn_config['training']['synthetic_samples_by_class']) -> Tuple[Union[np.ndarray, None], bool]:
         try:
             print('Trying samples')
             samples = sampler.modify_and_sample(model_name, n_samples=n_samples, 

@@ -15,7 +15,7 @@ import src.sampler.fit_regressor as reg
 main_path: str = os.path.dirname(os.getcwd())
 copula = False
 
-with open('src/paths.yaml', 'r') as file:
+with open('src/configuration/paths.yaml', 'r') as file:
     YAML_FILE: Dict[str, Any] = yaml.safe_load(file)
 
 PATHS: Dict[str, str] = YAML_FILE['paths']
@@ -23,7 +23,7 @@ PATH_DATA: str = PATHS["PATH_DATA_FOLDER"]
 PATH_MODELS: str = PATHS["PATH_MODELS"]
 save_tables: bool = False
 
-with open('src/regressor.yaml', 'r') as file:
+with open('src/configuration/regressor.yaml', 'r') as file:
     reg_conf_file: Dict[str, Any] = yaml.safe_load(file)
 
 ID: str = reg_conf_file['model_parameters']['ID']

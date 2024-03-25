@@ -11,16 +11,13 @@ from itertools import combinations
 import warnings
 warnings.filterwarnings('ignore')
 
-with open('src/paths.yaml', 'r') as file:
+with open('src/configuration/paths.yaml', 'r') as file:
     YAML_FILE: str = yaml.safe_load(file)
-
 PATHS: str = YAML_FILE['paths']
 PATH_PRIOS: str = PATHS['PATH_PRIOS']
 PATH_PP: str = PATHS['PATH_PP']
-PATH_FIGURES: str = PATHS['PATH_FIGURES']
 
-
-with open('src/regressor.yaml', 'r') as file:
+with open('src/configuration/regressor.yaml', 'r') as file:
     config_file: Dict[str, Any] = yaml.safe_load(file)
 
 sufix_path: str = config_file['model_parameters']['sufix_path']
@@ -131,5 +128,5 @@ def train_and_save(priors: bool = True,
 
             bgmm.save_model('models/bgm_model_'+str(star_class)+'_priors_'+str(priors)+'_PP_'+str(len(columns))+'.pkl')
 
-def fit_gausians(priors=True, columns = ['Type','Period', 'teff_val', '[Fe/H]_J95', 'abs_Gmag', 'radius_val', 'logg']):
+def fit_gaussians(priors=True, columns = ['Type','Period', 'teff_val', '[Fe/H]_J95', 'abs_Gmag', 'radius_val', 'logg']):
     train_and_save(priors = priors, columns= columns)

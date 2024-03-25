@@ -9,7 +9,7 @@ from typing import List, Optional, Any, Dict
 
 copulaMVG = False
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-with open('src/paths.yaml', 'r') as file:
+with open('src/configuration/paths.yaml', 'r') as file:
     YAML_FILE: Dict[str, Any] = yaml.safe_load(file)
 
 PATHS: Dict[str, str] = YAML_FILE['paths']

@@ -25,10 +25,11 @@ import logging
 import gzip
 from concurrent.futures import ThreadPoolExecutor
 import random 
+from sklearn.metrics import confusion_matrix
 
 logging.basicConfig(filename='error_log.txt', level=logging.ERROR)
 
-with open('src/paths.yaml', 'r') as file:
+with open('src/configuration/paths.yaml', 'r') as file:
     YAML_FILE = yaml.safe_load(file)
 
 PATHS =YAML_FILE['paths']
@@ -46,7 +47,7 @@ PATH_MODELS: str = PATHS["PATH_MODELS"]
 PATH_ZIP_GAIA:str = PATHS["PATH_ZIP_GAIA"]
 
 # Read configurations from a YAML file
-with open('src/regressor.yaml', 'r') as file:
+with open('src/configuration/regressor.yaml', 'r') as file:
     reg_conf_file: Dict[str, Any] = yaml.safe_load(file)
 
 with open('src/nn_config.yaml', 'r') as file:
@@ -58,7 +59,7 @@ if 'LOG' in data_sufix:
     MIN_PERIOD_VALUE = 0.1
 else: 
     MIN_PERIOD_VALUE = np.log(0.1)
-
+'''
 def plot_training(epochs_range, train_loss_values, val_loss_values,train_accuracy_values,  val_accuracy_values):
     plt.figure(figsize=(12, 4))
     # Plot the loss values
@@ -81,7 +82,7 @@ def plot_training(epochs_range, train_loss_values, val_loss_values,train_accurac
 
     plt.tight_layout()
     plt.show()
-
+'''
 def read_light_curve_ogle(example_test, example_train, values_count, lenght_lc=100):
     
     numpy_array_lcus_test = np.empty((0, 0, 2))
@@ -96,6 +97,7 @@ def read_light_curve_ogle(example_test, example_train, values_count, lenght_lc=1
                          train_set=False, file_name='test')
     
     def task2():
+        print(len(example_train))
         return insert_lc(example_train, numpy_array_lcus_train,
                          numpy_y_train, values_count=values_count, 
                          signal_noise=nn_config['data']['sn_ratio'], 
@@ -110,6 +112,7 @@ def read_light_curve_ogle(example_test, example_train, values_count, lenght_lc=1
     
     return numpy_array_lcus_train, numpy_array_lcus_test, numpy_y_test, numpy_y_train
 
+'''
 def read_light_curve_ogle_sequential(example_test, example_train, values_count, lenght_lc=100):
 
     numpy_array_lcus_test = np.empty((0, 0, 2)) # initialize the 3D array with zeros
@@ -133,6 +136,7 @@ def read_light_curve_ogle_sequential(example_test, example_train, values_count, 
 
 
     return numpy_array_lcus_train, numpy_array_lcus_test, numpy_y_test, numpy_y_train
+'''
 
 def load_light_curve_ogle():
     print('Loading light curves')
@@ -443,6 +447,7 @@ def plot_cm(cm: np.ndarray,
             title_formatted = title.replace(' ', '_')
             filename = f"{title_formatted}_confusion_matrix_{current_date}.png"
         plt.savefig(filename)
+
         if wandb_active: 
             wandb.log({title: wandb.Image(plt)})
 
@@ -488,10 +493,11 @@ def get_ids(n=1):
     lc_train = pd.read_table(path_train, sep= ',')
 
     example_test  = lc_test[['ID']]
-    #if n>=lc_train.shape[0]:
-    example_train =lc_train[['ID']]
-    #else:
-    #    example_train = lc_train.sample(n)[['ID']]
+    
+    if n>=lc_train.shape[0]:
+        example_train =lc_train[['ID']]
+    else:
+        example_train = lc_train.sample(n)[['ID']]
 
     new_cols_test = example_test.ID.str.split("-", n = 3, expand = True)
     new_cols_test.columns = ['survey', 'field', 'class', 'number']
@@ -518,7 +524,6 @@ def get_ids(n=1):
 
     example_train = example_train[example_train['class'].isin(list(nn_config['data']['classes']))]
     example_test = example_test[example_test['class'].isin(list(nn_config['data']['classes']))]
-
 
     print('clases: ', example_train['class'].unique())
     example_test['class'] = pd.factorize(example_test['class'])[0]
@@ -1456,6 +1461,23 @@ def scatter_hue(x, y, labels, disc=True, c_label=''):
     plt.legend(loc='best', fontsize='x-large')
     plt.show()
 
+def flat_and_quantile(tensor, q):
+    """
+    Manually compute the quantile of a tensor.
+    
+    Parameters:
+    - tensor: A PyTorch tensor.
+    - q: Quantile to compute, a float in [0, 1].
+    
+    Returns:
+    - The q-th quantile of the tensor.
+    """
+    flat_tensor = tensor.view(-1)
+    sorted_tensor, _ = torch.sort(flat_tensor)
+    index = int(q * (sorted_tensor.numel() - 1))
+    return sorted_tensor[index]
+
+
 def quantile(tensor, q):
     sorted_tensor, _ = torch.sort(tensor)
     length = sorted_tensor.shape[0]
@@ -1500,7 +1522,7 @@ def revert_light_curve(period, folded_normed_light_curve,
                             (normed_magnitudes_max-normed_magnitudes_min))
 
         # Generate the time values for the reverted light curve
-        [original_min, original_max] = magnitude_min_max[i]
+        [original_min, original_max, error_mean, error_std] = magnitude_min_max[i]
 
         #real_time =  time #get_time_from_period(period[i], time, example_sequence, sequence_length=600)
 
@@ -1509,23 +1531,17 @@ def revert_light_curve(period, folded_normed_light_curve,
         # Revert the normed magnitudes back to the original magnitudes using min-max scaling and faintness factor
         if noise:
             original_magnitudes = ((normed_magnitudes * (original_max - original_min)) + original_min) * faintness
-            noise_amplitude = (original_max - original_min)
-            random_noise = np.random.normal(0, noise_amplitude * 0.05, original_magnitudes.shape)
+            random_noise = np.random.normal(error_mean, error_std, original_magnitudes.shape)
             original_magnitudes += random_noise
 
         else: 
             original_magnitudes = ((normed_magnitudes * (original_max - original_min)) + original_min) * faintness
 
-        # Ensure a sequence length for real_time
-        #real_time = ensure_n_elements(real_time, n=500)
-        #original_magnitudes = ensure_n_elements(original_magnitudes, n=500)
-        # Convert real_time to NumPy array if it's a PyTorch tensor
         if isinstance(real_time, torch.Tensor):
             if real_time.is_cuda:
                 real_time = real_time.cpu().numpy()
             else:
                 real_time = real_time.numpy()
-        # No need to convert if real_time is already a NumPy array
 
         # Convert original_magnitudes to NumPy array if it's a PyTorch tensor
         if isinstance(original_magnitudes, torch.Tensor):
@@ -1533,7 +1549,6 @@ def revert_light_curve(period, folded_normed_light_curve,
                 original_magnitudes = original_magnitudes.cpu().numpy()
             else:
                 original_magnitudes = original_magnitudes.numpy()
-        # No need to convert if original_magnitudes is already a NumPy array
 
         # Now, you can use np.column_stack without issues
         reverted_light_curve = np.column_stack((original_magnitudes, real_time))
@@ -1587,7 +1602,6 @@ def apply_sensitivity(array, column, a_percentage=20):
     print('array pp in sensitive: ', array)
     return array
 
-#TODO: modify variable and function names get_magnitude_max_min()
 def get_time_sequence(n=1, star_class=['RRLYR']):
     """
     Retrieve time sequences from light curves data for 'n' objects.
@@ -1636,7 +1650,7 @@ def get_time_sequence(n=1, star_class=['RRLYR']):
                 lcu = pd.read_table(path_lc, sep=" ", names=['time', 'magnitude', 'error'])
 
                 if (len(lcu['time'].to_list())>nn_config['data']['minimum_lenght_real_curves']) and (lcu['time'].is_monotonic_increasing):
-                    time_sequences.append([lcu.magnitude.min(), lcu.magnitude.max()])
+                    time_sequences.append([lcu.magnitude.min(), lcu.magnitude.max(), lcu.error.mean(), lcu.error.std()])
                     fail = False
 
             except Exception as error : 
@@ -1884,8 +1898,81 @@ def load_pp_list(vae_model: str) -> List[str]:
     # Generate the PP_list
     PP_list = [value for key, value in pp_mapping.items() if key in phy_params]
     #PP_list = ['Period','teff_val', 'abs_Gmag', 'radius_val', '[Fe/H]_J95', 'logg']
+
+    print('FEATURES: ', PP_list)
+
     return PP_list
 
+def load_metadata():
+    print('#'*50)
+    print('SETUP')
+    print('#'*50)
+
+    with open('src/configuration/paths.yaml', 'r') as file:
+        YAML_FILE: Dict[str, Any] = yaml.safe_load(file)
+
+    PATHS: Dict[str, str] = YAML_FILE['paths']
+    PATH_PRIOS: str = PATHS['PATH_PRIOS']
+    mean_prior_dict: Dict[str, Any] = load_yaml_priors(PATH_PRIOS)
+
+    with open('src/configuration/regressor.yaml', 'r') as file:
+        config_file: Dict[str, Any] = yaml.safe_load(file)
+    return mean_prior_dict, config_file
+
+def pp_sensitive_test(PP_list):
+    print('conducting sensitive test')
+    for pp in PP_list:
+        objects_by_class = {'ACEP':24}#, 'CEP': 24,  'DSCT': 24,  'ECL':24,  'ELL': 24,  'LPV': 24,  'RRLYR':  24,  'T2CEP':24}
+        for key, value in objects_by_class.items():
+            temp_dict = {key: value}
+            creator.get_synthetic_light_curves(None, None, training_cnn=False, plot=False, save_plot=True,
+                                            objects_by_class=temp_dict, sensivity=pp,
+                                            column_to_sensivity=pp)
+            del temp_dict
+
+
+def evaluate_and_plot_cm_from_dataloader(model, dataloader, label_encoder, title, wandb_active: bool = True):
+    all_y_data = []
+    all_predicted = []
+    
+    model.eval()  # Switch to evaluation mode
+
+    with torch.no_grad():  # No need to calculate gradients in evaluation
+        for batch in dataloader:
+            x_data, y_data = batch
+            x_data, y_data = x_data.float(), y_data.float()
+            outputs = model(x_data)
+            _, predicted = torch.max(outputs.data, 1)
+            
+            # Check if y_data is one-hot encoded and convert to label encoding if it is
+            if len(y_data.shape) > 1 and y_data.shape[1] > 1:
+                y_data = torch.argmax(y_data, dim=1)
+            
+            # Move data to CPU and append to lists
+            all_y_data.extend(y_data.cpu().numpy())
+            all_predicted.extend(predicted.cpu().numpy())
+    
+    # Compute confusion matrix
+    try:
+        cm = confusion_matrix(all_y_data, all_predicted, normalize='true')
+    except ValueError as e:
+        print(f"An error occurred: {e}")
+        print(f"y_data shape: {len(all_y_data)}, predicted shape: {len(all_predicted)}")
+        return None
+    
+    print('wandb_active: ', wandb_active)
+    plot_cm(cm, label_encoder, title=title, wandb_active = wandb_active)
+    #export_recall_latex(all_y_data, all_predicted, label_encoder)
+    
+    return cm
+
+def remove_duplicates(my_list):
+    # Using an ordered collection to preserve the order of elements
+    no_duplicates = []
+    for element in my_list:
+        if element not in no_duplicates:
+            no_duplicates.append(element)
+    return no_duplicates
 # Create filenames for the two arrays
 def plot_batch(df1, df1y, label_encoder):
 

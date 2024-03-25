@@ -1,110 +1,107 @@
-import src.cnn as cnn
-import src.gmm.bgmm as bgmm 
-import src.sampler.create_lc as creator
-import src.sampler.fit_regressor as reg
-from src.utils import load_yaml_priors, load_pp_list
 import torch
+from typing import Optional
+
+# Importing custom modules for the various tasks in the machine learning pipeline
+import src.cnn.cnn as cnn
+import src.gmm.bgmm as bgmm
+import src.sampler.fit_regressor as reg
+from src.utils import load_pp_list, pp_sensitive_test, load_metadata
+import src.wandb_setup as wsetup
 import yaml
-from typing import Optional, Any, Dict
-import wandb
-
-with open('src/paths.yaml', 'r') as file:
-    YAML_FILE: Dict[str, Any] = yaml.safe_load(file)
-
-PATHS: Dict[str, str] = YAML_FILE['paths']
-PATH_PRIOS: str = PATHS['PATH_PRIOS']
-PATH_MODELS: str = PATHS['PATH_MODELS']
-mean_prior_dict: Dict[str, Any] = load_yaml_priors(PATH_PRIOS)
-
-with open('src/regressor.yaml', 'r') as file:
-    config_file: Dict[str, Any] = yaml.safe_load(file)
+from tqdm import tqdm
 
 
-print('#'*50)
-print('SETUP')
-print('#'*50)
+def main(train_gmm: Optional[bool] = True, create_samples: Optional[bool] = True,
+         train_classifier: Optional[bool] = True, sensitive_test: Optional[bool] = False,
+         train_regressor: Optional[bool] = True, wandb_active: Optional[bool] = True,
+         prior: Optional[bool] = True) -> None:
+    """
+    Main function to run the data processing and model training pipeline.
 
+    :param train_gmm: Flag to train Gaussian Mixture Models (GMM).
+    :param create_samples: Flag to create samples (used in classifier training).
+    :param train_classifier: Flag to train the classifier.
+    :param sensitive_test: Flag to perform sensitivity testing.
+    :param train_regressor: Flag to train the regressor.
+    :param wandb_active: Flag to activate Weights & Biases integration.
+    :param prior: Flag to use prior knowledge in training.
+    """
 
-def main(train_gmm: Optional[bool] = True, create_samples: Optional[bool] = True, 
-         train_classifier: Optional[bool]=True, sensitive_test: bool = False, 
-         train_regressor: bool = True, wandb_active = True, prior=True) -> None:
+    # Clearing the GPU cache to ensure maximum available memory
     torch.cuda.empty_cache()
 
-    if wandb_active:
-        wandb.init(project='train-classsifier', entity='fjperez10')
-        torch.cuda.empty_cache()
-        vae_model = wandb.config.vae_model
-        sufix_path = wandb.config.sufix_path
-    else: 
-        vae_model: str =   config_file['model_parameters']['ID']   # '1pjeearx'#'20twxmei' trained using TPM using GAIA3 ... using 5 PP 1pjeearx
-        print('Using vae model: '+ vae_model)
-        sufix_path: str =   config_file['model_parameters']['sufix_path']
-        print('sufix path: '+ sufix_path)
+    # Loading metadata and configuration settings
+    mean_prior_dict, config_file = load_metadata()
 
-    PP_list = load_pp_list(vae_model)
-    print('FEATURES: ', PP_list)
+    # Setting up the variational autoencoder (VAE) model using the configuration
+    vae_model, _ = wsetup.set_cvae(wandb_active, config_file)
+
+    # Loading physical parameter (pp) list used in the training process
+    pp_list = load_pp_list(vae_model)
+
+    # Training the regressor if enabled
     if train_regressor:
-        print('training regressor using :', PP_list)
-        reg.apply_regression(vae_model, from_vae= True, train_rf= True, phys2 = PP_list)
+        reg.apply_regression(vae_model, from_vae=True, train_rf=True, phys2=pp_list)
 
+    # Running sensitivity testing if enabled
     if sensitive_test:
-        print('conducting sensitive test')
-        for pp in PP_list:
-            objects_by_class = {'ACEP':24}#, 'CEP': 24,  'DSCT': 24,  'ECL':24,  'ELL': 24,  'LPV': 24,  'RRLYR':  24,  'T2CEP':24}
-            for key, value in objects_by_class.items():
-                temp_dict = {key: value}
-                creator.get_synthetic_light_curves(None, None, training_cnn=False, plot=False, save_plot=True,
-                                                objects_by_class=temp_dict, sensivity=pp,
-                                                column_to_sensivity=pp)
-                del temp_dict
-    
+        pp_sensitive_test(pp_list)
+
+    # Training the Gaussian Mixture Model if enabled
     if train_gmm:
-        print('Fitting Gaussian mixture models') 
-        bgmm.fit_gausians(prior, columns= ['Type','Period', 'teff_val', '[Fe/H]_J95', 'abs_Gmag', 'radius_val', 'logg'])
-        print('Gaussian were fitted')
+        bgmm.fit_gaussians(prior, columns=['Type', 'Period', 'teff_val', '[Fe/H]_J95',
+                                           'abs_Gmag', 'radius_val', 'logg'])
 
-    if train_classifier: 
-        cnn.run_cnn(create_samples, mean_prior_dict=mean_prior_dict, 
-                    vae_model=vae_model, PP=PP_list, 
-                    wandb_active = wandb_active, prior=prior)
-    
-if __name__ == "__main__": 
+    # Training the classifier if enabled
+    if train_classifier:
+        cnn.run_cnn(create_samples, mean_prior_dict=mean_prior_dict,
+                    vae_model=vae_model, PP=pp_list,
+                    wandb_active=wandb_active, prior=prior)
 
+# Entry point of the script
+if __name__ == "__main__":
+
+    # Flag to control the activation of Weights & Biases integration
     wandb_active = True
-    if wandb_active: 
-        sweep_config = {
-            'method': 'bayes',
-            'metric': {'goal': 'maximize', 'name': 'weighted_f1'},
-            'parameters': {
-                'learning_rate': {'values': [0.002]},
-                'batch_size': {'values': [32]},
-                'patience':{'values': [35]},
-                'repetitions': {'values': [1]},
-                'sinthetic_samples_by_class': {'values': [8]},
-                'threshold_acc_synthetic': {'min': 0.8, 'max': 0.85},
-                'beta_decay_factor': {'min': 0.96, 'max': 0.97}, 
-                'EPS': {'min': 0.2, 'max': 0.25},
-                'scaling_factor': {'values': [0.45]}, 
-                'vae_model': {'values': ['3iyiphkn']}, 
-                'sufix_path': {'values': ['GAIA3_LOG_6PP']}, 
-                'layers': {'values': [4]},
-                'loss': {'values': ['focalLoss']},
-                'focal_loss_scale': {'min': 2.0, 'max': 4.0},
-                'n_oversampling': {'min': 1, 'max': 5},
-                'ranking_method': {'values': ['max_confusion', 'max_pairwise_confusion']},
-            }
-        }
-        
+    method = "oneloss"
 
-        with open("sweep.yaml", "w") as sweep_file:
-            yaml.safe_dump(sweep_config, sweep_file)
-        #sweep_id = wandb.sweep(sweep_config, project="train-classsifier")
-        wandb.agent("xm6065ik", function=main, count=100, project="train-classsifier")
-    else: 
-        main(train_gmm = True, create_samples = True, 
-            train_classifier = True, sensitive_test= False, train_regressor=True,
-             wandb_active = wandb_active, prior=True)
-    # create_samples activate samples generation in cnn training
-    
+    with open('src/nn_config.yaml', 'r') as file:
+        nn_config = yaml.safe_load(file)
+
+
+    # Setup hyperparameter optimization if Weights & Biases is active
+    if wandb_active:
+        sample_sizes = [10000, 25000, 50000, 100000, 400000]
+        sn_ratios = [2, 3, 4, 5]
+        seq_lengths = [50, 100, 150, 200, 250, 300]
+
+        # Create a total progress bar for all iterations
+        total_iterations = len(sample_sizes) * len(sn_ratios) * len(seq_lengths)
+        with tqdm(total=total_iterations) as pbar:
+            for sample_size in sample_sizes:
+                for sn_ratio in sn_ratios:
+                    for seq_length in seq_lengths:
+                        nn_config['sample_size'] = sample_size
+                        nn_config['sn_ratio'] = sn_ratio
+                        nn_config['seq_length'] = seq_length
+                        nn_config['opt_method'] = method
+                        with open('src/nn_config.yaml', 'w') as file:
+                                yaml.dump(nn_config, file)
+                        wsetup.setup_hyper_opt(main, nn_config)
+                        pbar.update(1)
+    else:
+        for sample_size in [10000, 20000, 40000, 80000, 160000, 320000]:
+            for ranking_method in ['CCR', 'max_confusion', 'proportion', 'max_pairwise_confusion', 'no_priority']:
+                nn_config['proportion'] = sample_size
+                nn_config['ranking_method'] = ranking_method
+                with open('src/nn_config.yaml', 'w') as file:
+                        yaml.dump(nn_config, file)
+
+                # Directly run the main function with specified configurations if W&B is not active
+                main(train_gmm=True, create_samples=True,
+                    train_classifier=True, sensitive_test=False,
+                    train_regressor=True, wandb_active=wandb_active,
+                    prior=True)
+
 
     

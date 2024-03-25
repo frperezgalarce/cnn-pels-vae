@@ -8,7 +8,7 @@ from src.utils import normalize_each, return_dt
 import yaml
 import pickle
 
-with open('src/paths.yaml', 'r') as file:
+with open('src/configuration/paths.yaml', 'r') as file:
     YAML_FILE = yaml.safe_load(file)
 
 PATHS: str = YAML_FILE['paths']
@@ -18,7 +18,7 @@ exalearn_root = PATHS["PATH_EXALEARN_ROOT"]
 PATH_MODELS = PATHS["PATH_MODELS"]
 
 
-with open('src/regressor.yaml', 'r') as file:
+with open('src/configuration/regressor.yaml', 'r') as file:
     config_file = yaml.safe_load(file)
 
 sufix_path: str =   config_file['model_parameters']['sufix_path']

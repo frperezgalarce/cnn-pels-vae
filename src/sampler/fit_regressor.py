@@ -20,7 +20,7 @@ from src.utils import evaluate_encoder, load_model_list
 warnings.filterwarnings('ignore')
 
 # Read configurations from a YAML file
-with open('src/regressor.yaml', 'r') as file:
+with open('src/configuration/regressor.yaml', 'r') as file:
     reg_conf_file: Dict[str, Any] = yaml.safe_load(file)
 
 # Extracting path configurations
@@ -29,7 +29,7 @@ save_plots: bool = reg_conf_file['save_plots']
 save_tables: bool = reg_conf_file['save_tables']
 
 
-with open('src/regressor.yaml', 'r') as file:
+with open('src/configuration/regressor.yaml', 'r') as file:
     reg_conf_file: Dict[str, Any] = yaml.safe_load(file)
 
 def process_regressors(reg_conf_file: Dict[str, Any],

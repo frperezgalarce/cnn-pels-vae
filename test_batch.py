@@ -5,9 +5,9 @@ from typing import List, Optional, Any, Dict
 from src.utils import load_pp_list
 import pickle
 
-with open('src/regressor.yaml', 'r') as file:
+with open('src/configuration/regressor.yaml', 'r') as file:
     config_file: Dict[str, Any] = yaml.safe_load(file)
-with open('src/paths.yaml', 'r') as file:
+with open('src/configuration/paths.yaml', 'r') as file:
     YAML_FILE: Dict[str, Any] = yaml.safe_load(file)
 
 PATHS: Dict[str, str] = YAML_FILE['paths']
@@ -21,13 +21,13 @@ sufix_path: str =   config_file['model_parameters']['sufix_path']
 
 print('sufix path: '+ sufix_path)
 
-sinthetic_samples_by_class = 8
+synthetic_samples_by_class = 8
 
 PP_list = load_pp_list(vae_model)
 
 seq_length = 300
 
-batcher = SyntheticDataBatcher(PP = PP_list, vae_model=vae_model, n_samples=sinthetic_samples_by_class, 
+batcher = SyntheticDataBatcher(PP = PP_list, vae_model=vae_model, n_samples=synthetic_samples_by_class, 
                                     seq_length = seq_length)
 
 synthetic_data_loader = batcher.create_synthetic_batch(b=1)

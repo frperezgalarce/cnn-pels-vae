@@ -87,6 +87,7 @@ if __name__ == "__main__":
                         nn_config['opt_method'] = method
                         with open('src/nn_config.yaml', 'w') as file:
                                 yaml.dump(nn_config, file)
+                        print(nn_config)
                         wsetup.setup_hyper_opt(main, nn_config)
                         pbar.update(1)
     else:

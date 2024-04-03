@@ -1,15 +1,15 @@
-import torch
 from typing import Optional
 
+import torch
+
 # Importing custom modules for the various tasks in the machine learning pipeline
+from tqdm import tqdm
+import yaml
 import src.cnn.cnn as cnn
 import src.gmm.bgmm as bgmm
 import src.sampler.fit_regressor as reg
 from src.utils import load_pp_list, pp_sensitive_test, load_metadata
 import src.wandb_setup as wsetup
-import yaml
-from tqdm import tqdm
-
 
 def main(train_gmm: Optional[bool] = True, create_samples: Optional[bool] = True,
          train_classifier: Optional[bool] = True, sensitive_test: Optional[bool] = False,
@@ -67,7 +67,6 @@ if __name__ == "__main__":
 
     with open('src/nn_config.yaml', 'r') as file:
         nn_config = yaml.safe_load(file)
-
 
     # Setup hyperparameter optimization if Weights & Biases is active
     if wandb_active:

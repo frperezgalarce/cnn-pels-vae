@@ -1,0 +1,313 @@
+StarTypes:
+  RRLYR:
+    CompleteName: RR Lyrae Variables
+    max_period: 1.0
+    min_period: 0.2
+    RRab:
+      Period: [0.30, 0.90]
+      teff_val: [6200, 6800]
+      FeH_J95: [-1.0, 0.5]
+      abs_Gmag: [0.30, 1.00]
+      radius_val: [0.6, 0.8]
+      logg: [2.5, 3.5]
+      Midpoints:
+        Period: 0.60
+        teff_val: 6500
+        FeH_J95: -0.25
+        abs_Gmag: 0.65
+        radius_val: 0.7
+        logg: 3.0
+    RRc:
+      Period: [0.20, 0.50]
+      teff_val: [6400, 7000]
+      FeH_J95: [-0.9, 0.4]
+      abs_Gmag: [0.40, 1.10]
+      radius_val: [0.7, 0.9]
+      logg: [2.4, 3.4]
+      Midpoints:
+        Period: 0.35
+        teff_val: 6700
+        FeH_J95: -0.25
+        abs_Gmag: 0.75
+        radius_val: 0.8
+        logg: 2.9
+    RRd:
+      Period: [0.74, 0.75]
+      teff_val: [6200, 7000]
+      FeH_J95: [-1.1, 0.3]
+      abs_Gmag: [0.30, 1.00]
+      radius_val: [0.65, 0.85]
+      logg: [2.6, 3.6]
+      Midpoints:
+        Period: 0.745
+        teff_val: 6600
+        FeH_J95: -0.4
+        abs_Gmag: 0.65
+        radius_val: 0.75
+        logg: 3.1
+  T2CEP:
+    CompleteName: Type II Cepheids
+    max_period: 150
+    min_period: 1
+    BL Herculis:
+      Period: [1, 4]
+      teff_val: [5500, 7000]
+      FeH_J95: [-0.5, 0.3]
+      abs_Gmag: [0.7, 1.5]
+      radius_val: [5, 10]
+      logg: [1.0, 2.0]
+      Midpoints:
+        Period: 2.5
+        teff_val: 6250
+        FeH_J95: -0.1
+        abs_Gmag: 1.1
+        radius_val: 7.5
+        logg: 1.5
+    W Virginis:
+      Period: [10, 20]
+      teff_val: [4500, 6000]
+      FeH_J95: [-0.7, 0.1]
+      abs_Gmag: [0.5, 1.2]
+      radius_val: [15, 25]
+      logg: [0.5, 1.5]
+      Midpoints:
+        Period: 15
+        teff_val: 5250
+        FeH_J95: -0.3
+        abs_Gmag: 0.85
+        radius_val: 20
+        logg: 1.0
+    RV Tauri:
+      Period: [30, 150]
+      teff_val: [4500, 6500]
+      FeH_J95: [-0.8, 0]
+      abs_Gmag: [0.3, 1.4]
+      radius_val: [30, 40]
+      logg: [0.2, 0.8]
+      Midpoints:
+        Period: 90
+        teff_val: 5500
+        FeH_J95: -0.4
+        abs_Gmag: 0.85
+        radius_val: 35
+        logg: 0.5
+  CEP:
+    CompleteName: Classical Cepheids
+    max_period: 200
+    min_period: 1
+    Fundamental:
+      Period: [1, 200]
+      teff_val: [5000, 8000]
+      FeH_J95: [-0.3, +0.3]
+      abs_Gmag: [-2, +2]
+      radius_val: [20, 60]
+      logg: [0.5, 2.0]
+      Midpoints:
+        Period: 100.5
+        teff_val: 6500
+        FeH_J95: 0
+        abs_Gmag: 0
+        radius_val: 40
+        logg: 1.25
+    First-overtone:
+      Period: [1, 5]
+      teff_val: [5200, 7800]
+      FeH_J95: [-0.25, +0.25]
+      abs_Gmag: [-1, +1]
+      radius_val: [18, 55]
+      logg: [0.7, 1.9]
+      Midpoints:
+        Period: 3
+        teff_val: 6500
+        FeH_J95: 0
+        abs_Gmag: 0
+        radius_val: 36.5
+        logg: 1.3
+    Second-overtone:
+      Period: [5, 10]
+      teff_val: [5400, 7700]
+      FeH_J95: [-0.2, +0.2]
+      abs_Gmag: [-1, +1]
+      radius_val: [17, 50]
+      logg: [0.8, 1.8]
+      Midpoints:
+        Period: 7.5
+        teff_val: 6550
+        FeH_J95: 0
+        abs_Gmag: 0
+        radius_val: 33.5
+        logg: 1.3
+    Multi-tone:
+      Period: [1, 100]
+      teff_val: [5300, 7900]
+      FeH_J95: [-0.3, +0.3]
+      abs_Gmag: [-2, +2]
+      radius_val: [20, 60]
+      logg: [0.5, 2.0]
+      Midpoints:
+        Period: 50.5
+        teff_val: 6600
+        FeH_J95: 0
+        abs_Gmag: 0
+        radius_val: 40
+        logg: 1.25
+  DSCT:
+    CompleteName: Delta Scuti Variables
+    max_period: 0.3
+    min_period: 0.02
+    Single-mode:
+      Period: [0.02, 0.3]
+      teff_val: [6500, 8500]
+      FeH_J95: [-0.2, +0.2]
+      abs_Gmag: [0.5, 4.0]
+      radius_val: [1.5, 2.5]
+      logg: [3.5, 4.5]
+      Midpoints:
+        Period: 0.16
+        teff_val: 7500
+        FeH_J95: 0
+        abs_Gmag: 2.25
+        radius_val: 2
+        logg: 4
+    Multi-mode:
+      Period: [0.02, 0.3]
+      teff_val: [6600, 8400]
+      FeH_J95: [-0.15, +0.15]
+      abs_Gmag: [0.6, 3.8]
+      radius_val: [1.4, 2.4]
+      logg: [3.6, 4.4]
+      Midpoints:
+        Period: 0.16
+        teff_val: 7500
+        FeH_J95: 0
+        abs_Gmag: 2.2
+        radius_val: 1.9
+        logg: 4
+  ELL:
+    CompleteName: Ellipsoidal Variables
+    max_period: 200
+    min_period: 0.2
+    ELL:
+      Period: [0.2, 200]
+      teff_val: [4000, 5500]
+      FeH_J95: [-0.5, 0]
+      abs_Gmag: [0.5, 5]
+      radius_val: [10, 20]
+      logg: [0.5, 1.5]
+      Midpoints:
+        Period: 100
+        teff_val: 4750
+        FeH_J95: -0.25
+        abs_Gmag: 2.75
+        radius_val: 15
+        logg: 1
+  LPV:
+    CompleteName: Long-Period Variables
+    max_period: 1000
+    min_period: 100
+    LPV:
+      Period: [100.0, 1000.0]
+      teff_val: [2000, 3500]
+      FeH_J95: [-1, 0]
+      abs_Gmag: [-1.5, 2.0]
+      radius_val: [100, 200]
+      logg: [-0.5, 0.5]
+      Midpoints:
+        Period: 550
+        teff_val: 2750
+        FeH_J95: -0.5
+        abs_Gmag: 0.25
+        radius_val: 150
+        logg: 0
+  ECL:
+    CompleteName: Eclipsing Variables
+    max_period: 100
+    min_period: 0.1
+    Binary:
+      Period: [1, 10]
+      teff_val: [5000, 6000]
+      FeH_J95: [-0.1, 0.1]
+      abs_Gmag: [0.5, 2.0]
+      radius_val: [0.8, 1.5]
+      logg: [3.5, 4.5]
+      Midpoints:
+        Period: 5.5
+        teff_val: 5500
+        FeH_J95: 0
+        abs_Gmag: 1.25
+        radius_val: 1.15
+        logg: 4
+    Ternary:
+      Period: [5, 20]
+      teff_val: [4500, 5600]
+      FeH_J95: [-0.2, 0.2]
+      abs_Gmag: [0.7, 2.5]
+      radius_val: [1, 2]
+      logg: [3, 4]
+      Midpoints:
+        Period: 12.5
+        teff_val: 5050
+        FeH_J95: 0
+        abs_Gmag: 1.6
+        radius_val: 1.5
+        logg: 3.5
+    Pulsating:
+      Period: [0.5, 8]
+      teff_val: [5200, 5800]
+      FeH_J95: [-0.1, 0.1]
+      abs_Gmag: [0.6, 1.8]
+      radius_val: [0.9, 1.4]
+      logg: [3.8, 4.2]
+      Midpoints:
+        Period: 4.25
+        teff_val: 5500
+        FeH_J95: 0
+        abs_Gmag: 1.2
+        radius_val: 1.15
+        logg: 4
+  ACEP:
+    CompleteName: Anomalous Cepheids
+    max_period: 2.5
+    min_period: 0.3
+    Binary:
+      Period: [1, 10]
+      teff_val: [5000, 6000]
+      FeH_J95: [-0.1, 0.1]
+      abs_Gmag: [0.5, 2.0]
+      radius_val: [0.8, 1.5]
+      logg: [3.5, 4.5]
+      Midpoints:
+        Period: 5.5
+        teff_val: 5500
+        FeH_J95: 0.0
+        abs_Gmag: 1.25
+        radius_val: 1.15
+        logg: 4
+    Ternary:
+      Period: [5, 20]
+      teff_val: [4500, 5600]
+      FeH_J95: [-0.2, 0.2]
+      abs_Gmag: [0.7, 2.5]
+      radius_val: [1, 2]
+      logg: [3, 4]
+      Midpoints:
+        Period: 12.5
+        teff_val: 5050
+        FeH_J95: 0.0
+        abs_Gmag: 1.6
+        radius_val: 1.5
+        logg: 3.5
+    Pulsating:
+      Period: [0.5, 8]
+      teff_val: [5200, 5800]
+      FeH_J95: [-0.1, 0.1]
+      abs_Gmag: [0.6, 1.8]
+      radius_val: [0.9, 1.4]
+      logg: [3.8, 4.2]
+      Midpoints:
+        Period: 4.25
+        teff_val: 5500
+        FeH_J95: 0.0
+        abs_Gmag: 1.2
+        radius_val: 1.15
+        logg: 4

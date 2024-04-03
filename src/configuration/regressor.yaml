@@ -1,0 +1,25 @@
+PATH_DATA: "/home/franciscoperez/Documents/GitHub/CNN-PELSVAE/src/data"
+save_plots: False
+save_tables: False
+model_parameters:
+  ID: '3iyiphkn' 
+  gpu: True
+  sufix_path: 'GAIA3_LOG_6PP'
+regressors:
+  RFR:
+    n_estimators: 200
+    criterion: 'mse'
+    max_depth: null
+    min_samples_split: 2
+    min_samples_leaf: 1
+    min_weight_fraction_leaf: 0.0
+    max_features: null # Depends on the number of features
+    n_jobs: -1
+plotting:
+  scatter_plot_alpha: 0.05
+  scatter_plot_line_width: 2
+  residual_plot_alpha: 0.05
+dataloader_parameters:
+  batch_size: 100
+  test_split: 0.0
+  shuffle: False

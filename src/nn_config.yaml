@@ -1,0 +1,48 @@
+data:
+  classes:
+  - CEP
+  - DSCT
+  - ECL
+  - LPV
+  - RRLYR
+  delta_time_max: 100
+  limit_to_define_minority_Class: 5000
+  minimum_lenght_real_curves: 50
+  mode_running: create
+  opt_method: twolosses
+  sample_size: 25000
+  seq_length: 300
+  sn_ratio: 5
+  upper_limit_majority_classes: 20000
+opt_method: twolosses
+proportion: 10000
+ranking_method: CCR
+sample_size: 400000
+sampling:
+  burnin: 10000
+  iterations: 100000
+  mode: allcomponents
+seq_length: 300
+sn_ratio: 5
+training:
+  EPS: 0.02
+  alpha: 0.3
+  base_learning_rate: 0.001
+  batch_size: 64
+  beta_decay_factor: 0.99
+  beta_initial: 1.0
+  epochs: 500
+  focal_loss_scale: 1
+  layers: 3
+  loss: focalLoss
+  lr: 0.001
+  m: 1
+  n_oversampling: 1
+  opt_method: twolosses
+  patience: 10
+  ranking_method: proportion
+  repetitions: 1
+  scaling_factor: 0.25
+  synthetic_samples_by_class: 16
+  threshold_acc_synthetic: 0.95
+  weight_decay: 0.0001

@@ -1,0 +1,62 @@
+method: grid
+metric:
+  goal: maximize
+  name: f1_val
+name: exp_s_25000_l_300_sn_5_twolossesb
+parameters:
+  EPS:
+    values:
+    - 0.3
+  batch_size:
+    values:
+    - 32
+    - 64
+  beta_decay_factor:
+    values:
+    - 0.97
+  focal_loss_scale:
+    values:
+    - 1.5
+  layers:
+    values:
+    - 4
+  learning_rate:
+    values:
+    - 0.002
+  loss:
+    values:
+    - focalLoss
+    - CrossEntropyLoss
+    - non_weighted_CrossEntropyLoss
+    - NLLLoss
+  n_oversampling:
+    values:
+    - 5
+  patience:
+    values:
+    - 10
+  ranking_method:
+    values:
+    - CCR
+    - max_confusion
+    - proportion
+    - max_pairwise_confusion
+    - no_priority
+  repetitions:
+    values:
+    - 3
+  scaling_factor:
+    values:
+    - 0.48
+  sufix_path:
+    values:
+    - GAIA3_LOG_IMPUTED_BY_CLASS_6PP
+  synthetic_samples_by_class:
+    values:
+    - 16
+  threshold_acc_synthetic:
+    values:
+    - 0.84
+  vae_model:
+    values:
+    - gn42liaz

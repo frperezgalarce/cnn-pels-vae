@@ -114,6 +114,3 @@ if __name__ == "__main__":
                     train_classifier=True, sensitive_test=False,
                     train_regressor=True, wandb_active=wandb_active,
                     prior=True)
-
-
-    

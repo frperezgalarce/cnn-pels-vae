@@ -16,7 +16,7 @@ data:
   upper_limit_majority_classes: 20000
 opt_method: twolosses
 proportion: 10000
-ranking_method: CCR
+ranking_method: max_confusion
 sample_size: 400000
 sampling:
   burnin: 10000

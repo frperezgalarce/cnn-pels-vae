@@ -1,8 +1,5 @@
 from typing import Optional
-
 import torch
-
-# Importing custom modules for the various tasks in the machine learning pipeline
 from tqdm import tqdm
 import yaml
 import src.cnn.cnn as cnn
@@ -62,7 +59,7 @@ def main(train_gmm: Optional[bool] = True, create_samples: Optional[bool] = True
 if __name__ == "__main__":
 
     # Flag to control the activation of Weights & Biases integration
-    wandb_active = True
+    wandb_active = False
     method = "twolosses"
 
     with open('src/nn_config.yaml', 'r') as file:
@@ -103,8 +100,7 @@ if __name__ == "__main__":
     else:
         for sample_size in [10000, 20000, 40000, 80000, 160000, 320000]:
             for ranking_method in ['CCR', 'max_confusion', 'proportion', 'max_pairwise_confusion', 'no_priority']:
-                nn_config['proportion'] = sample_size
-                nn_config['ranking_method'] = ranking_method
+                nn_config['data']['sample_size'] = sample_size
                 with open('src/nn_config.yaml', 'w') as file:
                         yaml.dump(nn_config, file)
 

@@ -59,30 +59,7 @@ if 'LOG' in data_sufix:
     MIN_PERIOD_VALUE = 0.1
 else: 
     MIN_PERIOD_VALUE = np.log(0.1)
-'''
-def plot_training(epochs_range, train_loss_values, val_loss_values,train_accuracy_values,  val_accuracy_values):
-    plt.figure(figsize=(12, 4))
-    # Plot the loss values
-    plt.subplot(1, 2, 1)
-    plt.plot(train_loss_values, label='Training Loss')
-    plt.plot(val_loss_values, label='Validation Loss')
-    plt.xlabel('Epochs')
-    plt.ylabel('Loss')
-    plt.title('Training and Validation Loss')
-    plt.legend()
 
-    # Plot the accuracy values
-    plt.subplot(1, 2, 2)
-    plt.plot(train_accuracy_values, label='Training Accuracy')
-    plt.plot(val_accuracy_values, label='Validation Accuracy')
-    plt.xlabel('Epochs')
-    plt.ylabel('Accuracy')
-    plt.title('Training and Validation Accuracy')
-    plt.legend()
-
-    plt.tight_layout()
-    plt.show()
-'''
 def read_light_curve_ogle(example_test, example_train, values_count, lenght_lc=100):
     
     numpy_array_lcus_test = np.empty((0, 0, 2))
@@ -111,32 +88,6 @@ def read_light_curve_ogle(example_test, example_train, values_count, lenght_lc=1
         numpy_array_lcus_train, numpy_y_train = future2.result()
     
     return numpy_array_lcus_train, numpy_array_lcus_test, numpy_y_test, numpy_y_train
-
-'''
-def read_light_curve_ogle_sequential(example_test, example_train, values_count, lenght_lc=100):
-
-    numpy_array_lcus_test = np.empty((0, 0, 2)) # initialize the 3D array with zeros
-    numpy_array_lcus_train =  np.empty((0, 0, 2)) 
-    numpy_y_test =  np.empty((0, ), dtype=object) 
-    numpy_y_train = np.empty((0, ), dtype=object)  
-
-
-
-    numpy_array_lcus_test, numpy_y_test = insert_lc(example_test, numpy_array_lcus_test,
-                                                    numpy_y_test, lenght_lc=lenght_lc, 
-                                                    signal_noise=nn_config['data']['sn_ratio'], 
-                                                    train_set=False, file_name='test')
-
-
-    numpy_array_lcus_train, numpy_y_train = insert_lc(example_train, numpy_array_lcus_train,
-                                            numpy_y_train, values_count =values_count, 
-                                            signal_noise=nn_config['data']['sn_ratio'], 
-                                            lenght_lc=lenght_lc, train_set=True, file_name='train')
-
-
-
-    return numpy_array_lcus_train, numpy_array_lcus_test, numpy_y_test, numpy_y_train
-'''
 
 def load_light_curve_ogle():
     print('Loading light curves')
@@ -267,6 +218,7 @@ def insert_lc(examples, np_array, np_array_y, values_count= None, lenght_lc = 0,
     np.save(PATH_DATA_FOLDER+'/'+file_name+'_np_array.npy', np_array)
     return np_array, np_array_y
 
+'''
 def insert_lc_subclasses(examples, np_array, np_array_y, values_count= None, lenght_lc = 0, signal_noise=6, subclass=False, train_set=True, train_classes=[], file_name='train'):
     counter = 0
     #subclasses = pd.read_csv(PATH_SUBCLASSES)
@@ -289,7 +241,7 @@ def insert_lc_subclasses(examples, np_array, np_array_y, values_count= None, len
         if (lcu.shape[0]> lenght_lc) and  ('error' in lcu.columns) and ((signal)/lcu['error'].mean()>signal_noise):
             if (train_set) and (class_counter > nn_config['data']['limit_to_define_minority_Class']):
                 lcu_data = np.asarray(lcu[['delta_time', 'delta_mag']].sample(lenght_lc))
-                '''if subclass:
+                if subclass:
                     try:
                         new_element = str(subclasses.loc[subclasses.ID==lc.replace('.dat', ''),'sub_clase'].values[0])
                         np_array_y = np.append(np_array_y, new_element)
@@ -298,7 +250,7 @@ def insert_lc_subclasses(examples, np_array, np_array_y, values_count= None, len
                     except Exception as error:
                         logging.error(f"The light curve {lc} was not loaded: {error}")
                         raise ValueError("The light curve {} was not loaded.".format(lc) + str(error))
-                else:'''
+                else:
                 try: 
                     new_element = lc.split('-')[2]
                     if (new_element in ['ECL']): 
@@ -326,7 +278,7 @@ def insert_lc_subclasses(examples, np_array, np_array_y, values_count= None, len
                 k_samples_by_object = int(nn_config['data']['upper_limit_majority_classes']/class_counter)
                 for _ in range(k_samples_by_object): 
                     lcu_data = np.asarray(lcu[['delta_time', 'delta_mag']].sample(lenght_lc))
-                    '''if subclass:
+                    if subclass:
                         try:
                             new_element = str(subclasses.loc[subclasses.ID==lc.replace('.dat', ''),'sub_clase'].values[0])
                             np_array_y = np.append(np_array_y, new_element)
@@ -335,7 +287,7 @@ def insert_lc_subclasses(examples, np_array, np_array_y, values_count= None, len
                         except Exception as error:
                             logging.error(f"The light curve {lc} was not loaded: {error}")
                             raise ValueError("The light curve {} was not loaded.".format(lc) + str(error))
-                    else:'''
+                    else:
                     try: 
                         new_element = lc.split('-')[2]
                         if (new_element in ['ECL']): 
@@ -363,6 +315,7 @@ def insert_lc_subclasses(examples, np_array, np_array_y, values_count= None, len
     np.save(PATH_DATA_FOLDER+'/'+file_name+'_np_array_y.npy', np_array_y)
     np.save(PATH_DATA_FOLDER+'/'+file_name+'_np_array.npy', np_array)
     return np_array, np_array_y
+'''
 
 def delete_by_std(df): 
 
@@ -373,10 +326,11 @@ def delete_by_std(df):
     # drop columns with 0 standard deviation
     df.drop(cols_to_drop, axis=1, inplace=True)
     return df
-
+'''
 def delete_by_magnitude(df):
     df = df.loc[(df.delta_mag != 0).all(axis=1)]
     return df
+'''
 
 def delete_low_represented_classes(df, column='class', threshold=100): 
     # Count the number of samples per category
@@ -454,9 +408,10 @@ def plot_cm(cm: np.ndarray,
     else:
         plt.show()
 
+
 def move_data_to_device(data, device):
     return tuple(torch.tensor(d).to(device) if isinstance(d, np.ndarray) else d.to(device) for d in data)
-    
+
 def custom_sample(df, class_column, threshold, n):
     """
     df: The input dataframe
@@ -583,6 +538,7 @@ def transform_to_consecutive(input_list, label_encoder):
     modified_labels = np.array([mapping[element] for element in input_list])
     return modified_labels, modified_labelencoder_classes
 
+
 def get_data(sample_size, mode):
 
     with open('src/nn_config.yaml', 'r') as file:
@@ -662,6 +618,7 @@ def get_data(sample_size, mode):
            y_val, modified_labelencoder_classes,\
            y_labels, y_labels_test
 
+'''
 def export_recall_latex(true_labels, predicted_labels, label_encoder): 
     # Calculate the recall for each class
     recall_values = recall_score(true_labels, predicted_labels, average=None)
@@ -677,6 +634,7 @@ def export_recall_latex(true_labels, predicted_labels, label_encoder):
 
     # Print the LaTeX table
     print(latex_table)
+'''
 
 path = os.path.dirname(os.getcwd())+'/cnn-pels-vae'
 
@@ -812,6 +770,7 @@ def count_parameters(model):
     return sum(p.numel() for p in model.parameters() if p.requires_grad)
 
 ## convert time delta to days, hors and minuts
+'''
 def days_hours_minutes(dt):
     """Convert ellapsed time to Days, hours, minutes, and seconds.
 
@@ -837,8 +796,10 @@ def days_hours_minutes(dt):
     m = (totsec%3600) // 60
     sec =(totsec%3600)%60 #just for reference
     return d, h, m, sec
+'''
 
 ## normalize light curves
+
 def normalize_each(data, norm_time=False, scale_to=[0, 1], n_feat=3):
     """MinMax normalization of all light curves per item.
 
@@ -884,7 +845,9 @@ def normalize_each(data, norm_time=False, scale_to=[0, 1], n_feat=3):
                         (scale_to[1] - scale_to[0]) + scale_to[0]
     return normed
 
+
 ## normalize light curves
+'''
 def normalize_glob(data, norm_time=False, scale_to=[0, 1], n_feat=3):
     """MinMax normalization of all light curves with global MinMax values.
 
@@ -931,6 +894,7 @@ def normalize_glob(data, norm_time=False, scale_to=[0, 1], n_feat=3):
                     normed[i, :, f] = normed[i, :, f] * \
                         (scale_to[1] - scale_to[0]) + scale_to[0]
     return normed
+'''
 
 ## convert MJD to delta t
 def return_dt(data, n_feat=3):
@@ -987,6 +951,7 @@ def plot_latent_space(z, y=None):
     image  = image.reshape(pp.fig.canvas.get_width_height()[::-1] + (3,))
     return pp.fig, image
 
+'''
 def perceptive_field(k=None, n=None):
     """Calculate the perceptive field of a TCN network with kernel size k
     and number of residual blocks n
@@ -1016,7 +981,8 @@ def perceptive_field(k=None, n=None):
                     print('num_blocks : ', n)
                     print('perc_field : ', pf)
                     print('######################')
-                
+'''
+'''                
 def str2bool(v):
     """Convert strings (y,yes, true, t, 1,n, no,false, f,0) 
     to boolean values
@@ -1039,7 +1005,8 @@ def str2bool(v):
         return False
     else:
         raise argparse.ArgumentTypeError('Boolean value expected.')
-               
+'''
+
 def load_model_list(ID='zg3r4orb', device='cuda:0'):
     """Load a Python VAE model from file stored in a W&B archive
 
@@ -1182,7 +1149,8 @@ params['date'], params['ID'])
     std_df['class'] = labels
 
     return mu_df, std_df
-   
+
+'''  
 def plot_wall_synthetic_lcs(lc_gen, cls=[], lc_gen2=None, save=False, wandb_active=False):
     """Creates a wall of light curves plot with real and reconstruction
     sequences, paper-ready.
@@ -1245,6 +1213,7 @@ def plot_wall_synthetic_lcs(lc_gen, cls=[], lc_gen2=None, save=False, wandb_acti
     else: 
         plt.show()
     return 
+'''
 
 def plot_wall_lcs(lc_gen, lc_real, cls=[], lc_gen2=None, save=False, wandb_active=False, 
                 to_title=None, sensivity=None, column_to_sensivity=None, all_columns=[]):
@@ -1806,6 +1775,7 @@ def get_time_from_period(period, phased_time,  example_sequence, sequence_length
     
     return time_sequence
 
+'''
 def compare_folded_crude_lc(xhat_mu, lc_reverted, cls=[], period=[], wandb_active=False):
 
     for j in range(3):
@@ -1839,6 +1809,7 @@ def compare_folded_crude_lc(xhat_mu, lc_reverted, cls=[], period=[], wandb_activ
             wandb.finish()
         else:
             plt.show()
+'''
 
 def save_arrays_to_folder(array1, array2, folder_path):
     """

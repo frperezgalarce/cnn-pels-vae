@@ -1,19 +1,14 @@
-
-import numpy as np
+from typing import Any, Dict
 import torch
 import torch.nn as nn
 import numpy as np
-from src.utils import *
 from sklearn.utils.class_weight import compute_class_weight
 import wandb
-from typing import Any, Dict
-import yaml 
 from src.sampler.getbatch import SyntheticDataBatcher
 from src.cnn.focalloss import  FocalLossMultiClass as focal_loss
 import src.utils as utils
 import src.wandb_setup as wset
 import torch.nn.init as init
-import src.wandb_setup as wsetup
 from src.cnn.training_cnn import *
 
 gpu: bool = True # fail when true is selected
@@ -237,7 +232,7 @@ def run_cnn(create_samples: Any, mean_prior_dict: Dict = None,
     counter = 0
     weight_f1_score_hyperparameter_search = 0
     
-    nn_config, config_file = wsetup.cnn_hyperparameters(wandb_active, hyperparam_opt, nn_config, config_file)
+    nn_config, config_file = wset.cnn_hyperparameters(wandb_active, hyperparam_opt, nn_config, config_file)
 
     train_dataloader = create_dataloader(training_data, nn_config['training']['batch_size'])
     val_dataloader = create_dataloader(val_data, nn_config['training']['batch_size'])
@@ -383,7 +378,7 @@ def run_cnn(create_samples: Any, mean_prior_dict: Dict = None,
                         'f1_synthetic': f1_synthetic, 
                         'patience': no_improvement_count, 'best_val':best_val}
 
-    wsetup.save_metrics(wandb_active, nn_config['training']['opt_method'], 
+    wset.save_metrics(wandb_active, nn_config['training']['opt_method'], 
                         results_dict, weight_f1_score_hyperparameter_search,
                          accuracy_test, f1_test)
 

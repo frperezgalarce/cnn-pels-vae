@@ -316,9 +316,14 @@ def run_cnn(create_samples: Any, mean_prior_dict: Dict = None,
         _, accuracy_train, f1_train = evaluate_dataloader_weighted_metrics(model, train_dataloader, criterion, device)
 
 
-        synthetic_loss, accuracy_train_synthetic, f1_synthetic =  evaluate_dataloader_weighted_metrics(model, synthetic_data_loader, 
-                                                                    criterion_synthetic_samples, device)
-       
+        if nn_config['training']['opt_method']=='twolosses':
+            synthetic_loss, accuracy_train_synthetic, f1_synthetic =  evaluate_dataloader_weighted_metrics(model, synthetic_data_loader, 
+                                                                        criterion_synthetic_samples, device)
+        elif nn_config['training']['opt_method']=='oneloss':
+            synthetic_loss, accuracy_train_synthetic, f1_synthetic = 0, 0, 0
+        else: 
+            raise('This method is unavailable, please use: oneloss or twolosses')
+        
         condition1 = (accuracy_train_synthetic>nn_config['training']['threshold_acc_synthetic'])
         condition2 = (counter > 3) 
         
@@ -399,3 +404,5 @@ def run_cnn(create_samples: Any, mean_prior_dict: Dict = None,
             model, data_loader, label_encoder, 
             f'Confusion Matrix - {title_suffix}', wandb_active=wandb_active
         )
+
+    #TODO: delete objects

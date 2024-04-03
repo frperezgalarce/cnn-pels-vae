@@ -42,11 +42,11 @@ def setup_hyper_opt(main, nn_config):
     :param nn_config: A dictionary containing the neural network configuration, including optimization method.
     """
 
-    if nn_config['opt_method'] == 'twolosses':
+    if nn_config['training']['opt_method'] == 'twolosses':
         # Configuration for the 'twolosses' optimization method
         sweep_config = {
             'method': 'grid',
-            'name': f"exp_s_{nn_config['sample_size']}_l_{nn_config['seq_length']}_sn_{nn_config['sn_ratio']}",
+            'name': f"exp_s_{nn_config['data']['sample_size']}_l_{nn_config['data']['seq_length']}_sn_{nn_config['data']['sn_ratio']}_twolossesb",
             'metric': {'goal': 'maximize', 'name': 'f1_val'},
             'parameters': {
                 'learning_rate': {'values': [0.002]},
@@ -67,11 +67,11 @@ def setup_hyper_opt(main, nn_config):
                 'ranking_method': {'values': ['CCR', 'max_confusion', 'proportion', 'max_pairwise_confusion', 'no_priority']},
             }
         }
-    elif nn_config['opt_method'] == 'oneloss':
+    elif nn_config['training']['opt_method'] == 'oneloss':
         # Configuration for the 'oneloss' optimization method
         sweep_config = {
             'method': 'grid',
-            'name': f"exp_s_{nn_config['sample_size']}_l_{nn_config['seq_length']}_sn_{nn_config['sn_ratio']}_oneloss",
+            'name': f"exp_s_{nn_config['data']['sample_size']}_l_{nn_config['data']['seq_length']}_sn_{nn_config['data']['sn_ratio']}_oneloss",
             'metric': {'goal': 'maximize', 'name': 'f1_val'},
             'parameters': {
                 'learning_rate': {'values': [0.002]},

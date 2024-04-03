@@ -1477,7 +1477,6 @@ def flat_and_quantile(tensor, q):
     index = int(q * (sorted_tensor.numel() - 1))
     return sorted_tensor[index]
 
-
 def quantile(tensor, q):
     sorted_tensor, _ = torch.sort(tensor)
     length = sorted_tensor.shape[0]

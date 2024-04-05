@@ -56,19 +56,39 @@ def find_argmax_off_diagonal(matrix):
     argmax_indices = np.unravel_index(np.argmax(matrix_copy, axis=None), matrix_copy.shape)
     return argmax_indices
 
-def rank_classes(confusion_matrix, method='CCR', verbose=False):
+def rank_classes(current_confusion_matrix, method='CCR', verbose=False):
+    """
+    Rank classes based on the provided confusion matrix and the specified ranking method.
+
+    Parameters:
+        confusion_matrix (np.ndarray): A confusion matrix where each element [i, j] is the number 
+                                       of samples known to be in group i but predicted to be in group j.
+        method (str): The method to use for ranking classes. Options include:
+                      - 'CCR': Correct Classification Rate, ranks classes based on diagonal elements.
+                      - 'max_confusion': Ranks classes based on the sum of off-diagonal elements per row.
+                      - 'proportion': Ranks classes based on the proportion of confusion.
+                      - 'max_pairwise_confusion': Ranks classes based on pairwise confusion.
+        verbose (bool): If True, prints additional information during processing.
+
+    Returns:
+        class_ranking (np.ndarray): An array of class indices ordered by the ranking criteria.
+        metrics (np.ndarray): An array of the computed metrics used for ranking.
+
+    Raises:
+        ValueError: If the `method` argument is not recognized.
+    """
     if method == 'CCR':
-        ccrs = np.diag(confusion_matrix) / np.sum(confusion_matrix, axis=1)
+        ccrs = np.diag(current_confusion_matrix) / np.sum(current_confusion_matrix, axis=1)
         class_ranking = np.argsort(ccrs)
         return class_ranking, ccrs[class_ranking]
     
     elif method == 'max_confusion':
-        off_diagonal_sum = np.sum(confusion_matrix, axis=1) - np.diag(confusion_matrix)
+        off_diagonal_sum = np.sum(current_confusion_matrix, axis=1) - np.diag(current_confusion_matrix)
         class_ranking = np.argsort(off_diagonal_sum)[::-1]  
         return class_ranking, off_diagonal_sum[class_ranking]
 
     elif method == 'proportion':
-        m = confusion_matrix
+        m = current_confusion_matrix
         m = m / m.sum()
         m_copy = m.copy()
         np.fill_diagonal(m_copy, 0)
@@ -77,8 +97,7 @@ def rank_classes(confusion_matrix, method='CCR', verbose=False):
         return class_ranking, proportions[class_ranking]
         
     elif method == 'max_pairwise_confusion':
-        m = confusion_matrix + confusion_matrix.T 
-        print(m)
+        m = current_confusion_matrix + current_confusion_matrix.T 
         class_ranking = []
         counter = 0
         while (len(class_ranking)<m.shape[0]) and (counter < m.shape[0]):

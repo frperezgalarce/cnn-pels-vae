@@ -1,2 +1,11 @@
 ERROR:wandb.sdk.internal.internal_api:404 response executing GraphQL.
 ERROR:wandb.sdk.internal.internal_api:{"errors":[{"message":"could not find sweep cnn-pelsvae/train-classsifier/exp_s_10000_l_50_sn_2 during createAgent","path":["createAgent"]}],"data":{"createAgent":null}}
+ERROR:root:Internal Python error in the inspect module.
+Below is the traceback from this internal error.
+
+ERROR:root:Internal Python error in the inspect module.
+Below is the traceback from this internal error.
+
+ERROR:root:Internal Python error in the inspect module.
+Below is the traceback from this internal error.
+

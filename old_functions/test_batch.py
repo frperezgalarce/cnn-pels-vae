@@ -1,5 +1,5 @@
 from src.sampler.getbatch import SyntheticDataBatcher
-from src.utils import plot_batch 
+from src.visualization import plot_batch 
 import yaml 
 from typing import List, Optional, Any, Dict
 from src.utils import load_pp_list

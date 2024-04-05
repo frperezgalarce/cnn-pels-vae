@@ -7,17 +7,19 @@ from torch.utils.data import DataLoader, TensorDataset
 import src.utils as utils
 import src.gmm.modifiedgmm as mgmm
 import src.sampler.fit_regressor as reg
+import src.visualization as viz
 import matplotlib.pyplot as plt
 from src.sampler.LightCurveRandomSampler import LightCurveRandomSampler
 
 gpu: bool = True 
-with open('src/nn_config.yaml', 'r') as file:
+with open('src/configuration/nn_config.yaml', 'r') as file:
     nn_config = yaml.safe_load(file)
 
     
 class SyntheticDataBatcher:
     def __init__(self, config_file_path: str = 'src/configuration/regressor.yaml', 
-                 nn_config_path: str = 'src/nn_config.yaml', paths: str = 'src/configuration/paths.yaml', PP=[], 
+                 nn_config_path: str = 'src/configuration/nn_config.yaml', 
+                 paths: str = 'src/configuration/paths.yaml', pp=[], 
                  vae_model=None, 
                  n_samples=16, seq_length = 100, batch_size=128, prior=False):
         self.device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
@@ -26,7 +28,7 @@ class SyntheticDataBatcher:
         self.path = self.load_yaml(paths)['paths']
         self.mean_prior_dict = self.load_yaml(self.path['PATH_PRIOS'])  
         self.priors = prior
-        self.PP = PP
+        self.pp = pp
         self.vae_model = vae_model
         self.n_samples = n_samples
         self.seq_length = seq_length
@@ -40,7 +42,7 @@ class SyntheticDataBatcher:
 
     def construct_model_name(self, star_class: str, base_path: str = 'PATH_MODELS'):
         """Construct a model name given parameters."""
-        file_name = f"{base_path}bgm_model_{str(star_class)}_priors_{self.priors}_PP_{len(self.PP)}.pkl"
+        file_name = f"{base_path}bgm_model_{str(star_class)}_priors_{self.priors}_PP_{len(self.pp)}.pkl"
         return file_name
 
     @staticmethod
@@ -163,7 +165,7 @@ class SyntheticDataBatcher:
         return lb
     
     def get_latent_space(self, all_classes_samples):
-        z = reg.process_regressors(self.config_file, phys2=self.PP, samples= all_classes_samples, 
+        z = reg.process_regressors(self.config_file, phys2=self.pp, samples= all_classes_samples, 
                                             from_vae=False, train_rf=False) 
         z = torch.tensor(z, device=self.device)
         return z
@@ -200,7 +202,7 @@ class SyntheticDataBatcher:
 
             sampler: mgmm.ModifiedGaussianSampler = mgmm.ModifiedGaussianSampler(b=b, 
                                                                                 components=components, 
-                                                                                features=self.PP)
+                                                                                features=self.pp)
             model_name = self.construct_model_name(star_class, PATH_MODELS)
             samples, error = self.attempt_sample_load(model_name, sampler, n_samples=n_samples)
 
@@ -230,7 +232,7 @@ class SyntheticDataBatcher:
         
         all_classes_samples = self.get_samples(samples_dict, PATH_MODELS, b)
         
-        index_period = self.PP.index('Period')
+        index_period = self.pp.index('Period')
 
         z = self.get_latent_space(all_classes_samples)
         
@@ -239,7 +241,6 @@ class SyntheticDataBatcher:
 
         vae, _ = utils.load_model_list(ID=self.vae_model, device=self.device)
         
-        #TODO: review method
         times, original_sequences = self.create_time_sequences(lb, all_classes_samples[:,index_period])  
 
         xhat_mu = self.process_in_batches(vae, z, times, onehot, pp, 1)
@@ -248,11 +249,10 @@ class SyntheticDataBatcher:
         indices = np.random.choice(xhat_mu.shape[0], 24, replace=False)
         sampled_arrays = xhat_mu[indices, :, :]
         
-        utils.plot_wall_lcs_sampling(sampled_arrays, sampled_arrays,  cls=lb[indices],  column_to_sensivity=index_period,
-                                to_title = pp[indices], sensivity = 'Period', all_columns=self.PP, save=False, 
+        viz.plot_wall_lcs_sampling(sampled_arrays, sampled_arrays,  cls=lb[indices],  column_to_sensivity=index_period,
+                                to_title = pp[indices], sensivity = 'Period', all_columns=self.pp, save=False, 
                                 wandb_active=wandb_active) 
 
-        #TODO: review method
         lc_reverted = utils.revert_light_curve(pp[:,index_period], xhat_mu, original_sequences, classes = lb) 
 
         if plot_example:

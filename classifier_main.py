@@ -1,3 +1,26 @@
+"""
+This module orchestrates the entire data processing and model training pipeline, including
+training Gaussian Mixture Models (GMM), classifiers, and regressors, as well as creating
+samples and conducting sensitivity testing.
+
+Functions:
+    main(train_gmm: Optional[bool], create_samples: Optional[bool], train_classifier: Optional[bool],
+         sensitive_test: Optional[bool], train_regressor: Optional[bool], wandb_active: Optional[bool],
+         prior: Optional[bool]) -> None:
+        The main entry function that coordinates the execution of different phases of the data processing
+        and model training pipeline based on the provided flags.
+
+The module leverages various components of the system such as VAE models, GMM, and classification,
+regression models to conduct a comprehensive analysis and training process. Integration with Weights &
+Biases (wandb) is also provided for hyperparameter optimization and tracking experiments.
+
+Usage:
+    The module is designed to be run as a script. It reads configuration from YAML files, prepares the
+    data and models, and then executes training, evaluation, and testing processes as specified. 
+    It supports flexible execution controlled by command-line arguments or through configuration files
+    for different parts of the process like GMM fitting, sample generation, and model training.
+"""
+
 from typing import Optional
 import torch
 from tqdm import tqdm
@@ -28,7 +51,7 @@ def main(train_gmm: Optional[bool] = True, create_samples: Optional[bool] = True
     torch.cuda.empty_cache()
 
     # Loading metadata and configuration settings
-    mean_prior_dict, config_file = load_metadata()
+    _, config_file = load_metadata()
 
     # Setting up the variational autoencoder (VAE) model using the configuration
     vae_model, _ = wsetup.set_cvae(wandb_active, config_file)
@@ -51,24 +74,24 @@ def main(train_gmm: Optional[bool] = True, create_samples: Optional[bool] = True
 
     # Training the classifier if enabled
     if train_classifier:
-        cnn.run_cnn(create_samples, mean_prior_dict=mean_prior_dict,
-                    vae_model=vae_model, PP=pp_list,
-                    wandb_active=wandb_active, prior=prior)
+        cnn.run_cnn(create_samples, vae_model=vae_model,
+                    pp=pp_list, wandb_active=wandb_active,
+                    prior=prior)
 
 # Entry point of the script
 if __name__ == "__main__":
 
     # Flag to control the activation of Weights & Biases integration
-    wandb_active = False
+    wandb_active = True
     method = "twolosses"
 
-    with open('src/nn_config.yaml', 'r') as file:
+    with open('src/configuration/nn_config.yaml', 'r') as file:
         nn_config = yaml.safe_load(file)
 
     # Setup hyperparameter optimization if Weights & Biases is active
     if wandb_active:
-        sample_sizes = [25000, 50000, 100000, 400000]
-        sn_ratios = [5]
+        sample_sizes = [50000, 100000, 400000]
+        sn_ratios = [2, 3, 4, 5]
         seq_lengths = [300]
 
         # Create a total progress bar for all iterations
@@ -87,7 +110,7 @@ if __name__ == "__main__":
                         nn_config['opt_method'] = method
                         nn_config['training']['opt_method'] = method
                         try:
-                            with open('src/nn_config.yaml', 'w') as file:
+                            with open('src/configuration/nn_config.yaml', 'w') as file:
                                 yaml.dump(nn_config, file)
                                 file.flush()  # Force flushing the file buffer to disk
                         except Exception as e:
@@ -101,7 +124,7 @@ if __name__ == "__main__":
         for sample_size in [10000, 20000, 40000, 80000, 160000, 320000]:
             for ranking_method in ['CCR', 'max_confusion', 'proportion', 'max_pairwise_confusion', 'no_priority']:
                 nn_config['data']['sample_size'] = sample_size
-                with open('src/nn_config.yaml', 'w') as file:
+                with open('src/configuration/nn_config.yaml', 'w') as file:
                         yaml.dump(nn_config, file)
 
                 # Directly run the main function with specified configurations if W&B is not active

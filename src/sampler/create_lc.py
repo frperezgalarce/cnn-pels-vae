@@ -11,6 +11,7 @@ import warnings
 warnings.filterwarnings('ignore')
 import yaml
 import src.sampler.fit_regressor as reg
+import src.visualization import plot_wall_lcs
 
 main_path: str = os.path.dirname(os.getcwd())
 copula = False

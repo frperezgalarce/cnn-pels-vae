@@ -5,7 +5,7 @@ import torch.nn as nn
 from torch.nn import functional as F
 from src.utils import *
 from src.vae.training_callbacks import EarlyStopping
-
+from src.visualization import plot_wall_time_series, plot_latent_space
 
 class Trainer():
     """

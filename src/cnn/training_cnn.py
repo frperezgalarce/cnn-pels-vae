@@ -1,12 +1,10 @@
 
 import numpy as np
 import torch
-import torch.nn as nn
 import torch.optim as optim
 from torch.utils.data import DataLoader
 from torch.optim import Optimizer
 from torch.nn import Module  # Use nn.Module instead of _Loss
-import numpy as np
 from src.utils import *
 from sklearn.metrics import confusion_matrix
 from torch.utils.data import DataLoader, TensorDataset
@@ -15,7 +13,10 @@ import src.utils as utils
 import torch.optim as optim
 from sklearn.metrics import f1_score
 
-def setup_torch_environment() -> torch.device:
+def setup_torch_environment() -> torch.device:    
+    print('#'*50)
+    print('TRAINING CNN')
+    print('#'*50)
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     if torch.cuda.is_available():
         torch.backends.cudnn.benchmark = True
@@ -137,7 +138,7 @@ def train_one_epoch_alternative(
             torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=6.0, norm_type=2)
             optimizer.step()
             running_loss += loss.item()
-        val_loss, _, _ = evaluate_dataloader_weighted_metrics(model, val_dataloader, criterion, device)
+        val_loss, _, _ = evaluate_dataloader(model, val_dataloader, criterion, device)
 
         return running_loss, model, val_loss
     
@@ -191,56 +192,7 @@ def train_one_epoch_alternative(
                
         return running_loss, model, val_loss
 
-''''
 def evaluate_dataloader(model, dataloader, criterion, device):
-    """
-    Evaluate the model on a given dataset.
-
-    Parameters:
-    - model: The PyTorch model to evaluate.
-    - dataloader: DataLoader containing the dataset to evaluate.
-    - criterion: The loss function.
-    - device: The computing device (CPU or GPU).
-
-    Returns:
-    - avg_loss: Average loss over the entire dataset.
-    - avg_accuracy: Average accuracy over the entire dataset.
-    """
-    
-    model.eval()  # Set the model to evaluation mode
-    
-    total_loss = 0.0
-    total_correct = 0
-    total_samples = 0
-    
-    with torch.no_grad():
-        for batch in dataloader:
-            inputs, labels = batch
-            inputs, labels = inputs.to(device), labels.to(device)
-            inputs = inputs.float()
-
-            # Forward pass
-            outputs = model(inputs)
-            
-            # Calculate loss
-            _, labels_indices = torch.max(labels, 1)  # Convert one-hot to indices
-            loss = criterion(outputs, labels_indices)
-            
-            # Calculate predictions
-            predicted = torch.max(outputs, 1)[1]
-            
-            # Update statistics
-            total_loss += loss.item()
-            total_correct += (predicted == labels_indices).sum().item()
-            total_samples += len(labels_indices)
-
-    avg_accuracy = total_correct / total_samples
-    
-    model.train()  # Set the model back to training mode
-    
-    return total_loss, avg_accuracy
-'''
-def evaluate_dataloader_weighted_metrics(model, dataloader, criterion, device):
     """
     Evaluate the model on a given dataset.
 
@@ -370,32 +322,36 @@ def initialize_masks(model, device='cuda', EPS=0.25, layers=2):
 
     return locked_masks, locked_masks2
 
-def initialize_optimizers(model, opt_method, EPS=0.35, base_learning_rate=0.001, scaling_factor=0.5):
+def initialize_optimizers(model, nn_config_dict = None):
     """
     Initializes the optimizers based on the specified optimization method.
     Args:
     - model: The model for which the optimizer needs to be created.
-    - opt_method (str): The optimization method ('twolosses' or 'oneloss').
-    - EPS (float, optional): EPS value for the 'twolosses' method. Defaults to 0.35.
-    - base_learning_rate (float, optional): Base learning rate. Defaults to 0.001.
-    - scaling_factor (float, optional): Scaling factor for the second optimizer in 'twolosses'. Defaults to 0.5.
+    - nn_config (dict): Dictionary with parameters
 
     Returns:
     - optimizer1: The primary optimizer.
     - optimizer2: The secondary optimizer (only for 'twolosses'). Returns None for 'oneloss'.
     """
+    opt_method = nn_config['training']['opt_method']
+    eps = nn_config['training']['EPS'] 
+    base_learning_rate = nn_config['training']['base_learning_rate']
+    scaling_factor = nn_config['training']['scaling_factor']
+    layers = nn_config['training']['layers']
+
     if opt_method == 'twolosses':
         print('Using mode: two masks')
-        locked_masks, locked_masks2 = initialize_masks(model, EPS=EPS, layers=nn_config['training']['layers'])  # Assuming you have this function
+        locked_masks, locked_masks2 = initialize_masks(model, EPS=eps, layers=layers) 
         optimizer1 = optim.Adam(model.parameters(), lr=base_learning_rate)
-        optimizer2 = optim.Adam(model.parameters(), lr=scaling_factor * base_learning_rate)
+        secondary_lr = scaling_factor * base_learning_rate
+        optimizer2 = optim.Adam(model.parameters(), lr= secondary_lr)
     elif opt_method == 'oneloss':
         print('Using mode: classic backpropagation')
         optimizer1 = optim.Adam(model.parameters(), lr=base_learning_rate)
         optimizer2 = None
         locked_masks, locked_masks2 = None, None
     else:
-        raise ValueError(f"Unsupported optimization method: {opt_method}. Supported methods are 'twolosses' and 'oneloss'.")
+        raise ValueError(f"Unsupported optimization method: {opt_method}.")
     
     return optimizer1, optimizer2, locked_masks, locked_masks2
 

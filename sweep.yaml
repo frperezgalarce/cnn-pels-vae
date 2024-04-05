@@ -2,7 +2,7 @@ method: grid
 metric:
   goal: maximize
   name: f1_val
-name: exp_s_25000_l_300_sn_5_twolossesb
+name: exp_s_50000_l_300_sn_2_twolossesb
 parameters:
   EPS:
     values:

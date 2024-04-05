@@ -2,6 +2,7 @@
 import torch
 import torch.nn.functional as F
 import torch.nn as nn
+device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 class FocalLossMultiClass(nn.Module):
     def __init__(self, alpha=None, gamma=2, reduction='mean'):
@@ -29,12 +30,25 @@ class FocalLossMultiClass(nn.Module):
         Returns:
         tensor: Computed focal loss
         """
+
         CE_loss = F.cross_entropy(inputs, targets, reduction='none')
+        CE_loss = CE_loss.to(device)
+        CE_loss = CE_loss.float()
+
         pt = torch.exp(-CE_loss)
+        pt = pt.to(device)
+        pt = pt.float()
+
         if self.alpha is not None:
             alpha_t = self.alpha[targets]
+            alpha_t = alpha_t.to(device)
+            alpha_t = alpha_t.float()
+
         else:
             alpha_t = 1
+            alpha_t = alpha_t.to(device)
+            alpha_t = alpha_t.float()
+        
         F_loss = alpha_t * ((1 - pt) ** self.gamma )* CE_loss
 
         if self.reduction == 'mean':

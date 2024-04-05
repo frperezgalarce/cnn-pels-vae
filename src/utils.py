@@ -8,17 +8,11 @@ import pandas as pd
 import matplotlib
 if socket.gethostname() == 'exalearn':
     matplotlib.use('agg')
-import matplotlib.pyplot as plt
-import seaborn as sb
-import matplotlib.cm as cm
-#import random
 from tqdm import tqdm
 from collections import OrderedDict
 from src.vae.vae_models import *
-import wandb
+from src.visualization import plot_cm
 from sklearn.model_selection import train_test_split
-import itertools
-from sklearn.metrics import recall_score
 import pickle
 from typing import  Any, Dict, List
 import logging
@@ -50,7 +44,7 @@ PATH_ZIP_GAIA:str = PATHS["PATH_ZIP_GAIA"]
 with open('src/configuration/regressor.yaml', 'r') as file:
     reg_conf_file: Dict[str, Any] = yaml.safe_load(file)
 
-with open('src/nn_config.yaml', 'r') as file:
+with open('src/configuration/nn_config.yaml', 'r') as file:
     nn_config = yaml.safe_load(file)
 
 data_sufix: str =   reg_conf_file['model_parameters']['sufix_path']  
@@ -218,105 +212,6 @@ def insert_lc(examples, np_array, np_array_y, values_count= None, lenght_lc = 0,
     np.save(PATH_DATA_FOLDER+'/'+file_name+'_np_array.npy', np_array)
     return np_array, np_array_y
 
-'''
-def insert_lc_subclasses(examples, np_array, np_array_y, values_count= None, lenght_lc = 0, signal_noise=6, subclass=False, train_set=True, train_classes=[], file_name='train'):
-    counter = 0
-    #subclasses = pd.read_csv(PATH_SUBCLASSES)
-    ELL = pd.read_table(PATH_DATA_FOLDER+'/ELL.txt')
-    
-    for lc in tqdm(examples.ID.unique(), desc='Processing Light Curves'):
-        if train_set:
-            class_counter = values_count[values_count.Type==lc.split('-')[2]].counter.values[0]
-        else: 
-            class_counter = np.iinfo(np.int64).max
-
-        path_lc = PATH_LIGHT_CURVES_OGLE+lc.split('-')[1].lower()+'/'+lc.split('-')[2].lower()+'/phot/I/'+lc
-        
-        lcu = pd.read_table(path_lc, sep=" ", names=['time', 'magnitude', 'error'])
-        
-        lcu = light_curve_preprocessing(lcu)
-
-        signal = lcu['magnitude'].max() - lcu['magnitude'].min()
-
-        if (lcu.shape[0]> lenght_lc) and  ('error' in lcu.columns) and ((signal)/lcu['error'].mean()>signal_noise):
-            if (train_set) and (class_counter > nn_config['data']['limit_to_define_minority_Class']):
-                lcu_data = np.asarray(lcu[['delta_time', 'delta_mag']].sample(lenght_lc))
-                if subclass:
-                    try:
-                        new_element = str(subclasses.loc[subclasses.ID==lc.replace('.dat', ''),'sub_clase'].values[0])
-                        np_array_y = np.append(np_array_y, new_element)
-                        np_array = np.resize(np_array, (np_array.shape[0] + 1, lcu_data.shape[0], 2))
-                        np_array[-1] = lcu_data
-                    except Exception as error:
-                        logging.error(f"The light curve {lc} was not loaded: {error}")
-                        raise ValueError("The light curve {} was not loaded.".format(lc) + str(error))
-                else:
-                try: 
-                    new_element = lc.split('-')[2]
-                    if (new_element in ['ECL']): 
-                        type_value = ELL.loc[ELL.ID==lc.replace('.dat', ''), 'Type'].values
-                        if type_value and type_value=='ELL':
-                            new_element = 'ELL' 
-                        else: 
-                            new_element = 'ECL'
-                    if train_set:
-                        if new_element  in ['ACEP','CEP', 'DSCT', 'ECL',  'ELL', 'LPV',  'RRLYR', 'T2CEP']:
-                            np_array_y = np.append(np_array_y, new_element)
-                            np_array = np.resize(np_array, (np_array.shape[0] + 1, lcu_data.shape[0], 2))
-                            np_array[-1] = lcu_data
-                            counter = counter + 1
-                    else:
-                        if new_element in train_classes:
-                            np_array_y = np.append(np_array_y, new_element)
-                            np_array = np.resize(np_array, (np_array.shape[0] + 1, lcu_data.shape[0], 2))
-                            np_array[-1] = lcu_data
-                            counter = counter + 1
-                except Exception as error: 
-                    logging.error(f"The light curve {lc} was not loaded: {error}")
-                    #raise ValueError("The light curve {} was not loaded.".format(lc) + str(error))
-            else:
-                k_samples_by_object = int(nn_config['data']['upper_limit_majority_classes']/class_counter)
-                for _ in range(k_samples_by_object): 
-                    lcu_data = np.asarray(lcu[['delta_time', 'delta_mag']].sample(lenght_lc))
-                    if subclass:
-                        try:
-                            new_element = str(subclasses.loc[subclasses.ID==lc.replace('.dat', ''),'sub_clase'].values[0])
-                            np_array_y = np.append(np_array_y, new_element)
-                            np_array = np.resize(np_array, (np_array.shape[0] + 1, lcu_data.shape[0], 2))
-                            np_array[-1] = lcu_data
-                        except Exception as error:
-                            logging.error(f"The light curve {lc} was not loaded: {error}")
-                            raise ValueError("The light curve {} was not loaded.".format(lc) + str(error))
-                    else:
-                    try: 
-                        new_element = lc.split('-')[2]
-                        if (new_element in ['ECL']): 
-                            type_value = ELL.loc[ELL.ID==lc.replace('.dat', ''), 'Type'].values
-                            if type_value and type_value=='ELL':
-                                new_element = 'ELL' 
-                            else: 
-                                new_element = 'ECL'
-                        if train_set:
-                            if new_element  in ['ACEP','CEP', 'DSCT', 'ECL',  'ELL', 'LPV',  'RRLYR', 'T2CEP']:
-                                np_array_y = np.append(np_array_y, new_element)
-                                np_array = np.resize(np_array, (np_array.shape[0] + 1, lcu_data.shape[0], 2))
-                                np_array[-1] = lcu_data
-                                counter = counter + 1
-                        else:
-                            if new_element in train_classes:
-                                np_array_y = np.append(np_array_y, new_element)
-                                np_array = np.resize(np_array, (np_array.shape[0] + 1, lcu_data.shape[0], 2))
-                                np_array[-1] = lcu_data
-                                counter = counter + 1
-                    except Exception as error: 
-                        logging.error(f"The light curve {lc} was not loaded: {error}")
-                        #raise ValueError("The light curve {} was not loaded.".format(lc) + str(error))
-    print('shape: ', np_array.shape, np_array_y.shape)
-    np.save(PATH_DATA_FOLDER+'/'+file_name+'_np_array_y.npy', np_array_y)
-    np.save(PATH_DATA_FOLDER+'/'+file_name+'_np_array.npy', np_array)
-    return np_array, np_array_y
-'''
-
 def delete_by_std(df): 
 
     std_dev = df.std(axis=0)
@@ -326,11 +221,6 @@ def delete_by_std(df):
     # drop columns with 0 standard deviation
     df.drop(cols_to_drop, axis=1, inplace=True)
     return df
-'''
-def delete_by_magnitude(df):
-    df = df.loc[(df.delta_mag != 0).all(axis=1)]
-    return df
-'''
 
 def delete_low_represented_classes(df, column='class', threshold=100): 
     # Count the number of samples per category
@@ -339,75 +229,6 @@ def delete_low_represented_classes(df, column='class', threshold=100):
     categories_to_keep = counts[counts >= threshold].index
     df_filtered = df[df[column].isin(categories_to_keep)]
     return df_filtered
-
-def plot_cm(cm: np.ndarray,
-            labels: List[str],
-            title: str = 'Confusion Matrix',
-            save: bool = True,
-            filename: Optional[str] = None,
-            normed: bool = True, 
-            wandb_active: bool = True) -> None:
-    """
-    Plots a confusion matrix using Matplotlib.
-
-    Parameters:
-    -----------
-    cm : np.ndarray
-        The confusion matrix to be plotted.
-    labels : List[str]
-        List of class labels for annotation.
-    title : str, optional
-        Title of the plot. Default is 'Confusion Matrix'.
-    save : bool, optional
-        Whether to save the plot to a file. Default is False.
-    filename : str, optional
-        File name for saving the plot. If None, a default name will be generated. 
-        Default is None.
-    normed : bool, optional
-        Whether to normalize the values. Default is False.
-
-    Returns:
-    --------
-    None
-    """
-    
-    plt.figure(figsize=(8, 8))
-    plt.imshow(cm, cmap=plt.cm.Blues)
-    plt.title(title)
-    plt.colorbar()
-    plt.xlabel('Predicted label')
-    plt.ylabel('True label')
-    
-    thresh = cm.max() / 2
-    
-    for i, j in itertools.product(range(cm.shape[0]), range(cm.shape[1])):
-        if normed:
-            value = int(np.round(cm[i, j], 2) * 100)  # Convert float to integer
-        else:
-            value = int(np.round(cm[i, j], 2))
-        
-        plt.text(j, i, format(value, 'd'),
-                 horizontalalignment="center",
-                 color="white" if cm[i, j] > thresh else "black")
-        
-    plt.xticks(range(len(labels)), labels)
-    plt.yticks(range(len(labels)), labels)
-    
-    plt.tight_layout()
-    
-    if save:
-        if filename is None:
-            current_date = datetime.datetime.now().strftime('%Y%m%d')
-            title_formatted = title.replace(' ', '_')
-            filename = f"{title_formatted}_confusion_matrix_{current_date}.png"
-        plt.savefig(filename)
-
-        if wandb_active: 
-            wandb.log({title: wandb.Image(plt)})
-
-    else:
-        plt.show()
-
 
 def move_data_to_device(data, device):
     return tuple(torch.tensor(d).to(device) if isinstance(d, np.ndarray) else d.to(device) for d in data)
@@ -538,10 +359,9 @@ def transform_to_consecutive(input_list, label_encoder):
     modified_labels = np.array([mapping[element] for element in input_list])
     return modified_labels, modified_labelencoder_classes
 
-
 def get_data(sample_size, mode):
 
-    with open('src/nn_config.yaml', 'r') as file:
+    with open('src/configuration/nn_config.yaml', 'r') as file:
         nn_config = yaml.safe_load(file)
 
     print('-'*50)
@@ -593,7 +413,7 @@ def get_data(sample_size, mode):
     nn_config['data']['classes'] = modified_labelencoder_classes
     # Save the updated config back to the file
 
-    with open('src/nn_config.yaml', 'w') as file:
+    with open('src/configuration/nn_config.yaml', 'w') as file:
         yaml.safe_dump(nn_config, file)
 
     # Convert the encoded labels to a PyTorch tensor
@@ -617,24 +437,6 @@ def get_data(sample_size, mode):
     return x_train, x_test,  y_train, y_test, x_val,\
            y_val, modified_labelencoder_classes,\
            y_labels, y_labels_test
-
-'''
-def export_recall_latex(true_labels, predicted_labels, label_encoder): 
-    # Calculate the recall for each class
-    recall_values = recall_score(true_labels, predicted_labels, average=None)
-
-    # Convert recall values to LaTeX table format
-    latex_table = "\\begin{tabular}{|c|c|}\n\\hline\nClass & Recall \\\\\n\\hline\n"
-
-    for i, recall in enumerate(recall_values):
-        class_decoded = label_encoder([i])
-        latex_table += f"Class {class_decoded} & {recall:.2f} \\\\\n"
-
-    latex_table += "\\hline\n\\end{tabular}"
-
-    # Print the LaTeX table
-    print(latex_table)
-'''
 
 path = os.path.dirname(os.getcwd())+'/cnn-pels-vae'
 
@@ -676,82 +478,7 @@ def extract_midpoints(class_data):
 
         result.append([ period_mid, teff_mid, feh_95_mid, admagg_mid,  radius_val_mid, logg_mid])
 
-    return result
-    
-# Create a wall of generated time series
-def plot_wall_time_series(generated_lc, cls=[], data_real=None, color='vlue',
-                          dim=(2, 4), figsize=(16, 4), title=None):
-    """Light-curves wall plot, function used during VAE training phase.
-    Figure designed and ready to be appended to W&B logger.
-
-    Parameters
-    ----------
-    generated_lc : numpy array
-        Array of generated light curves
-    cls          : list, optional
-        List of labels corresponding to the generated light curves.
-    data_real    : numpy array, optional
-        List of real light curves.
-    dim          : list, optional
-        Figure Nrows, Ncols.
-    figsize      : list, optional
-        Figure size
-    title        : str, optional
-        Figure title
-
-    Returns
-    -------
-    fig
-        a matplotlib figure
-    image
-        an image version of the figure
-    """
-
-    plt.close('all')
-    if generated_lc.shape[2] == 3:
-        use_time = True
-        use_err = True
-    elif generated_lc.shape[2] == 2:
-        use_time = True
-        use_err = False
-    if generated_lc.shape[2] == 1:
-        use_time = False
-        use_err = False
-
-    if len(cls) == 0:
-        cls = [''] * (dim[0] * dim[1])
-    fig, axis = plt.subplots(nrows=dim[0], ncols=dim[1], figsize=figsize)
-    for i, ax in enumerate(axis.flat):
-        if data_real is not None:
-            ax.errorbar(data_real[i, :, 0],
-                        data_real[i, :, 1],
-                        yerr=data_real[i, :, 2],
-                        fmt='.', c='gray', alpha=.5)
-        if use_time and use_err:
-            ax.errorbar(generated_lc[i, :, 0],
-                        generated_lc[i, :, 1],
-                        yerr=generated_lc[i, :, 2],
-                        fmt='.', c='royalblue', label=cls[i])
-        elif use_time and not use_err:
-            ax.errorbar(generated_lc[i, :, 0],
-                        generated_lc[i, :, 1], 
-                        yerr=None,
-                        fmt='.', c='royalblue', label=cls[i])
-        elif not use_time and not use_err:
-            ax.plot(generated_lc[i, :], '.',
-                    c='royalblue', label=cls[i])
-            
-        ax.invert_yaxis()
-        if cls[0] != '':
-            ax.legend(loc='best')
-
-    mytitle = fig.suptitle(title, fontsize=20, y=1.025)
-
-    plt.tight_layout()
-    fig.canvas.draw()
-    image = np.frombuffer(fig.canvas.tostring_rgb(), dtype='uint8')
-    image  = image.reshape(fig.canvas.get_width_height()[::-1] + (3,))
-    return fig, image
+    return result    
 
 ## return number of trainable parameters in the model
 def count_parameters(model):
@@ -769,37 +496,7 @@ def count_parameters(model):
     """
     return sum(p.numel() for p in model.parameters() if p.requires_grad)
 
-## convert time delta to days, hors and minuts
-'''
-def days_hours_minutes(dt):
-    """Convert ellapsed time to Days, hours, minutes, and seconds.
-
-    Parameters
-    ----------
-    dt : value
-        Ellapsed time
-
-    Returns
-    -------
-    d
-        Days
-    h
-        Hours
-    m
-        Min
-    s
-        Seconds
-    """
-    totsec = dt.total_seconds()
-    d = dt.days
-    h = totsec//3600
-    m = (totsec%3600) // 60
-    sec =(totsec%3600)%60 #just for reference
-    return d, h, m, sec
-'''
-
 ## normalize light curves
-
 def normalize_each(data, norm_time=False, scale_to=[0, 1], n_feat=3):
     """MinMax normalization of all light curves per item.
 
@@ -845,57 +542,6 @@ def normalize_each(data, norm_time=False, scale_to=[0, 1], n_feat=3):
                         (scale_to[1] - scale_to[0]) + scale_to[0]
     return normed
 
-
-## normalize light curves
-'''
-def normalize_glob(data, norm_time=False, scale_to=[0, 1], n_feat=3):
-    """MinMax normalization of all light curves with global MinMax values.
-
-    Parameters
-    ----------
-    data      : numpy array
-        Light curves to be normalized
-    norm_time : bool array, optional
-        Wheather to normalize time axis or not, default=False
-    scale_to  : list, optional
-        Normalize range [min, max]
-    n_feat    : int, optional
-        numeber of features to be normalized
-
-    Returns
-    -------
-    normed
-        Normalized light curves
-    """
-    normed = np.zeros_like(data)
-    glob_min = np.min(data, axis=(0,1))
-    glob_max = np.max(data, axis=(0,1))
-    for i, lc in enumerate(data):
-        for f in range(n_feat):
-            normed[i, :, f] = lc[:, f]
-            ## normalize time if asked
-            if f == 0 and norm_time:
-                normed[i, :, f] = (lc[:, f] - np.min(lc[:, f])) / \
-                                  (np.max(lc[:, f]) - np.min(lc[:, f]))
-            ## normalize other feature values
-            if f == 1:
-                normed[i, :, f] = (lc[:, f] - glob_min[f]) / \
-                                  (glob_max[f] - glob_min[f])
-            if f == 2:
-                normed[i, :, f] = (lc[:, f]) / \
-                                  (glob_max[f] - glob_min[f])
-            ## scale feature values if asked
-            if scale_to != [0, 1]:
-                if f == 0 and not norm_time: continue
-                if f == 2:
-                    normed[i, :, f] = normed[i, :, f] * (scale_to[1] -
-                                                         scale_to[0])
-                else:
-                    normed[i, :, f] = normed[i, :, f] * \
-                        (scale_to[1] - scale_to[0]) + scale_to[0]
-    return normed
-'''
-
 ## convert MJD to delta t
 def return_dt(data, n_feat=3):
     """Return delta times from a sequence of observation times. 
@@ -916,96 +562,6 @@ def return_dt(data, n_feat=3):
     data[:,:,0] = [x-z for x, z in zip(data[:,:,0],
                                        np.min(data[:,:,0], axis=1))]
     return data
-
-def plot_latent_space(z, y=None):
-    """Creates a joint plot of features, used during training, figures
-    are W&B ready
-
-    Parameters
-    ----------
-    z : numpy array
-        fetures to be plotted
-    y : list, optional
-        axis for color code
-
-    Returns
-    -------
-    fig
-        matplotlib figure
-    fig
-        image of matplotlib figure
-    """
-    plt.close('all')
-    df = pd.DataFrame(z)
-    if y is not None:
-        df.loc[:,'y'] = y
-    pp = sb.pairplot(df,
-                     hue='y' if y is not None else None,
-                     hue_order=sorted(set(y)) if y is not None else None,
-                     diag_kind="hist", markers=".", height=2,
-                     plot_kws=dict(s=30, edgecolors='face', alpha=.8))
-
-    plt.tight_layout()
-    pp.fig.canvas.draw()
-    image = np.frombuffer(pp.fig.canvas.tostring_rgb(), dtype='uint8')
-    image  = image.reshape(pp.fig.canvas.get_width_height()[::-1] + (3,))
-    return pp.fig, image
-
-'''
-def perceptive_field(k=None, n=None):
-    """Calculate the perceptive field of a TCN network with kernel size k
-    and number of residual blocks n
-
-    Parameters
-    ----------
-    k : int, opcional
-        Kernel size of 1D convolutions
-    n : int, optional
-        Number of residual blocks 
-
-    Returns
-    -------
-    pf
-        perceptive field
-    """
-    if k != None and n != None:
-        pf = 1 + 2 * (k-1) * 2**(n-1)
-        print('perc_field : ', pf),
-        return pf
-    else:
-        for k in [3,5,7,9]:
-            for n in [1,2,3,4,5,6,7,8,9,10,11,12,13,14]:
-                pf = 1 + 2 * (k-1) * 2**(n-1)
-                if pf > 100 and pf < 400:
-                    print('kernel_size: ', k)
-                    print('num_blocks : ', n)
-                    print('perc_field : ', pf)
-                    print('######################')
-'''
-'''                
-def str2bool(v):
-    """Convert strings (y,yes, true, t, 1,n, no,false, f,0) 
-    to boolean values
-
-    Parameters
-    ----------
-    v : numpy array
-        string value to be converted to boolean
-
-    Returns
-    -------
-    bool
-        boolean value
-    """
-    if isinstance(v, bool):
-        return v
-    if v.lower() in ('yes', 'true', 't', 'y', '1'):
-        return True
-    elif v.lower() in ('no', 'false', 'f', 'n', '0'):
-        return False
-    else:
-        raise argparse.ArgumentTypeError('Boolean value expected.')
-'''
 
 def load_model_list(ID='zg3r4orb', device='cuda:0'):
     """Load a Python VAE model from file stored in a W&B archive
@@ -1149,286 +705,6 @@ params['date'], params['ID'])
     std_df['class'] = labels
 
     return mu_df, std_df
-
-'''  
-def plot_wall_synthetic_lcs(lc_gen, cls=[], lc_gen2=None, save=False, wandb_active=False):
-    """Creates a wall of light curves plot with real and reconstruction
-    sequences, paper-ready.
-
-    Parameters
-    ----------
-    lc_gen  : numpy array
-        light curves generated by the VAE model
-    lc_real : numpy array
-        real light curves overlayed in the plot
-    cls     : list, optional
-        list with corresponding lables to be displayed as legends
-    lc_gen2 : numpy array, optional
-        array with second set of generated light curves if desired
-    save    : bool, optional
-        wheather to save or not the figure
-        
-    Returns
-    -------
-        display figure
-    """
-    
-    if len(cls) == 0:
-        cls = [''] * len(lc_gen)
-    plt.close()
-    fig, axis = plt.subplots(nrows=8, ncols=3, 
-                             figsize=(16,14),
-                             sharex=True, sharey=True)
-    
-    for i, ax in enumerate(axis.flat):
-
-        ax.errorbar(lc_gen[i, :, 0],
-                    lc_gen[i, :, 1], 
-                    yerr=None,
-                    fmt='.', c='royalblue', label=cls[i])
-        if lc_gen2 is not None:
-            ax.errorbar(lc_gen2[i, :, 0],
-                        lc_gen2[i, :, 1], 
-                        yerr=None,
-                        fmt='.', c='g', alpha=.7)
-        if cls[0] != '':
-            ax.legend(loc='lower left')
-    
-    axis[-1,1].set_xlabel('Phase', fontsize=20)
-    axis[4,0].set_ylabel('Normalized Magnitude', fontsize=20)
-    #mytitle = fig.suptitle('', fontsize=20, y=1.05)
-
-    fig.subplots_adjust(hspace=0, wspace=0)
-    axis[0,0].invert_yaxis()
-    #for i, ax in enumerate(axis.flat):
-    #    ax.invert_yaxis()
-    #plt.tight_layout()
-    ID = 0
-    if save:
-        plt.savefig(PATH_FIGURES+'/real_lc_examples.pdf', format='pdf', bbox_inches='tight')
-    if wandb_active: 
-        wandb.init(project="cnn-pelsvae")
-        wandb.log({"test": plt})
-        wandb.finish()
-    else: 
-        plt.show()
-    return 
-'''
-
-def plot_wall_lcs(lc_gen, lc_real, cls=[], lc_gen2=None, save=False, wandb_active=False, 
-                to_title=None, sensivity=None, column_to_sensivity=None, all_columns=[]):
-    """Creates a wall of light curves plot with real and reconstruction
-    sequences, paper-ready.
-
-    Parameters
-    ----------
-    lc_gen  : numpy array
-        light curves generated by the VAE model
-    lc_real : numpy array
-        real light curves overlayed in the plot
-    cls     : list, optional
-        list with corresponding lables to be displayed as legends
-    lc_gen2 : numpy array, optional
-        array with second set of generated light curves if desired
-    save    : bool, optional
-        wheather to save or not the figure
-        
-    Returns
-    -------
-        display figure
-    """
-
-    #with open('models/' + reg_conf_file['model_parameters']['ID']+'_minmax_scaler.pkl', 'rb') as file:
-    #    loaded_scaler = pickle.load(file)
-
-    #original_data = loaded_scaler.inverse_transform(to_title.cpu().numpy())
-    to_title_one = to_title[:,column_to_sensivity].cpu().numpy()
-    to_title = to_title.cpu().numpy()
-
-    if len(cls) == 0:
-        cls = [''] * len(lc_gen)
-    plt.close()
-    fig, axis = plt.subplots(nrows=8, ncols=3, 
-                             figsize=(16,14),
-                             sharex=True, sharey=True)
-    
-    for i, ax in enumerate(axis.flat):
-        ax.errorbar(lc_real[i, :, 0],
-                    lc_real[i, :, 1],
-                    fmt='.', c='gray', alpha=.5)
-
-        ax.errorbar(lc_gen[i, :, 0],
-                    lc_gen[i, :, 1], 
-                    yerr=None,
-                    fmt='.', c='royalblue', label=cls[i])
-        if lc_gen2 is not None:
-            ax.errorbar(lc_gen2[i, :, 0],
-                        lc_gen2[i, :, 1], 
-                        yerr=None,
-                        fmt='.', c='g', alpha=.7)
-        if cls[0] != '':
-            ax.legend(loc='lower left')
-        
-        try:
-            ax.text(0.05, 0.95, sensivity + ': ' + str(np.round(to_title_one[i],3)),
-            verticalalignment='top', horizontalalignment='left',
-            transform=ax.transAxes, fontsize=10)
-        except Exception as error:
-            logging.error(f"The light curve {lc} was not loaded: {error}")
-
-
-    axis[-1,1].set_xlabel('Phase', fontsize=20)
-    axis[4,0].set_ylabel('Normalized Magnitude', fontsize=20)
-    #mytitle = fig.suptitle('', fontsize=20, y=1.05)
-    if cls[0] != '':
-        ax.legend(loc='lower left')
-    
-
-    title = ", ".join([f"{all_columns[i]}: {np.round(to_title[0, i], 2)}" 
-                   for i in range(len(all_columns)) if i != column_to_sensivity])
-
-    fig.suptitle(title, fontsize=20, y=0.9)
-    fig.subplots_adjust(hspace=0, wspace=0)
-    axis[0,0].invert_yaxis()
-    print('saving: ', save)
-    if save:
-        feature = str(sensivity).replace('[', '').replace(']','').replace('_','').replace('/','')
-        plt.savefig(PATH_FIGURES+'/recon_lc_'+reg_conf_file['model_parameters']['ID']+'_'+str(cls[0])+'_'+feature+'.pdf', format='pdf', bbox_inches='tight')
-    if wandb_active:
-        wandb.init(project="cnn-pelsvae")
-        wandb.log({"test": plt})
-        wandb.finish()
-    else: 
-        plt.show()
-    return 
-
-def plot_wall_lcs_sampling(lc_gen, lc_real, cls=[], lc_gen2=None, save=False, wandb_active=False, 
-                to_title=None, sensivity=None, column_to_sensivity=None, all_columns=[]):
-    """Creates a wall of light curves plot with real and reconstruction
-    sequences, paper-ready.
-
-    Parameters
-    ----------
-    lc_gen  : numpy array
-        light curves generated by the VAE model
-    lc_real : numpy array
-        real light curves overlayed in the plot
-    cls     : list, optional
-        list with corresponding lables to be displayed as legends
-    lc_gen2 : numpy array, optional
-        array with second set of generated light curves if desired
-    save    : bool, optional
-        wheather to save or not the figure
-        
-    Returns
-    -------
-        display figure
-    """
-
-    #with open('models/' + reg_conf_file['model_parameters']['ID']+'_minmax_scaler.pkl', 'rb') as file:
-    #    loaded_scaler = pickle.load(file)
-
-    #original_data = loaded_scaler.inverse_transform(to_title.cpu().numpy())
-    to_title_one = to_title[:,column_to_sensivity].cpu().numpy()
-    to_title = to_title.cpu().numpy()
-
-
-    if len(cls) == 0:
-        cls = [''] * len(lc_gen)
-    plt.close()
-    fig, axis = plt.subplots(nrows=8, ncols=3, 
-                             figsize=(16,14),
-                             sharex=True, sharey=True)
-    
-    for i, ax in enumerate(axis.flat):
-        ax.errorbar(lc_real[i, :, 0],
-                    lc_real[i, :, 1],
-                    fmt='.', c='gray', alpha=.5)
-
-        ax.errorbar(lc_gen[i, :, 0],
-                    lc_gen[i, :, 1], 
-                    yerr=None,
-                    fmt='.', c='royalblue', label=cls[i])
-        if lc_gen2 is not None:
-            ax.errorbar(lc_gen2[i, :, 0],
-                        lc_gen2[i, :, 1], 
-                        yerr=None,
-                        fmt='.', c='g', alpha=.7)
-        if cls[0] != '':
-            ax.legend(loc='lower left')
-        
-        try:
-            #print(sensivity + ': ' + str(np.round(to_title_one[i],2)))
-            title = ", ".join([f"{all_columns[j]}: {np.round(to_title[i, j], 2)}" 
-                   for j in range(len(all_columns))])
-
-            ax.text(0.05, 0.95, title,
-            verticalalignment='top', horizontalalignment='left',
-            transform=ax.transAxes, fontsize=6)
-        except Exception as error:
-            logging.error(f"The light curve {lc} was not loaded: {error}")
-
-
-    axis[-1,1].set_xlabel('Phase', fontsize=20)
-    axis[4,0].set_ylabel('Normalized Magnitude', fontsize=20)
-    #mytitle = fig.suptitle('', fontsize=20, y=1.05)
-    if cls[0] != '':
-        ax.legend(loc='lower left')
-    
-
-    title = " Epoch"
-
-    fig.suptitle(title, fontsize=20, y=0.9)
-    fig.subplots_adjust(hspace=0, wspace=0)
-    axis[0,0].invert_yaxis()
-    print('saving: ', save)
-    if save:
-        feature = str(sensivity).replace('[', '').replace(']','').replace('_','').replace('/','')
-        plt.savefig(PATH_FIGURES+'/epoch_recon_lc_'+reg_conf_file['model_parameters']['ID']+'_'+str(cls[0])+'_'+feature+'.pdf', format='pdf', bbox_inches='tight')
-    if wandb_active:
-        wandb.log({"epochs": wandb.Image(plt)})
-    else: 
-        plt.show()
-    return 'done'
-
-def scatter_hue(x, y, labels, disc=True, c_label=''):
-    """Creates a wall of light curves plot with real and reconstruction
-    sequences, paper-ready.
-
-    Parameters
-    ----------
-    x      : array
-        data to be plotted in horizontal axis
-    y      : array
-        data to be plotted in vertical axis
-    labels : list, optional
-        list with corresponding lables to be displayed as legends
-    disc : bool, optional
-        wheather the axis used for coloring is discrete or not
-    c_label    : bool, optional
-        name of color dimension
-        
-    Returns
-    -------
-        display figure
-    """
-    
-    fig = plt.figure(figsize=(12,9))
-    if disc:
-        c = cm.Dark2_r(np.linspace(0,1,len(set(labels))))
-        for i, cls in enumerate(set(labels)):
-            idx = np.where(labels == cls)[0]
-            plt.scatter(x[idx], y[idx], marker='.', s=20,
-                        color=c[i], alpha=.7, label=cls)
-    else:
-        plt.scatter(x, y, marker='.', s=20,
-                    c=labels, cmap='coolwarm_r', alpha=.7)
-        plt.colorbar(label=c_label)
-        
-    plt.xlabel('embedding 1')
-    plt.ylabel('embedding 2')
-    plt.legend(loc='best', fontsize='x-large')
-    plt.show()
 
 def flat_and_quantile(tensor, q):
     """
@@ -1775,42 +1051,6 @@ def get_time_from_period(period, phased_time,  example_sequence, sequence_length
     
     return time_sequence
 
-'''
-def compare_folded_crude_lc(xhat_mu, lc_reverted, cls=[], period=[], wandb_active=False):
-
-    for j in range(3):
-        plt.figure(figsize=(24, 15))
-        for i in range(8):
-            plt.subplot(8, 2, i*2 + 1)
-            plt.scatter(xhat_mu[j*8+i,:,0], xhat_mu[j*8+i,:,1], c='royalblue', label=str(cls[j*8+i]) +', period: '+str(period[j*8+i]))
-            plt.gca().invert_yaxis()
-            if i == 7: 
-                plt.xlabel('MJD')
-            plt.ylabel('Magnitude')
-            if i==0:
-                plt.title(f'Folded light curve')
-            plt.legend(loc='lower left')
-
-            plt.subplot(8, 2, i*2 + 2)
-            plt.scatter(lc_reverted[j*8+i,:,0], lc_reverted[j*8+i,:,1], c='royalblue')
-            plt.gca().invert_yaxis()
-            if i == 7: 
-                plt.xlabel('MJD')
-            if i == 0:
-                plt.title(f'Recovered light curve')
-
-        # Adjust spacing between plots
-        plt.tight_layout()
-
-        # Show the figure
-        if wandb_active==True:
-            wandb.init(project="cnn-pelsvae")
-            wandb.log({"compare-folded-crude": plt})
-            wandb.finish()
-        else:
-            plt.show()
-'''
-
 def save_arrays_to_folder(array1, array2, folder_path):
     """
     Save two NumPy arrays to a specified folder.
@@ -1900,7 +1140,6 @@ def pp_sensitive_test(PP_list):
                                             column_to_sensivity=pp)
             del temp_dict
 
-
 def evaluate_and_plot_cm_from_dataloader(model, dataloader, label_encoder, title, wandb_active: bool = True):
     all_y_data = []
     all_predicted = []
@@ -1943,25 +1182,3 @@ def remove_duplicates(my_list):
         if element not in no_duplicates:
             no_duplicates.append(element)
     return no_duplicates
-# Create filenames for the two arrays
-def plot_batch(df1, df1y, label_encoder):
-
-    for i in range(int(np.max(df1y)) + 1):  # Ensure all classes are covered
-        
-        plt.figure(figsize=(12, 8))
-        
-        # Dataset 1
-        mask1 = df1y[:, i] == 1
-        delta_time1 = df1[mask1][:, 0, :].ravel()
-        delta_magnitude1 = df1[mask1][:, 1, :].ravel()
-        
-        # Class name
-        class_name = label_encoder.inverse_transform([i])[0]
-
-        # Plot 2D scatter for Dataset 1
-        sb.scatterplot(x=delta_time1, y=delta_magnitude1, color="r", label="Synthetic Light curves", alpha=0.2)
-        
-        plt.title(f"2D Density for Class {class_name}")
-        plt.legend()
-        plt.savefig(f"2D_Density_Class_{class_name}.png")
-        plt.show()

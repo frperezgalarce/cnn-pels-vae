@@ -6,7 +6,7 @@ import yaml
 
 np.set_printoptions(precision=4)
 
-with open('src/nn_config.yaml', 'r') as file:
+with open('src/configuration/nn_config.yaml', 'r') as file:
     nn_config = yaml.safe_load(file)
 
 ITERATIONS_MH: int = nn_config['sampling']['iterations']

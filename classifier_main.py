@@ -83,14 +83,14 @@ if __name__ == "__main__":
 
     # Flag to control the activation of Weights & Biases integration
     wandb_active = True
-    method = "twolosses"
+    method = "oneloss"
 
     with open('src/configuration/nn_config.yaml', 'r') as file:
         nn_config = yaml.safe_load(file)
 
     # Setup hyperparameter optimization if Weights & Biases is active
     if wandb_active:
-        sample_sizes = [50000, 100000, 400000]
+        sample_sizes = [10000, 25000, 50000, 100000, 400000]
         sn_ratios = [2, 3, 4, 5]
         seq_lengths = [300]
 

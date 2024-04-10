@@ -39,7 +39,6 @@ def remove_outliers(data):
     upper_bound = Q3 + 1.5 * IQR
     return [x for x in data if lower_bound <= x <= upper_bound]
 
-
 def compare_frequency(s1, s2, s3, feature = "Period", clean = True): 
     
     if clean:
@@ -59,7 +58,6 @@ def compare_frequency(s1, s2, s3, feature = "Period", clean = True):
     plt.legend(loc='upper right')
     plt.title('Comparison of Histograms')
     plt.show()
-
 
 def basic_histogram(s1, title='Delta of Teff'): 
     plt.figure(figsize=(10,6))

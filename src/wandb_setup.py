@@ -46,7 +46,7 @@ def setup_hyper_opt(main, nn_config):
         # Configuration for the 'twolosses' optimization method
         sweep_config = {
             'method': 'grid',
-            'name': f"exp_s_{nn_config['data']['sample_size']}_l_{nn_config['data']['seq_length']}_sn_{nn_config['data']['sn_ratio']}_twolossesb",
+            'name': f"exp_s_{nn_config['data']['sample_size']}_l_{nn_config['data']['seq_length']}_sn_{nn_config['data']['sn_ratio']}_twolosses - wo oversampling",
             'metric': {'goal': 'maximize', 'name': 'f1_val'},
             'parameters': {
                 'learning_rate': {'values': [0.002]},

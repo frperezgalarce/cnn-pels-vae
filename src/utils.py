@@ -145,7 +145,7 @@ def update_arrays(np_array, np_array_y, new_element, lcu_data, counter, verbose 
     return np_array, np_array_y, counter 
 
 def insert_lc(examples, np_array, np_array_y, values_count= None, lenght_lc = 0, signal_noise=6, 
-            train_set=True, file_name='train', verbose = False):
+            train_set=True, file_name='train', verbose = False, oversampling=False):
     counter = 0
     ELL = pd.read_table(PATH_DATA_FOLDER+'/ELL.txt')
     
@@ -192,21 +192,33 @@ def insert_lc(examples, np_array, np_array_y, values_count= None, lenght_lc = 0,
                 except Exception as error: 
                     logging.error(f"The light curve {lc} was not loaded: {error}")
             else:
-                k_samples_by_object = int(nn_config['data']['upper_limit_majority_classes']/(class_counter)) #TODO: 1/3 of majority class
+                if oversampling:
+                    k_samples_by_object = int(nn_config['data']['upper_limit_majority_classes']
+                                            /(class_counter)) 
+                else: 
+                    k_samples_by_object = 1
                 if verbose: 
                     print(k_samples_by_object)
+
                 for _ in range(k_samples_by_object):
+
                     first_positive_index = lcu[lcu['delta_mag'] > 0].index[0]
                     filtered_df = lcu.loc[:first_positive_index - 1]
-                    lcu_data = np.asarray(filtered_df[['delta_time', 'delta_mag']].sample(lenght_lc))
+
+                    lcu_data = np.asarray(filtered_df[['delta_time', 'delta_mag']]
+                                                    .sample(lenght_lc)
+                                                    .sort_index())
                     try: 
                         new_element = lc.split('-')[2]
                         new_element = add_ell(new_element, ELL, lc)
                         if new_element in list(nn_config['data']['classes']):
-                            np_array, np_array_y, counter = update_arrays(np_array, np_array_y, new_element, lcu_data, counter)
+                            np_array, np_array_y, counter = update_arrays(np_array, 
+                                                                          np_array_y, 
+                                                                          new_element, 
+                                                                          lcu_data, counter)
                     except Exception as error: 
                         logging.error(f"The light curve {lc} was not loaded: {error}")
-                        #raise ValueError("The light curve {} was not loaded.".format(lc) + str(error))
+                        
     print('shape: ', np_array.shape, np_array_y.shape)
     np.save(PATH_DATA_FOLDER+'/'+file_name+'_np_array_y.npy', np_array_y)
     np.save(PATH_DATA_FOLDER+'/'+file_name+'_np_array.npy', np_array)

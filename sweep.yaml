@@ -2,7 +2,7 @@ method: grid
 metric:
   goal: maximize
   name: f1_val
-name: exp_s_50000_l_300_sn_2_twolossesb
+name: exp_s_10000_l_300_sn_3_oneloss
 parameters:
   EPS:
     values:
@@ -37,10 +37,6 @@ parameters:
     - 10
   ranking_method:
     values:
-    - CCR
-    - max_confusion
-    - proportion
-    - max_pairwise_confusion
     - no_priority
   repetitions:
     values:

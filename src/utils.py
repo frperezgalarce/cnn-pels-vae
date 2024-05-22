@@ -405,22 +405,17 @@ def get_data(sample_size, mode):
     encoded_labels_test = label_encoder.transform(y_test)
     encoded_labels, modified_labelencoder_classes = transform_to_consecutive(encoded_labels, label_encoder)
 
-
-    
     encoded_labels_test, modified_labelencoder_classes = transform_to_consecutive(encoded_labels_test, label_encoder)
     n_values = len(np.unique(encoded_labels))
     y_train = np.eye(n_values)[encoded_labels]
     y_test = np.eye(n_values)[encoded_labels_test]
 
-
     with open(PATH_MODELS+'label_encoder.pkl', 'wb') as f:
         pickle.dump(label_encoder, f)
-
 
     print("Label to Number Mapping:")
     for index, label in enumerate(modified_labelencoder_classes):
         print(f"{label}: {index}")
-
 
     nn_config['data']['classes'] = modified_labelencoder_classes
     # Save the updated config back to the file

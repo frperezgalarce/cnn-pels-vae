@@ -9,12 +9,12 @@ data:
   limit_to_define_minority_Class: 5000
   minimum_lenght_real_curves: 50
   mode_running: create
-  opt_method: oneloss
-  sample_size: 10000
+  opt_method: twolosses
+  sample_size: 25000
   seq_length: 300
   sn_ratio: 3
   upper_limit_majority_classes: 20000
-opt_method: oneloss
+opt_method: twolosses
 proportion: 10000
 ranking_method: CCR
 sample_size: 400000
@@ -34,11 +34,11 @@ training:
   epochs: 500
   focal_loss_scale: 1
   layers: 3
-  loss: focalLoss
+  loss: NLLLoss
   lr: 0.001
   m: 1
   n_oversampling: 1
-  opt_method: oneloss
+  opt_method: twolosses
   patience: 10
   ranking_method: proportion
   repetitions: 1

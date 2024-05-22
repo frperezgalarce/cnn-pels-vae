@@ -92,7 +92,7 @@ class SyntheticDataBatcher:
         try:
             print('Trying samples')
             samples = sampler.modify_and_sample(model_name, n_samples=n_samples, 
-                                                mode= nn_config['sampling']['mode'])
+                                                mode= 'two_steps')
             return samples, True
         except Exception as e:
             raise Exception(f"Failed to load samples from model {model_name}. Error: {str(e)}")
@@ -175,7 +175,6 @@ class SyntheticDataBatcher:
             print(f"Number of NaN values detected: {np.sum(np.isnan(lc_reverted))}")
             raise ValueError("NaN values detected in lc_reverted array")
     
-    #TODO: review oversampling and undersampling methods
     def set_lc_length(self, oversampling, lc_reverted, n_oversampling, onehot_to_train):
         if oversampling: 
             sampler = LightCurveRandomSampler(lc_reverted, onehot_to_train, self.seq_length, n_oversampling)
@@ -249,7 +248,7 @@ class SyntheticDataBatcher:
         indices = np.random.choice(xhat_mu.shape[0], 24, replace=False)
         sampled_arrays = xhat_mu[indices, :, :]
         
-        viz.plot_wall_lcs_sampling(sampled_arrays, sampled_arrays,  cls=lb[indices],  column_to_sensivity=index_period,
+        viz.plot_wall_lcs_sampling(sampled_arrays, sampled_arrays,  cls=lb[indices],
                                 to_title = pp[indices], sensivity = 'Period', all_columns=self.pp, save=False, 
                                 wandb_active=wandb_active) 
 
@@ -272,4 +271,5 @@ class SyntheticDataBatcher:
 
         synthetic_dataloader = self.save_batch(lc_reverted, onehot_to_train , PATH_DATA)
 
+        del vae, lc_reverted, z, lb, pp
         return synthetic_dataloader

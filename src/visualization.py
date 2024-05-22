@@ -14,6 +14,23 @@ import itertools
 from typing import List
 import logging
 
+with open('src/configuration/paths.yaml', 'r') as file:
+    YAML_FILE = yaml.safe_load(file)
+
+PATHS =YAML_FILE['paths']
+PATH_LIGHT_CURVES_OGLE = PATHS['PATH_LIGHT_CURVES_OGLE']
+PATH_FEATURES_TRAIN = PATHS['PATH_FEATURES_TRAIN']
+PATH_FEATURES_TEST = PATHS['PATH_FEATURES_TEST']
+PATH_NUMPY_DATA_X_TRAIN = PATHS['PATH_NUMPY_DATA_X_TRAIN']
+PATH_NUMPY_DATA_X_TEST = PATHS['PATH_NUMPY_DATA_X_TEST'] 
+PATH_NUMPY_DATA_Y_TRAIN = PATHS['PATH_NUMPY_DATA_Y_TRAIN']
+PATH_NUMPY_DATA_Y_TEST = PATHS['PATH_NUMPY_DATA_Y_TEST'] 
+PATH_SUBCLASSES = PATHS["PATH_SUBCLASSES"]
+PATH_DATA_FOLDER = PATHS["PATH_DATA_FOLDER"]
+PATH_FIGURES: str = PATHS['PATH_FIGURES']
+PATH_MODELS: str = PATHS["PATH_MODELS"]
+PATH_ZIP_GAIA:str = PATHS["PATH_ZIP_GAIA"]
+
 # Create a wall of generated time series
 def plot_wall_time_series(generated_lc, cls=[], data_real=None, color='vlue',
                           dim=(2, 4), figsize=(16, 4), title=None):
@@ -210,8 +227,8 @@ def plot_wall_lcs(lc_gen, lc_real, cls=[], lc_gen2=None, save=False, wandb_activ
         plt.show()
     return 
 
-def plot_wall_lcs_sampling(lc_gen, lc_real, cls=[], lc_gen2=None, save=False, wandb_active=False, 
-                to_title=None, sensivity=None, column_to_sensivity=None, all_columns=[]):
+def plot_wall_lcs_sampling(lc_gen, lc_real, cls=[], lc_gen2=None, save=True, wandb_active=False, 
+                to_title=None, sensivity=None, all_columns=[], plot_title=False):
     """Creates a wall of light curves plot with real and reconstruction
     sequences, paper-ready.
 
@@ -237,18 +254,19 @@ def plot_wall_lcs_sampling(lc_gen, lc_real, cls=[], lc_gen2=None, save=False, wa
     #    loaded_scaler = pickle.load(file)
 
     #original_data = loaded_scaler.inverse_transform(to_title.cpu().numpy())
-    to_title_one = to_title[:,column_to_sensivity].cpu().numpy()
     to_title = to_title.cpu().numpy()
 
-
+    
     if len(cls) == 0:
         cls = [''] * len(lc_gen)
     plt.close()
-    fig, axis = plt.subplots(nrows=8, ncols=3, 
-                             figsize=(16,14),
+    fig, axis = plt.subplots(nrows=2, ncols=2, 
+                             figsize=(8,7),
                              sharex=True, sharey=True)
     
     for i, ax in enumerate(axis.flat):
+        print(", ".join([f"{all_columns[j]}: {np.round(to_title[i, j], 2)}" for j in range(len(all_columns))]))
+
         ax.errorbar(lc_real[i, :, 0],
                     lc_real[i, :, 1],
                     fmt='.', c='gray', alpha=.5)
@@ -266,33 +284,35 @@ def plot_wall_lcs_sampling(lc_gen, lc_real, cls=[], lc_gen2=None, save=False, wa
             ax.legend(loc='lower left')
         
         try:
-            #print(sensivity + ': ' + str(np.round(to_title_one[i],2)))
-            title = ", ".join([f"{all_columns[j]}: {np.round(to_title[i, j], 2)}" 
-                   for j in range(len(all_columns))])
+            if plot_title:
+                title = ", ".join([f"{all_columns[j]}: {np.round(to_title[i, j], 2)}" 
+                    for j in range(len(all_columns))])
 
-            ax.text(0.05, 0.95, title,
-            verticalalignment='top', horizontalalignment='left',
-            transform=ax.transAxes, fontsize=6)
+                ax.text(0.05, 0.95, title,
+                verticalalignment='top', horizontalalignment='left',
+                transform=ax.transAxes, fontsize=6)
         except Exception as error:
-            logging.error(f"The light curve {lc} was not loaded: {error}")
+            logging.error(f"The light curve was not loaded: {error}")
 
 
-    axis[-1,1].set_xlabel('Phase', fontsize=20)
-    axis[4,0].set_ylabel('Normalized Magnitude', fontsize=20)
+    axis[-1,1].set_xlabel('Phase', fontsize=14)
+    axis[-1,0].set_xlabel('Phase', fontsize=14)
+    axis[0,0].set_ylabel('Normalized Magnitude', fontsize=14)
+    axis[1,0].set_ylabel('Normalized Magnitude', fontsize=14)
     #mytitle = fig.suptitle('', fontsize=20, y=1.05)
     if cls[0] != '':
         ax.legend(loc='lower left')
-    
 
-    title = " Epoch"
+    #title = " Epoch"
 
-    fig.suptitle(title, fontsize=20, y=0.9)
+    #fig.suptitle(title, fontsize=20, y=0.9)
     fig.subplots_adjust(hspace=0, wspace=0)
     axis[0,0].invert_yaxis()
     print('saving: ', save)
     if save:
         feature = str(sensivity).replace('[', '').replace(']','').replace('_','').replace('/','')
-        plt.savefig(PATH_FIGURES+'/epoch_recon_lc_'+reg_conf_file['model_parameters']['ID']+'_'+str(cls[0])+'_'+feature+'.pdf', format='pdf', bbox_inches='tight')
+        plt.savefig(PATH_FIGURES+'/epoch_recon_lc_'+str(cls[0])+'_'+feature+'.pdf', format='png', bbox_inches='tight')
+        plt.show()
     if wandb_active:
         wandb.log({"epochs": wandb.Image(plt)})
     else: 

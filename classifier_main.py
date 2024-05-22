@@ -83,42 +83,43 @@ if __name__ == "__main__":
 
     # Flag to control the activation of Weights & Biases integration
     wandb_active = True
-    method = "oneloss"
+    #method = "twolosses"
 
     with open('src/configuration/nn_config.yaml', 'r') as file:
         nn_config = yaml.safe_load(file)
 
     # Setup hyperparameter optimization if Weights & Biases is active
     if wandb_active:
-        sample_sizes = [10000, 25000, 50000, 100000, 400000]
-        sn_ratios = [2, 3, 4, 5]
+        sample_sizes = [25000]
+        sn_ratios = [3]
         seq_lengths = [300]
 
         # Create a total progress bar for all iterations
         total_iterations = len(sample_sizes) * len(sn_ratios) * len(seq_lengths)
         with tqdm(total=total_iterations) as pbar:
             for sample_size in sample_sizes:
-                for sn_ratio in sn_ratios:
-                    for seq_length in seq_lengths:
-                        # Clearing the GPU cache to ensure maximum available memory
-                        torch.cuda.empty_cache()
-                        nn_config['data']['sample_size'] = sample_size
-                        nn_config['data']['sn_ratio'] = sn_ratio
-                        nn_config['data']['seq_length'] = seq_length
-                        nn_config['seq_length'] = seq_length
-                        nn_config['data']['opt_method'] = method
-                        nn_config['opt_method'] = method
-                        nn_config['training']['opt_method'] = method
-                        try:
-                            with open('src/configuration/nn_config.yaml', 'w') as file:
-                                yaml.dump(nn_config, file)
-                                file.flush()  # Force flushing the file buffer to disk
-                        except Exception as e:
-                            print(f"Error writing to file: {e}")
+                for method in ['twolosses']:#'oneloss', 
+                    for sn_ratio in sn_ratios:
+                        for seq_length in seq_lengths:
+                            # Clearing the GPU cache to ensure maximum available memory
+                            torch.cuda.empty_cache()
+                            nn_config['data']['sample_size'] = sample_size
+                            nn_config['data']['sn_ratio'] = sn_ratio
+                            nn_config['data']['seq_length'] = seq_length
+                            nn_config['seq_length'] = seq_length
+                            nn_config['data']['opt_method'] = method
+                            nn_config['opt_method'] = method
+                            nn_config['training']['opt_method'] = method
+                            try:
+                                with open('src/configuration/nn_config.yaml', 'w') as file:
+                                    yaml.dump(nn_config, file)
+                                    file.flush()  # Force flushing the file buffer to disk
+                            except Exception as e:
+                                print(f"Error writing to file: {e}")
 
-                        print(nn_config)
-                        wsetup.setup_hyper_opt(main, nn_config)
-                        pbar.update(1)
+                            print(nn_config)
+                            wsetup.setup_hyper_opt(main, nn_config)
+                            pbar.update(1)
 
     else:
         for sample_size in [10000, 20000, 40000, 80000, 160000, 320000]:

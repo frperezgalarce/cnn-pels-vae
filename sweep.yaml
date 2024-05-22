@@ -1,58 +1,71 @@
-method: grid
+method: bayes
 metric:
   goal: maximize
-  name: f1_val
-name: exp_s_10000_l_300_sn_3_oneloss
+  name: weighted_f1
+name: hyperparameter_search_f1_weighted_0.3
 parameters:
   EPS:
     values:
+    - 0.15
+    - 0.25
     - 0.3
+    - 0.35
   batch_size:
     values:
     - 32
     - 64
+    - 128
   beta_decay_factor:
-    values:
-    - 0.97
+    max: 0.99
+    min: 0.9
+  decay_parameter_1:
+    max: 0.8
+    min: 0.5
+  decay_parameter_2:
+    max: 0.9
+    min: 0.1
   focal_loss_scale:
-    values:
-    - 1.5
+    max: 4
+    min: 1
   layers:
     values:
+    - 2
+    - 3
     - 4
   learning_rate:
-    values:
-    - 0.002
+    max: 0.1
+    min: 0.002
   loss:
     values:
     - focalLoss
-    - CrossEntropyLoss
-    - non_weighted_CrossEntropyLoss
-    - NLLLoss
   n_oversampling:
-    values:
-    - 5
+    max: 20
+    min: 1
   patience:
-    values:
-    - 10
+    max: 20
+    min: 5
   ranking_method:
     values:
+    - CCR
+    - max_confusion
+    - proportion
+    - max_pairwise_confusion
     - no_priority
   repetitions:
-    values:
-    - 3
+    max: 16
+    min: 1
   scaling_factor:
-    values:
-    - 0.48
+    max: 2.0
+    min: 0.5
   sufix_path:
     values:
     - GAIA3_LOG_IMPUTED_BY_CLASS_6PP
   synthetic_samples_by_class:
-    values:
-    - 16
+    max: 32
+    min: 8
   threshold_acc_synthetic:
-    values:
-    - 0.84
+    max: 0.9
+    min: 0.5
   vae_model:
     values:
     - gn42liaz

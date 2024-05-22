@@ -289,7 +289,8 @@ def get_counts_and_weights_by_class(y_train_labeled: torch.Tensor,
     square roots these weights, and converts them into a tensor. It also prints the number of
     occurrences of each class in the training and testing sets.
     """
-    device = x_train.device
+    device = torch.device("cuda:0" if torch.cuda.is_available()
+                                    and gpu else "cpu")
 
     print('Training set')
     classes = np.unique(y_train_labeled.numpy())
@@ -356,7 +357,7 @@ def run_cnn(create_samples: Any, vae_model=None, pp = None,
 
     best_val = np.iinfo(np.int64).max
     harder_samples = True
-    no_improvement_count, counter, weight_f1_score_hyperparameter_search  = 0, 0, 0
+    no_improvement_count, counter, weight_f1_score_hyperparameter_search  = 0, 0, 0.3
     train_loss_values, val_loss_values, train_accuracy_values, \
                                         val_accuracy_values  = [], [], [], []
     
@@ -428,7 +429,10 @@ def run_cnn(create_samples: Any, vae_model=None, pp = None,
                                                 samples_dict = dict_priorization,
                                                 n_oversampling = nn_config['training']['n_oversampling'])
 
-            beta_actual = 0.85 + 0.15 * np.exp(-0.1 * epoch)
+
+            decay_parameter1 = nn_config['training']['decay_parameter_1']
+            decay_parameter2= nn_config['training']['decay_parameter_2']
+            beta_actual = decay_parameter1 + (1-decay_parameter1) * np.exp(-decay_parameter2 * epoch)
             harder_samples = False
 
         elif  nn_config['training']['opt_method']=='twolosses' and create_samples: 

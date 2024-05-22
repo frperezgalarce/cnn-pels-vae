@@ -9,3 +9,69 @@ Below is the traceback from this internal error.
 ERROR:root:Internal Python error in the inspect module.
 Below is the traceback from this internal error.
 
+ERROR:wandb.sdk.lib.retry:Retry attempt failed:
+Traceback (most recent call last):
+  File "/home/franciscoperez/anaconda3/envs/cnnpelsvae/lib/python3.7/site-packages/urllib3/connection.py", line 207, in _new_conn
+    socket_options=self.socket_options,
+  File "/home/franciscoperez/anaconda3/envs/cnnpelsvae/lib/python3.7/site-packages/urllib3/util/connection.py", line 60, in create_connection
+    for res in socket.getaddrinfo(host, port, family, socket.SOCK_STREAM):
+  File "/home/franciscoperez/anaconda3/envs/cnnpelsvae/lib/python3.7/socket.py", line 752, in getaddrinfo
+    for res in _socket.getaddrinfo(host, port, family, type, proto, flags):
+socket.gaierror: [Errno -2] Name or service not known
+
+The above exception was the direct cause of the following exception:
+
+Traceback (most recent call last):
+  File "/home/franciscoperez/anaconda3/envs/cnnpelsvae/lib/python3.7/site-packages/urllib3/connectionpool.py", line 802, in urlopen
+    **response_kw,
+  File "/home/franciscoperez/anaconda3/envs/cnnpelsvae/lib/python3.7/site-packages/urllib3/connectionpool.py", line 491, in _make_request
+    raise new_e
+  File "/home/franciscoperez/anaconda3/envs/cnnpelsvae/lib/python3.7/site-packages/urllib3/connectionpool.py", line 467, in _make_request
+    self._validate_conn(conn)
+  File "/home/franciscoperez/anaconda3/envs/cnnpelsvae/lib/python3.7/site-packages/urllib3/connectionpool.py", line 1092, in _validate_conn
+    conn.connect()
+  File "/home/franciscoperez/anaconda3/envs/cnnpelsvae/lib/python3.7/site-packages/urllib3/connection.py", line 611, in connect
+    self.sock = sock = self._new_conn()
+  File "/home/franciscoperez/anaconda3/envs/cnnpelsvae/lib/python3.7/site-packages/urllib3/connection.py", line 210, in _new_conn
+    raise NameResolutionError(self.host, self, e) from e
+urllib3.exceptions.NameResolutionError: <urllib3.connection.HTTPSConnection object at 0x7f214d0b7410>: Failed to resolve 'api.wandb.ai' ([Errno -2] Name or service not known)
+
+The above exception was the direct cause of the following exception:
+
+Traceback (most recent call last):
+  File "/home/franciscoperez/anaconda3/envs/cnnpelsvae/lib/python3.7/site-packages/requests/adapters.py", line 497, in send
+    chunked=chunked,
+  File "/home/franciscoperez/anaconda3/envs/cnnpelsvae/lib/python3.7/site-packages/urllib3/connectionpool.py", line 845, in urlopen
+    method, url, error=new_e, _pool=self, _stacktrace=sys.exc_info()[2]
+  File "/home/franciscoperez/anaconda3/envs/cnnpelsvae/lib/python3.7/site-packages/urllib3/util/retry.py", line 515, in increment
+    raise MaxRetryError(_pool, url, reason) from reason  # type: ignore[arg-type]
+urllib3.exceptions.MaxRetryError: HTTPSConnectionPool(host='api.wandb.ai', port=443): Max retries exceeded with url: /graphql (Caused by NameResolutionError("<urllib3.connection.HTTPSConnection object at 0x7f214d0b7410>: Failed to resolve 'api.wandb.ai' ([Errno -2] Name or service not known)"))
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "/home/franciscoperez/anaconda3/envs/cnnpelsvae/lib/python3.7/site-packages/wandb/sdk/lib/retry.py", line 113, in __call__
+    result = self._call_fn(*args, **kwargs)
+  File "/home/franciscoperez/anaconda3/envs/cnnpelsvae/lib/python3.7/site-packages/wandb/sdk/internal/internal_api.py", line 210, in execute
+    return self.client.execute(*args, **kwargs)  # type: ignore
+  File "/home/franciscoperez/anaconda3/envs/cnnpelsvae/lib/python3.7/site-packages/wandb/vendor/gql-0.2.0/wandb_gql/client.py", line 52, in execute
+    result = self._get_result(document, *args, **kwargs)
+  File "/home/franciscoperez/anaconda3/envs/cnnpelsvae/lib/python3.7/site-packages/wandb/vendor/gql-0.2.0/wandb_gql/client.py", line 60, in _get_result
+    return self.transport.execute(document, *args, **kwargs)
+  File "/home/franciscoperez/anaconda3/envs/cnnpelsvae/lib/python3.7/site-packages/wandb/vendor/gql-0.2.0/wandb_gql/transport/requests.py", line 38, in execute
+    request = requests.post(self.url, **post_args)
+  File "/home/franciscoperez/anaconda3/envs/cnnpelsvae/lib/python3.7/site-packages/requests/api.py", line 115, in post
+    return request("post", url, data=data, json=json, **kwargs)
+  File "/home/franciscoperez/anaconda3/envs/cnnpelsvae/lib/python3.7/site-packages/requests/api.py", line 59, in request
+    return session.request(method=method, url=url, **kwargs)
+  File "/home/franciscoperez/anaconda3/envs/cnnpelsvae/lib/python3.7/site-packages/requests/sessions.py", line 589, in request
+    resp = self.send(prep, **send_kwargs)
+  File "/home/franciscoperez/anaconda3/envs/cnnpelsvae/lib/python3.7/site-packages/requests/sessions.py", line 703, in send
+    r = adapter.send(request, **kwargs)
+  File "/home/franciscoperez/anaconda3/envs/cnnpelsvae/lib/python3.7/site-packages/requests/adapters.py", line 519, in send
+    raise ConnectionError(e, request=request)
+requests.exceptions.ConnectionError: HTTPSConnectionPool(host='api.wandb.ai', port=443): Max retries exceeded with url: /graphql (Caused by NameResolutionError("<urllib3.connection.HTTPSConnection object at 0x7f214d0b7410>: Failed to resolve 'api.wandb.ai' ([Errno -2] Name or service not known)"))
+ERROR:wandb.sdk.internal.internal_api:404 response executing GraphQL.
+ERROR:wandb.sdk.internal.internal_api:{"errors":[{"message":"could not find sweep cnn-pelsvae/train-classsifier/indla83p during createAgent","path":["createAgent"]}],"data":{"createAgent":null}}
+ERROR:wandb.sdk.internal.internal_api:404 response executing GraphQL.
+ERROR:wandb.sdk.internal.internal_api:{"errors":[{"message":"could not find sweep cnn-pelsvae/train-classsifier/hyperparameter_search_f1_val during createAgent","path":["createAgent"]}],"data":{"createAgent":null}}

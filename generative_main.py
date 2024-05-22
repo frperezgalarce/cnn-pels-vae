@@ -266,7 +266,6 @@ def run_code():
 
     config.n_train_params = count_parameters(vae)
     print('Num of trainable params: ', count_parameters(vae))
-    print(vae)
     print('\n')
 
     # Initialize optimizers

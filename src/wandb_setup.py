@@ -46,7 +46,7 @@ def setup_hyper_opt(main, nn_config):
         # Configuration for the 'twolosses' optimization method
         sweep_config = {
             'method': 'bayes',
-            'name':'hyperparameter_search_f1_weighted_0.3',
+            'name':'hyperparameter_search_f1_weighted_0.15',
             #'name': f"exp_s_{nn_config['data']['sample_size']}_l_{nn_config['data']['seq_length']}_sn_{nn_config['data']['sn_ratio']}_twolosses - final",
             'metric': {'goal': 'maximize', 'name': 'weighted_f1'},
             'parameters': {
@@ -106,7 +106,7 @@ def setup_hyper_opt(main, nn_config):
 
     # Initialize the sweep and run the agent
     #sweep_id = wandb.sweep(sweep_config, project="train-classsifier")
-    wandb.agent("gaw70jps", function=main, count=100, project="train-classsifier")
+    wandb.agent("5j044zwj", function=main, count=40, project="train-classsifier")
 
 def set_cvae(wandb_active, config_file):
     """

@@ -51,6 +51,7 @@ class ModifiedGaussianSampler:
         print("Convergence not yet achieved.")
         return False
 
+    '''
     def metropolis_hasting(self, n_samples: int = 5) -> np.ndarray:
         """
         Metropolis-Hastings algorithm for sampling from a distribution q(x).
@@ -148,7 +149,7 @@ class ModifiedGaussianSampler:
         self.check_convergence(np.array(samples))
 
         return np.array(samples)
-
+    '''
     def two_step_sample(self, n_samples: int = 5, first_sample: int = 1000) -> np.ndarray:
         # Sample from the GMM
         samples, _ = self.model.sample(n_samples = first_sample)
@@ -218,12 +219,14 @@ class ModifiedGaussianSampler:
         print('Model loaded: ', self.model)
         print(self.model.means_)
         print('mode: ', mode)
+        '''
         if mode == 'onecomponent':
             samples = self.metropolis_hasting(n_samples=n_samples)
         elif mode == 'allcomponents': 
             print('Sampling from all components')
             samples = self.metropolis_hasting_all_components(n_samples=n_samples)
-        elif mode == 'two_steps': 
+        '''
+        if mode == 'two_steps': 
             samples = self.two_step_sample(n_samples=n_samples)
         else: 
             raise('The mode ' + mode + 'is not implemented.')

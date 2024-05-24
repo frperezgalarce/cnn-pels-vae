@@ -2,7 +2,7 @@ method: bayes
 metric:
   goal: maximize
   name: weighted_f1
-name: hyperparameter_search_f1_weighted_0.3
+name: hyperparameter_search_f1_weighted_0.15
 parameters:
   EPS:
     values:

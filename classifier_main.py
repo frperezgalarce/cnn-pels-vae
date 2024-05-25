@@ -90,7 +90,7 @@ if __name__ == "__main__":
 
     # Setup hyperparameter optimization if Weights & Biases is active
     if wandb_active:
-        sample_sizes = [25000]
+        sample_sizes = [10000, 25000, 50000]
         sn_ratios = [3]
         seq_lengths = [300]
 

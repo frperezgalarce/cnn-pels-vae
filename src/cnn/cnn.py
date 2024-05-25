@@ -450,13 +450,13 @@ def run_cnn(create_samples: Any, vae_model=None, pp = None,
                                         locked_masks = locked_masks, 
                                         repetitions = nn_config['training']['repetitions'])
                                  
-        _, accuracy_val, f1_val = evaluate_dataloader(model, val_dataloader, criterion, device)
-        _, accuracy_train, f1_train = evaluate_dataloader(model, train_dataloader, criterion, device)
+        _, accuracy_val, f1_val, roc_val_ovo, roc_val_ovr = evaluate_dataloader(model, val_dataloader, criterion, device)
+        _, accuracy_train, f1_train, roc_train_ovo, roc_train_ovr = evaluate_dataloader(model, train_dataloader, criterion, device)
 
 
         if nn_config['training']['opt_method']=='twolosses':
             synthetic_loss, accuracy_train_synthetic,\
-            f1_synthetic =  evaluate_dataloader(model, synthetic_data_loader, 
+            f1_synthetic, roc_syn_ovo, roc_syn_ovr =  evaluate_dataloader(model, synthetic_data_loader, 
                                                 criterion_synthetic_samples, device)
 
         elif nn_config['training']['opt_method']=='oneloss':
@@ -506,30 +506,39 @@ def run_cnn(create_samples: Any, vae_model=None, pp = None,
                       'f1_synthetic': f1_synthetic, 
                       'weighted_f1': weighted_f1,
                       'patience': no_improvement_count, 
-                      'best_val': best_val})
+                      'best_val': best_val, 
+                      'roc_syn_ovo': roc_syn_ovo,
+                      'roc_val_ovo': roc_val_ovo, 
+                      'roc_train_ovo' : roc_train_ovo,
+                      'roc_syn_ovr': roc_syn_ovr,
+                      'roc_val_ovr': roc_val_ovr, 
+                      'roc_train_ovr' : roc_train_ovr})
 
-        print(f'epoch: {epoch} loss: {running_loss} acc_train: {accuracy_train}'
+        print(f'epoch: {epoch} loss: {running_loss} acc_train: {accuracy_train} '
              f' f1_train: {f1_train} '
              f'synth_loss: {synthetic_loss} acc_synth: {accuracy_train_synthetic} '
-             f'f1_synthetic: {f1_synthetic} val_loss: {val_loss}'
+             f'f1_synthetic: {f1_synthetic} val_loss: {val_loss} '
              f'val_accu: {accuracy_val}'
+             f'roc_syn_ovo: {roc_syn_ovo} roc_val_ovo: {roc_val_ovo}'
+             f'roc_train_ovo: {roc_train_ovo} roc_syn_ovr: {roc_syn_ovr} '
+             f'roc_val_ovr: {roc_val_ovr} roc_train_ovr: {roc_train_ovr} '
              f'val_f1: {f1_val} patience: {no_improvement_count} best_val: {best_val}')
 
 
     
     # Post-training tasks
     model.load_state_dict(best_model)
-    _, accuracy_test, f1_test = evaluate_dataloader(model, test_dataloader, 
+    _, accuracy_test, f1_test, roc_test_ovo, roc_test_ovr = evaluate_dataloader(model, test_dataloader, 
                                                     criterion, device)
 
-    _, accuracy_train, f1_train = evaluate_dataloader(model, train_dataloader,
+    _, accuracy_train, f1_train, roc_train_ovo, roc_train_ovr = evaluate_dataloader(model, train_dataloader,
                                                      criterion, device)
 
-    _, accuracy_val, f1_val = evaluate_dataloader(model, val_dataloader, 
+    _, accuracy_val, f1_val, roc_val_ovo, roc_val_ovr = evaluate_dataloader(model, val_dataloader, 
                                                 criterion, device)
     
     if nn_config['training']['opt_method'] == 'twolosses':
-        _, accuracy_train_synthetic, f1_synthetic = evaluate_dataloader(model, synthetic_data_loader, 
+        _, accuracy_train_synthetic, f1_synthetic, roc_syn_ovo, roc_syn_ovr = evaluate_dataloader(model, synthetic_data_loader, 
                                                                         criterion, device)
 
     results_dict = {'epoch': epoch, 'loss': running_loss, 
@@ -538,12 +547,15 @@ def run_cnn(create_samples: Any, vae_model=None, pp = None,
                     'acc_synthetic_samples': accuracy_train_synthetic, 
                     'val_loss': val_loss, 'val_accu': accuracy_val, 
                     'f1_val': f1_val, 'f1_train': f1_train,
-                    'f1_synthetic': f1_synthetic, 
+                    'f1_synthetic': f1_synthetic, 'roc_syn_ovo': roc_syn_ovo,
+                     'roc_val_ovo': roc_val_ovo, 'roc_train_ovo' : roc_train_ovo,
+                     'roc_syn_ovr': roc_syn_ovr,
+                     'roc_val_ovr': roc_val_ovr, 'roc_train_ovr' : roc_train_ovr,
                     'patience': no_improvement_count, 'best_val':best_val}
 
     wset.save_metrics(wandb_active, nn_config['training']['opt_method'], 
                         results_dict, weight_f1_score_hyperparameter_search,
-                         accuracy_test, f1_test)
+                         accuracy_test, f1_test, roc_test_ovo, roc_test_ovr)
 
     data_loaders = {
         'Training set': train_dataloader,

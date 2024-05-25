@@ -5,7 +5,7 @@ import torch
 
 def save_metrics(wandb_active, opt_method, results_dict,
                  weight_f1_score_hyperparameter_search, 
-                 accuracy_test, f1_test):
+                 accuracy_test, f1_test, roc_test_ovo, roc_test_ovr):
     """
     Save the metrics to the Weights and Biases (wandb) service if active, and compute the weighted F1 score.
 
@@ -20,6 +20,8 @@ def save_metrics(wandb_active, opt_method, results_dict,
         # Update wandb configuration for test metrics
         wandb.config.acc_test = accuracy_test
         wandb.config.f1_test = f1_test
+        wandb.config.roc_test_ovo = roc_test_ovo
+        wandb.config.roc_test_ovr = roc_test_ovr
 
         # Calculate weighted F1 score based on the optimization method
         if opt_method == 'twolosses':
@@ -34,7 +36,7 @@ def save_metrics(wandb_active, opt_method, results_dict,
         # Log the results to wandb
         wandb.log(results_dict)
 
-def setup_hyper_opt(main, nn_config):
+def setup_hyper_opt(main, nn_config): 
     """
     Set up hyperparameter optimization using Weight & Biases sweeps based on neural network configuration.
 
@@ -45,30 +47,30 @@ def setup_hyper_opt(main, nn_config):
     if nn_config['training']['opt_method'] == 'twolosses':
         # Configuration for the 'twolosses' optimization method
         sweep_config = {
-            'method': 'bayes',
-            'name':'hyperparameter_search_f1_weighted_0.15',
-            #'name': f"exp_s_{nn_config['data']['sample_size']}_l_{nn_config['data']['seq_length']}_sn_{nn_config['data']['sn_ratio']}_twolosses - final",
+            'method': 'grid',
+            #'name':'test_roc',
+            'name': f"exp_s_{nn_config['data']['sample_size']}_l_{nn_config['data']['seq_length']}_sn_{nn_config['data']['sn_ratio']}_twolosses - 2505",
             'metric': {'goal': 'maximize', 'name': 'weighted_f1'},
             'parameters': {
-                'learning_rate': {'min': 0.002, 'max':0.1},
-                'batch_size': {'values': [32, 64, 128]},
-                'patience': {'min': 5, 'max':20},
-                'repetitions': {'min': 1, 'max':16},
-                'synthetic_samples_by_class': {'min': 8, 'max':32},  # select 8, 16
-                'threshold_acc_synthetic': {'min': 0.5, 'max':0.9},
-                'beta_decay_factor': {'min': 0.9, 'max':0.99},
-                'EPS': {'values': [0.15, 0.25, 0.3, 0.35]},  # select 0.25, 0.3, 0.35 0.2, 0.25,
-                'scaling_factor': {'min': 0.5, 'max':2.0},
+                'learning_rate': {'values': [0.09]},
+                'batch_size': {'values': [64]},
+                'patience': {'values': [7]},
+                'repetitions': {'values': [11]},
+                'synthetic_samples_by_class':  {'values': [32]},  
+                'threshold_acc_synthetic': {'values': [0.88]},
+                'beta_decay_factor': {'values': [1]},
+                'EPS': {'values': [0.35]},  
+                'scaling_factor':{'values': [1.32]},
                 'vae_model': {'values': ['gn42liaz']},
                 'sufix_path': {'values': ['GAIA3_LOG_IMPUTED_BY_CLASS_6PP']},
-                'layers': {'values': [2, 3, 4]},
-                'loss': {'values': ['focalLoss']}, 
-                'focal_loss_scale': {'min': 1, 'max':4},  
-                'n_oversampling': {'min': 1, 'max':20},
-                'decay_parameter_1': {'min': 0.5, 'max':0.8},
-                'decay_parameter_2': {'min': 0.1, 'max':0.9},
+                'layers': {'values': [4]},
+                'loss': {'values': ['FocalLoss']}, 
+                'focal_loss_scale': {'values': [2]},  
+                'n_oversampling': {'values': [16]},
+                'decay_parameter_1': {'values': [0.69]},
+                'decay_parameter_2': {'values': [0.62]},
                 'ranking_method': {'values': ['CCR', 'max_confusion', 'proportion', 'max_pairwise_confusion', 'no_priority']},
-                #'iteration':{'values': [0, 1, 2, 3, 4, 5, 6, 7, 8, 9]},
+                'iteration':{'values': [0, 1, 2, 3, 4, 5, 6, 7, 8, 9]},
             }
         }
     elif nn_config['training']['opt_method'] == 'oneloss':
@@ -105,8 +107,8 @@ def setup_hyper_opt(main, nn_config):
         yaml.safe_dump(sweep_config, sweep_file)
 
     # Initialize the sweep and run the agent
-    #sweep_id = wandb.sweep(sweep_config, project="train-classsifier")
-    wandb.agent("5j044zwj", function=main, count=40, project="train-classsifier")
+    sweep_id = wandb.sweep(sweep_config, project="train-classsifier")
+    wandb.agent(sweep_id, function=main, count=1, project="train-classsifier")
 
 def set_cvae(wandb_active, config_file):
     """

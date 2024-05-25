@@ -11,7 +11,9 @@ from torch.utils.data import DataLoader, TensorDataset
 from typing import Optional, Any, Dict, List
 import src.utils as utils
 import torch.optim as optim
-from sklearn.metrics import f1_score
+from sklearn.metrics import f1_score, roc_auc_score
+from sklearn.preprocessing import label_binarize
+import torch.nn.functional as F
 
 def setup_torch_environment() -> torch.device:    
     print('#'*50)
@@ -157,7 +159,7 @@ def train_one_epoch_alternative(
             torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=6.0, norm_type=2)
             optimizer.step()
             running_loss += loss.item()
-        val_loss, _, _ = evaluate_dataloader(model, val_dataloader, criterion, device)
+        val_loss, _, _, _, _ = evaluate_dataloader(model, val_dataloader, criterion, device)
 
         return running_loss, model, val_loss
     
@@ -211,7 +213,76 @@ def train_one_epoch_alternative(
                
         return running_loss, model, val_loss
 
-def evaluate_dataloader(model, dataloader, criterion, device):
+
+def evaluate_dataloader(model, dataloader, criterion, device, num_classes=5):
+    """
+    Evaluate the model on a given dataset.
+
+    Parameters:
+    - model: The PyTorch model to evaluate.
+    - dataloader: DataLoader containing the dataset to evaluate.
+    - criterion: The loss function.
+    - device: The computing device (CPU or GPU).
+    - num_classes: Number of classes in the dataset.
+
+    Returns:
+    - avg_loss: Average loss over the entire dataset.
+    - avg_accuracy: Average accuracy over the entire dataset.
+    - f1_score_val: F1 score over the entire dataset.
+    - auc_roc_scores: AUC ROC scores for each class.
+    """
+    
+    model.eval()  # Set the model to evaluation mode
+    
+    total_loss = 0.0
+    total_correct = 0
+    total_samples = 0
+    all_predicted = []
+    all_labels = []
+    all_scores = []
+    
+    with torch.no_grad():
+        for batch in dataloader:
+            inputs, labels = batch
+            inputs, labels = inputs.to(device), labels.to(device)
+            inputs = inputs.float()
+
+            # Forward pass
+            outputs = model(inputs)
+            print('outputs: ', outputs)
+            # Calculate loss
+            _, labels_indices = torch.max(labels, 1)  # Convert one-hot to indices
+            loss = criterion(outputs, labels_indices)
+            
+            # Calculate predictions
+            predicted = torch.max(outputs, 1)[1]
+            
+            # Update statistics
+            total_loss += loss.item()
+            total_correct += (predicted == labels_indices).sum().item()
+            total_samples += len(labels_indices)
+            
+            all_predicted.extend(predicted.cpu().numpy())
+            all_labels.extend(labels_indices.cpu().numpy())
+            all_scores.extend(outputs.cpu().numpy())
+
+    avg_accuracy = total_correct / total_samples
+    print('all_labels: ', all_labels)
+    f1_score_val = f1_score(all_labels, all_predicted, average='macro')
+    
+    # Binarize the labels and calculate AUC ROC for each class
+    all_labels_bin = label_binarize(all_labels, classes=list(range(num_classes)))
+    all_scores = torch.tensor(all_scores)
+    all_scores = F.softmax(all_scores, dim=1).numpy()
+    labels = np.argmax(all_labels_bin, axis=1)
+    print(labels, all_scores)
+    auc_roc_scores_ovr = roc_auc_score(labels, all_scores, multi_class='ovr')
+    auc_roc_scores_ovo = roc_auc_score(labels, all_scores, multi_class='ovo')
+    print(auc_roc_scores_ovo, auc_roc_scores_ovr)
+    model.train()  # Set the model back to training mode
+    return total_loss, avg_accuracy, f1_score_val, auc_roc_scores_ovo, auc_roc_scores_ovr
+
+def evaluate_dataloader_old(model, dataloader, criterion, device):
     """
     Evaluate the model on a given dataset.
 

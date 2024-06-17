@@ -139,3 +139,5 @@ Traceback (most recent call last):
   File "/home/franciscoperez/anaconda3/envs/cnnpelsvae/lib/python3.7/site-packages/requests/adapters.py", line 519, in send
     raise ConnectionError(e, request=request)
 requests.exceptions.ConnectionError: HTTPSConnectionPool(host='api.wandb.ai', port=443): Max retries exceeded with url: /graphql (Caused by NameResolutionError("<urllib3.connection.HTTPSConnection object at 0x7f7452e81250>: Failed to resolve 'api.wandb.ai' ([Errno -2] Name or service not known)"))
+ERROR:wandb.sdk.internal.internal_api:404 response executing GraphQL.
+ERROR:wandb.sdk.internal.internal_api:{"errors":[{"message":"could not find sweep cnn-pelsvae/train-classsifier/71j937an during createAgent","path":["createAgent"]}],"data":{"createAgent":null}}

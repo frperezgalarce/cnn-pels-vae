@@ -153,27 +153,27 @@ class ModifiedGaussianSampler:
     def two_step_sample(self, n_samples: int = 5, first_sample: int = 1000) -> np.ndarray:
         # Sample from the GMM
         samples, _ = self.model.sample(n_samples = first_sample)
-        print("Original Samples:")
-        print(samples)
+        #print("Original Samples:")
+        #print(samples)
 
         # Calculate the probabilities of the samples
         log_probs = self.model.score_samples(samples)
         probs = np.exp(log_probs)
-        print("\nOriginal Probabilities:")
-        print(probs)
+        #print("\nOriginal Probabilities:")
+        #print(probs)
 
         # Modify the probabilities according to p^b
         modified_probs = probs ** self.b
         modified_probs /= np.sum(modified_probs)  # normalize to create a probability distribution
-        print("\nModified Probabilities:")
-        print(modified_probs)
+        #print("\nModified Probabilities:")
+        #print(modified_probs)
 
         # Resample a subsample according to the new density
         n_resamples = n_samples  # number of samples to resample
         resample_indices = np.random.choice(range(len(samples)), size=n_resamples, p=modified_probs)
         resampled_samples = samples[resample_indices]
-        print("\nResampled Samples:")
-        print(resampled_samples)
+        #print("\nResampled Samples:")
+        #print(resampled_samples)
 
         return np.array(resampled_samples)
 
@@ -211,7 +211,7 @@ class ModifiedGaussianSampler:
         plt.savefig(star_class + '_density.png')
         plt.show()
     
-    def modify_and_sample(self, path: str, n_samples=5, mode='allcomponents') -> np.ndarray:
+    def modify_and_sample(self, path: str, n_samples=5, mode='two_steps') -> np.ndarray:
         np.set_printoptions(suppress=True)
 
         print(n_samples)

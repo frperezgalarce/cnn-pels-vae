@@ -10,9 +10,9 @@ data:
   minimum_lenght_real_curves: 50
   mode_running: load
   opt_method: twolosses
-  sample_size: 10000
+  sample_size: 400000
   seq_length: 300
-  sn_ratio: 3
+  sn_ratio: 6
   upper_limit_majority_classes: 20000
 opt_method: twolosses
 proportion: 10000

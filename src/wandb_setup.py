@@ -49,7 +49,7 @@ def setup_hyper_opt(main, nn_config):
         sweep_config = {
             'method': 'grid',
             #'name':'test_roc',
-            'name': f"exp_s_{nn_config['data']['sample_size']}_l_{nn_config['data']['seq_length']}_sn_{nn_config['data']['sn_ratio']}_twolosses - 2505",
+            'name': f"exp_s_{nn_config['data']['sample_size']}_l_{nn_config['data']['seq_length']}_sn_{nn_config['data']['sn_ratio']}WO-priors",
             'metric': {'goal': 'maximize', 'name': 'weighted_f1'},
             'parameters': {
                 'learning_rate': {'values': [0.09]},
@@ -64,39 +64,42 @@ def setup_hyper_opt(main, nn_config):
                 'vae_model': {'values': ['gn42liaz']},
                 'sufix_path': {'values': ['GAIA3_LOG_IMPUTED_BY_CLASS_6PP']},
                 'layers': {'values': [4]},
-                'loss': {'values': ['FocalLoss']}, 
+                'loss': {'values': ['focalLoss']}, 
                 'focal_loss_scale': {'values': [2]},  
                 'n_oversampling': {'values': [16]},
                 'decay_parameter_1': {'values': [0.69]},
                 'decay_parameter_2': {'values': [0.62]},
-                'ranking_method': {'values': ['CCR', 'max_confusion', 'proportion', 'max_pairwise_confusion', 'no_priority']},
-                'iteration':{'values': [0, 1, 2, 3, 4, 5, 6, 7, 8, 9]},
+                'ranking_method': {'values': ['proportion']},
+                'iteration':{'values': [0,1]},
             }
         }
     elif nn_config['training']['opt_method'] == 'oneloss':
         # Configuration for the 'oneloss' optimization method
         sweep_config = {
             'method': 'grid',
-            'name': f"exp_s_{nn_config['data']['sample_size']}_l_{nn_config['data']['seq_length']}_sn_{nn_config['data']['sn_ratio']}_oneloss",
-            'metric': {'goal': 'maximize', 'name': 'f1_val'},
+            #'name':'test_roc',
+            'name': f"exp_s_{nn_config['data']['sample_size']}_l_{nn_config['data']['seq_length']}_sn_{nn_config['data']['sn_ratio']}_oneloss - 3005",
+            'metric': {'goal': 'maximize', 'name': 'weighted_f1'},
             'parameters': {
-                'learning_rate': {'values': [0.002]},
-                'batch_size': {'values': [32]},
-                'patience': {'values': [10]},
-                'repetitions': {'values': [3]},
-                'synthetic_samples_by_class': {'values': [16]},  # select 8, 16
-                'threshold_acc_synthetic': {'values': [0.84]},
-                'beta_decay_factor': {'values': [0.97]},
-                'EPS': {'values': [0.3]},  # select 0.25, 0.3, 0.35 0.2, 0.25,
-                'scaling_factor': {'values': [0.48]},
+                'learning_rate': {'values': [0.09]},
+                'batch_size': {'values': [64]},
+                'patience': {'values': [7]},
+                'repetitions': {'values': [11]},
+                'synthetic_samples_by_class':  {'values': [32]},  
+                'threshold_acc_synthetic': {'values': [0.88]},
+                'beta_decay_factor': {'values': [1]},
+                'EPS': {'values': [0.35]},  
+                'scaling_factor':{'values': [1.32]},
                 'vae_model': {'values': ['gn42liaz']},
                 'sufix_path': {'values': ['GAIA3_LOG_IMPUTED_BY_CLASS_6PP']},
                 'layers': {'values': [4]},
-                'loss': {'values': ['non_weighted_CrossEntropyLoss', 'NLLLoss']},
-                'focal_loss_scale': {'values': [1.5]},  
-                'n_oversampling': {'values': [5]},
-                'ranking_method': {'values': ['no_priority']},
-                'iteration':{'values': [0, 1, 2, 3, 4, 5, 6, 7, 8, 9]},
+                'loss': {'values': ['focalLoss']}, 
+                'focal_loss_scale': {'values': [2]},  
+                'n_oversampling': {'values': [16]},
+                'decay_parameter_1': {'values': [0.69]},
+                'decay_parameter_2': {'values': [0.62]},
+                'ranking_method': {'values': ['proportion']},
+                'iteration':{'values': [ 0,1,2,3,4,5, 6, 7]},
             }
         }
     else:
@@ -108,7 +111,7 @@ def setup_hyper_opt(main, nn_config):
 
     # Initialize the sweep and run the agent
     sweep_id = wandb.sweep(sweep_config, project="train-classsifier")
-    wandb.agent(sweep_id, function=main, count=1, project="train-classsifier")
+    wandb.agent(sweep_id, function=main, project="train-classsifier")
 
 def set_cvae(wandb_active, config_file):
     """

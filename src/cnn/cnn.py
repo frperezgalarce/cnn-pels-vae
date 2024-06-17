@@ -460,7 +460,7 @@ def run_cnn(create_samples: Any, vae_model=None, pp = None,
                                                 criterion_synthetic_samples, device)
 
         elif nn_config['training']['opt_method']=='oneloss':
-            synthetic_loss, accuracy_train_synthetic, f1_synthetic = 0, 0, 0
+            synthetic_loss, accuracy_train_synthetic, f1_synthetic, roc_syn_ovo, roc_syn_ovr = 0, 0, 0, 0, 0
         else: 
             raise('This method is unavailable, please use: oneloss or twolosses')
         
@@ -538,7 +538,8 @@ def run_cnn(create_samples: Any, vae_model=None, pp = None,
                                                 criterion, device)
     
     if nn_config['training']['opt_method'] == 'twolosses':
-        _, accuracy_train_synthetic, f1_synthetic, roc_syn_ovo, roc_syn_ovr = evaluate_dataloader(model, synthetic_data_loader, 
+        _, accuracy_train_synthetic, f1_synthetic, roc_syn_ovo, roc_syn_ovr = evaluate_dataloader(model, 
+                                                                        synthetic_data_loader, 
                                                                         criterion, device)
 
     results_dict = {'epoch': epoch, 'loss': running_loss, 
@@ -551,7 +552,7 @@ def run_cnn(create_samples: Any, vae_model=None, pp = None,
                      'roc_val_ovo': roc_val_ovo, 'roc_train_ovo' : roc_train_ovo,
                      'roc_syn_ovr': roc_syn_ovr,
                      'roc_val_ovr': roc_val_ovr, 'roc_train_ovr' : roc_train_ovr,
-                    'patience': no_improvement_count, 'best_val':best_val}
+                    'patience': no_improvement_count, 'best_val': best_val}
 
     wset.save_metrics(wandb_active, nn_config['training']['opt_method'], 
                         results_dict, weight_f1_score_hyperparameter_search,

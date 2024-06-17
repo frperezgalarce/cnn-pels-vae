@@ -267,7 +267,7 @@ def evaluate_dataloader(model, dataloader, criterion, device, num_classes=5):
             all_scores.extend(outputs.cpu().numpy())
 
     avg_accuracy = total_correct / total_samples
-    print('all_labels: ', all_labels)
+    #print('all_labels: ', all_labels)
     f1_score_val = f1_score(all_labels, all_predicted, average='macro')
     
     # Binarize the labels and calculate AUC ROC for each class
@@ -275,7 +275,7 @@ def evaluate_dataloader(model, dataloader, criterion, device, num_classes=5):
     all_scores = torch.tensor(all_scores)
     all_scores = F.softmax(all_scores, dim=1).numpy()
     labels = np.argmax(all_labels_bin, axis=1)
-    print(labels, all_scores)
+    #print(labels, all_scores)
     auc_roc_scores_ovr = roc_auc_score(labels, all_scores, multi_class='ovr')
     auc_roc_scores_ovo = roc_auc_score(labels, all_scores, multi_class='ovo')
     print(auc_roc_scores_ovo, auc_roc_scores_ovr)

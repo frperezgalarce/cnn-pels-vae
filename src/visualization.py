@@ -13,6 +13,7 @@ import wandb
 import itertools
 from typing import List
 import logging
+from matplotlib.ticker import MaxNLocator, FormatStrFormatter
 
 with open('src/configuration/paths.yaml', 'r') as file:
     YAML_FILE = yaml.safe_load(file)
@@ -260,9 +261,9 @@ def plot_wall_lcs_sampling(lc_gen, lc_real, cls=[], lc_gen2=None, save=True, wan
     if len(cls) == 0:
         cls = [''] * len(lc_gen)
     plt.close()
-    fig, axis = plt.subplots(nrows=2, ncols=2, 
-                             figsize=(8,7),
-                             sharex=True, sharey=True)
+    fig, axis = plt.subplots(nrows=5, ncols=1, 
+                             figsize=(5,12),
+                             sharex=False, sharey=False)
     
     for i, ax in enumerate(axis.flat):
         print(", ".join([f"{all_columns[j]}: {np.round(to_title[i, j], 2)}" for j in range(len(all_columns))]))
@@ -295,10 +296,15 @@ def plot_wall_lcs_sampling(lc_gen, lc_real, cls=[], lc_gen2=None, save=True, wan
             logging.error(f"The light curve was not loaded: {error}")
 
 
-    axis[-1,1].set_xlabel('Phase', fontsize=14)
-    axis[-1,0].set_xlabel('Phase', fontsize=14)
-    axis[0,0].set_ylabel('Normalized Magnitude', fontsize=14)
-    axis[1,0].set_ylabel('Normalized Magnitude', fontsize=14)
+    axis[4].set_xlabel('Phase', fontsize=12)
+
+    for ax_i in [0, 1, 2, 3, 4]:
+        axis[ax_i].set_ylabel('Norm Magnitude', fontsize=12)
+        axis[ax_i].xaxis.set_major_locator(MaxNLocator(4))
+        axis[ax_i].yaxis.set_major_locator(MaxNLocator(4))
+        axis[ax_i].xaxis.set_major_formatter(FormatStrFormatter('%.1f'))
+        axis[ax_i].yaxis.set_major_formatter(FormatStrFormatter('%.1f'))
+
     #mytitle = fig.suptitle('', fontsize=20, y=1.05)
     if cls[0] != '':
         ax.legend(loc='lower left')
@@ -306,12 +312,16 @@ def plot_wall_lcs_sampling(lc_gen, lc_real, cls=[], lc_gen2=None, save=True, wan
     #title = " Epoch"
 
     #fig.suptitle(title, fontsize=20, y=0.9)
-    fig.subplots_adjust(hspace=0, wspace=0)
-    axis[0,0].invert_yaxis()
+    #fig.subplots_adjust(hspace=0, wspace=0)
+    axis[0].invert_yaxis()
+    axis[1].invert_yaxis()
+    axis[2].invert_yaxis()
+    axis[3].invert_yaxis()
+    axis[4].invert_yaxis()
     print('saving: ', save)
     if save:
         feature = str(sensivity).replace('[', '').replace(']','').replace('_','').replace('/','')
-        plt.savefig(PATH_FIGURES+'/epoch_recon_lc_'+str(cls[0])+'_'+feature+'.pdf', format='png', bbox_inches='tight')
+        plt.savefig(PATH_FIGURES+'/epoch_recon_lc_'+str(cls[0])+'_'+feature+'.png', format='png')
         plt.show()
     if wandb_active:
         wandb.log({"epochs": wandb.Image(plt)})

@@ -44,7 +44,7 @@ class CNN(nn.Module):
         forward(x): Defines the forward pass of the CNN.
     """
 
-    def __init__(self, num_classes: int = 2, layers = 2, 
+    def __init__(self, seq_length = 300, num_classes: int = 2, layers = 2, 
                  kernel_size = 6, stride = 1, loss_function='focalLoss') -> None:
         """
         Initialize the CNN model with the given parameters.
@@ -52,6 +52,7 @@ class CNN(nn.Module):
         super(CNN, self).__init__()
 
         self.layers = layers
+        self.seq_length = seq_length
         self.loss_function = loss_function
         self.conv1 = nn.Conv1d(in_channels=2, out_channels=16, kernel_size=kernel_size, 
                                stride=stride, padding=int(kernel_size/2), 
@@ -91,6 +92,12 @@ class CNN(nn.Module):
             self.bn4 = nn.BatchNorm1d(128)
             self.pool4 = nn.MaxPool1d(3)  
 
+
+        self.fc1_input_dim = self._calculate_fc1_input_dim()
+        
+        self.fc1 = nn.Linear(self.fc1_input_dim, 200)
+        '''
+        print(self.layers)
         if self.layers == 2:
             self.fc1 = nn.Linear(1056, 200)
             init.xavier_uniform_(self.fc1.weight)  
@@ -100,10 +107,34 @@ class CNN(nn.Module):
         elif self.layers == 4:
             self.fc1 = nn.Linear(512, 200)
             init.xavier_uniform_(self.fc1.weight) 
-        
+        '''
+
         self.fc2 = nn.Linear(200, num_classes)
         init.xavier_uniform_(self.fc2.weight)  
 
+
+    def _calculate_fc1_input_dim(self):
+        """
+        Calculate the input dimension for the fully connected layer based on the sequence length
+        and the number of layers.
+        """
+        length = self.seq_length
+        length = (length + 2 * int(6/2) - 6) // 1 + 1
+        length = length // 3  # After pool1
+
+        length = (length + 2 * int(6/2) - 6) // 1 + 1
+        length = length // 3  # After pool2
+
+        if self.layers > 2:
+            length = (length + 2 * int(6/2) - 6) // 1 + 1
+            length = length // 3  # After pool3
+
+        if self.layers > 3:
+            length = (length + 2 * int(6/2) - 6) // 1 + 1
+            length = length // 3  # After pool4
+
+        out_channels = 16 * 2**(self.layers - 1)
+        return length * out_channels
 
     def forward(self, x):
         """
@@ -179,7 +210,8 @@ def setup_model(num_classes: int, show_architecture: bool = True) -> nn.Module:
 
     print('----- model setup --------')
     # Initialize the CNN model with parameters from the configuration file
-    model = CNN(num_classes=num_classes, layers=nn_config['training']['layers'], loss_function=nn_config['training']['loss'])
+    model = CNN(num_classes=num_classes, seq_length = nn_config['data']['seq_length'], 
+                layers=nn_config['training']['layers'], loss_function=nn_config['training']['loss'])
 
     # Move the model to the specified device (CPU or GPU)
     if torch.cuda.is_available():

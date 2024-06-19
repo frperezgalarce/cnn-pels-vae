@@ -8,21 +8,21 @@ data:
   delta_time_max: 100
   limit_to_define_minority_Class: 5000
   minimum_lenght_real_curves: 50
-  mode_running: load
+  mode_running: create
   opt_method: twolosses
-  sample_size: 400000
-  seq_length: 300
+  sample_size: 10000
+  seq_length: 50
   sn_ratio: 6
   upper_limit_majority_classes: 20000
 opt_method: twolosses
 proportion: 10000
 ranking_method: CCR
-sample_size: 400000
+sample_size: 20000
 sampling:
   burnin: 10000
   iterations: 100000
-  mode: allcomponents
-seq_length: 300
+  mode: two_steps
+seq_length: 100
 sn_ratio: 5
 training:
   EPS: 0.02
@@ -35,8 +35,8 @@ training:
   decay_parameter_2: 0.6
   epochs: 500
   focal_loss_scale: 1
-  layers: 3
-  loss: NLLLoss
+  layers: 4
+  loss: focalLoss
   lr: 0.001
   m: 1
   n_oversampling: 1

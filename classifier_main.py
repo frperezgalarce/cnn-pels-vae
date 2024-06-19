@@ -82,7 +82,7 @@ def main(train_gmm: Optional[bool] = True, create_samples: Optional[bool] = True
 if __name__ == "__main__":
 
     # Flag to control the activation of Weights & Biases integration
-    wandb_active = True
+    wandb_active = False
     #method = "twolosses"
 
     with open('src/configuration/nn_config.yaml', 'r') as file:
@@ -90,15 +90,15 @@ if __name__ == "__main__":
 
     # Setup hyperparameter optimization if Weights & Biases is active
     if wandb_active:
-        sample_sizes = [400000]
-        sn_ratios = [6]
-        seq_lengths = [300]
+        sample_sizes = [40000]
+        sn_ratios = [4]
+        seq_lengths = [50, 100, 150, 200]
 
         # Create a total progress bar for all iterations
         total_iterations = len(sample_sizes) * len(sn_ratios) * len(seq_lengths)
         with tqdm(total=total_iterations) as pbar:
             for sample_size in sample_sizes:
-                for method in ['twolosses']:#, 
+                for method in ['twolosses', 'oneloss']:#, 
                     for sn_ratio in sn_ratios:
                         for seq_length in seq_lengths:
                             # Clearing the GPU cache to ensure maximum available memory

@@ -211,6 +211,23 @@ class ModifiedGaussianSampler:
         plt.savefig(star_class + '_density.png')
         plt.show()
     
+    def plot_samples_densities_full(self, PP, new_data_points, new_data_points2, star_class):
+        fig, axs = plt.subplots(len(PP), len(PP), figsize=(15, 15))
+        for i in range(len(PP)):
+            for j in range(len(PP)):
+                if i < j:
+                    self.plot_mixture_of_bivariate_gaussians(axs[i, j], i, j, PP)
+                    axs[i, j].scatter(new_data_points[:, i], new_data_points[:, j], color='red')
+                elif j < i:
+                    self.plot_mixture_of_bivariate_gaussians(axs[i, j], j, i, PP)
+                    axs[i, j].scatter(new_data_points2[:, j], new_data_points2[:, i], color='red')
+                else: 
+                    axs[i, j].axis('off')
+
+        plt.tight_layout()
+        plt.savefig(star_class + '_density.png')
+        plt.show()
+    
     def modify_and_sample(self, path: str, n_samples=5, mode='two_steps') -> np.ndarray:
         np.set_printoptions(suppress=True)
 

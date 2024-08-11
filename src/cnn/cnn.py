@@ -609,6 +609,7 @@ def run_cnn(create_samples: Any, vae_model=None, pp = None,
 
     del x_train, y_train, x_val, y_val, x_test, y_test
     del train_dataloader, val_dataloader, test_dataloader
+    torch.save(model, 'self_regulated_cnn_model.pt')
     del model
     del optimizer1, optimizer2, locked_masks, locked_masks2 
     gc.collect()  

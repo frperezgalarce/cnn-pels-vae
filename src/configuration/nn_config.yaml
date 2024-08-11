@@ -9,12 +9,12 @@ data:
   limit_to_define_minority_Class: 5000
   minimum_lenght_real_curves: 50
   mode_running: create
-  opt_method: twolosses
-  sample_size: 10000
-  seq_length: 50
-  sn_ratio: 6
+  opt_method: oneloss
+  sample_size: 400000
+  seq_length: 300
+  sn_ratio: 4
   upper_limit_majority_classes: 20000
-opt_method: twolosses
+opt_method: oneloss
 proportion: 10000
 ranking_method: CCR
 sample_size: 20000
@@ -22,7 +22,7 @@ sampling:
   burnin: 10000
   iterations: 100000
   mode: two_steps
-seq_length: 100
+seq_length: 300
 sn_ratio: 5
 training:
   EPS: 0.02
@@ -40,7 +40,7 @@ training:
   lr: 0.001
   m: 1
   n_oversampling: 1
-  opt_method: twolosses
+  opt_method: oneloss
   patience: 10
   ranking_method: proportion
   repetitions: 1

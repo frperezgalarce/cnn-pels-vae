@@ -76,13 +76,13 @@ def main(train_gmm: Optional[bool] = True, create_samples: Optional[bool] = True
     if train_classifier:
         cnn.run_cnn(create_samples, vae_model=vae_model,
                     pp=pp_list, wandb_active=wandb_active,
-                    prior=True)
+                    prior=False)
 
 # Entry point of the script
 if __name__ == "__main__":
 
     # Flag to control the activation of Weights & Biases integration
-    wandb_active = False
+    wandb_active = True
     #method = "twolosses"
 
     with open('src/configuration/nn_config.yaml', 'r') as file:
@@ -90,9 +90,9 @@ if __name__ == "__main__":
 
     # Setup hyperparameter optimization if Weights & Biases is active
     if wandb_active:
-        sample_sizes = [40000]
+        sample_sizes = [400000]
         sn_ratios = [4]
-        seq_lengths = [50, 100, 150, 200]
+        seq_lengths = [300]
 
         # Create a total progress bar for all iterations
         total_iterations = len(sample_sizes) * len(sn_ratios) * len(seq_lengths)

@@ -2,7 +2,7 @@ method: grid
 metric:
   goal: maximize
   name: weighted_f1
-name: exp_s_20000_l_300_sn_6WO-priors
+name: exp_s_400000_l_300_sn_4_oneloss - 3005
 parameters:
   EPS:
     values:
@@ -26,6 +26,25 @@ parameters:
     values:
     - 0
     - 1
+    - 2
+    - 3
+    - 4
+    - 5
+    - 6
+    - 7
+    - 8
+    - 9
+    - 10
+    - 11
+    - 12
+    - 13
+    - 14
+    - 15
+    - 16
+    - 17
+    - 18
+    - 19
+    - 20
   layers:
     values:
     - 4

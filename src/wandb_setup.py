@@ -70,7 +70,7 @@ def setup_hyper_opt(main, nn_config):
                 'decay_parameter_1': {'values': [0.69]},
                 'decay_parameter_2': {'values': [0.62]},
                 'ranking_method': {'values': ['proportion']},
-                'iteration':{'values': [0,1]},
+                'iteration':{'values': [0]},
             }
         }
     elif nn_config['training']['opt_method'] == 'oneloss':
@@ -99,7 +99,7 @@ def setup_hyper_opt(main, nn_config):
                 'decay_parameter_1': {'values': [0.69]},
                 'decay_parameter_2': {'values': [0.62]},
                 'ranking_method': {'values': ['proportion']},
-                'iteration':{'values': [ 0,1,2,3,4,5, 6, 7]},
+                'iteration':{'values': [0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20]},
             }
         }
     else:

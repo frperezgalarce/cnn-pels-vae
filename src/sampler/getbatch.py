@@ -265,7 +265,7 @@ class SyntheticDataBatcher:
         lc_reverted = self.batch_preprocessing(lc_reverted)
 
         if plot_example:
-            self.plot_light_curve(lc_reverted[indices], label_y = 'Delta magnitude', label_x='delta time')
+            self.plot_light_curve(lc_reverted[indices], label_y = r'$\Delta$ magnitude', label_x=r'$\Delta$ time')
 
         self.check_nan(lc_reverted)
 

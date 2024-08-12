@@ -76,7 +76,7 @@ def main(train_gmm: Optional[bool] = True, create_samples: Optional[bool] = True
     if train_classifier:
         cnn.run_cnn(create_samples, vae_model=vae_model,
                     pp=pp_list, wandb_active=wandb_active,
-                    prior=False)
+                    prior=True)
 
 # Entry point of the script
 if __name__ == "__main__":

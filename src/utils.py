@@ -777,7 +777,8 @@ def revert_light_curve(period, folded_normed_light_curve,
 
         #real_time =  time #get_time_from_period(period[i], time, example_sequence, sequence_length=600)
 
-        real_time =  get_time_from_period(period[i],  folded_normed_light_curve[i,:,0], time, sequence_length=600)
+        real_time =  get_time_from_period(period[i],  folded_normed_light_curve[i,:,0], 
+                                            time, sequence_length=600)
 
         # Revert the normed magnitudes back to the original magnitudes using min-max scaling and faintness factor
         if noise:
@@ -862,8 +863,10 @@ def get_time_sequence(n=1, star_class=['RRLYR']):
         list: A list of lists containing time sequences from the light curves of 'n' objects.
     """
     n = int(n)
+    
     path_train = PATH_FEATURES_TRAIN
     lc_train = pd.read_table(path_train, sep=',')
+
 
     lc_train[['SURVEY', 'FIELD', 'CLASS', 'NUMBER']] = lc_train['ID'].str.split('-', expand=True)
     lc_train['NUMBER'] = lc_train['NUMBER'].str.replace('.dat', '')
@@ -875,7 +878,7 @@ def get_time_sequence(n=1, star_class=['RRLYR']):
         fail = True
 
         while(fail):
-
+            infinity_sanity_test = True
             counter = counter + 1
 
             try: 
@@ -887,6 +890,7 @@ def get_time_sequence(n=1, star_class=['RRLYR']):
                                                                 .sample(1, replace=True)['ID']
                                                                 .to_list()[0]
                                 )
+                    print(new_label)
                 else:
                     quantile_series = lc_train.Amplitude.quantile(0.25)
                     quantile_value = float(quantile_series)
@@ -900,11 +904,18 @@ def get_time_sequence(n=1, star_class=['RRLYR']):
 
                 lcu = pd.read_table(path_lc, sep=" ", names=['time', 'magnitude', 'error'])
 
-                if (len(lcu['time'].to_list())>nn_config['data']['minimum_lenght_real_curves']) and (lcu['time'].is_monotonic_increasing):
+                if lcu[['time', 'magnitude', 'error']].apply(np.isinf).any().any():
+                    infinity_sanity_test = False
+                    print(lcu)
+
+                print(len(lcu['time'].to_list()), infinity_sanity_test, (lcu['time'].is_monotonic_increasing))
+                if (infinity_sanity_test) and (len(lcu['time'].to_list())>nn_config['data']['minimum_lenght_real_curves']) and (lcu['time'].is_monotonic_increasing):
                     time_sequences.append([lcu.magnitude.min(), lcu.magnitude.max(), lcu.error.mean(), lcu.error.std()])
+                    print([lcu.magnitude.min(), lcu.magnitude.max(), lcu.error.mean(), lcu.error.std()])
                     fail = False
 
-            except Exception as error : 
+            except Exception as error :
+                print(error) 
                 fail = True    
                 logging.error(f"[get_time_sequence] The light curve {new_label} was not added: {error}")
 
@@ -1051,7 +1062,16 @@ def get_time_from_period(period, phased_time,  example_sequence, sequence_length
     print(period)
     if 'LOG' in data_sufix: 
         period = torch.exp(period)
+
+    print(period)
     time_sequence = min_sequence + (period)*(k_values + phased_time)
+
+    # Check if any values in time_sequence are infinity
+    if np.isinf(time_sequence.cpu().numpy()).any():
+        print("Infinity values detected in time_sequence tensor:")
+        print(time_sequence)
+    else:
+        print("No infinity values detected in time_sequence.")
 
     if verbose: 
         print('time_sequence: ', time_sequence)

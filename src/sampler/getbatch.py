@@ -128,6 +128,10 @@ class SyntheticDataBatcher:
     
     def batch_preprocessing(self, array):
         
+        if np.isnan(array).any():
+            print("NaNs detected in the original array.")
+        if np.isinf(array).any():
+            print("Infinity values detected in the original array.")
         array = np.diff(array, axis=-1)
         mean_value = np.nanmean(array)
         array[(array)> self.delta_max] = mean_value 
@@ -249,20 +253,38 @@ class SyntheticDataBatcher:
         sampled_arrays = xhat_mu[indices, :, :]
         
         viz.plot_wall_lcs_sampling(sampled_arrays, sampled_arrays,  cls=lb[indices],
-                                to_title = pp[indices], sensivity = 'Period', all_columns=self.pp, save=False, 
+                                to_title = pp[indices], sensivity = 'Period', 
+                                all_columns=self.pp, save=False, 
                                 wandb_active=wandb_active) 
 
-        lc_reverted = utils.revert_light_curve(pp[:,index_period], xhat_mu, original_sequences, classes = lb) 
+
+        if np.isinf(original_sequences).any():
+            print("Infinity values detected in the original array.")
+
+        if np.isinf(xhat_mu).any():
+            print("Infinity values detected in the original array.")
+
+        lc_reverted = utils.revert_light_curve(pp[:,index_period], xhat_mu, 
+                                                original_sequences, classes = lb) 
+        
 
         if plot_example:
             self.plot_light_curve(lc_reverted[indices], label_y = 'Magnitude', label_x='MJD')
 
         mean_value = np.nanmean(lc_reverted)
+
+
+
         lc_reverted[np.isnan(lc_reverted)] = mean_value
 
         lc_reverted, onehot_to_train = self.set_lc_length(oversampling, lc_reverted, n_oversampling, onehot_to_train)
         
+        self.check_nan(lc_reverted)
+        if np.isinf(lc_reverted).any():
+            print("Infinity values detected in the original array.")
+
         lc_reverted = self.batch_preprocessing(lc_reverted)
+
 
         if plot_example:
             self.plot_light_curve(lc_reverted[indices], label_y = r'$\Delta$ magnitude', label_x=r'$\Delta$ time')

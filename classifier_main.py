@@ -90,8 +90,8 @@ if __name__ == "__main__":
 
     # Setup hyperparameter optimization if Weights & Biases is active
     if wandb_active:
-        sample_sizes = [400000]
-        sn_ratios = [4]
+        sample_sizes = [40000]
+        sn_ratios = [4, 6]
         seq_lengths = [300]
 
         # Create a total progress bar for all iterations

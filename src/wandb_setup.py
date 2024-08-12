@@ -49,7 +49,7 @@ def setup_hyper_opt(main, nn_config):
         sweep_config = {
             'method': 'grid',
             #'name':'test_roc',
-            'name': f"exp_s_{nn_config['data']['sample_size']}_l_{nn_config['data']['seq_length']}_sn_{nn_config['data']['sn_ratio']}- seq_length experiment",
+            'name': f"exp_s_{nn_config['data']['sample_size']}_l_{nn_config['data']['seq_length']}_sn_{nn_config['data']['sn_ratio']}- test new biases",
             'metric': {'goal': 'maximize', 'name': 'weighted_f1'},
             'parameters': {
                 'learning_rate': {'values': [0.09]},
@@ -70,7 +70,7 @@ def setup_hyper_opt(main, nn_config):
                 'decay_parameter_1': {'values': [0.69]},
                 'decay_parameter_2': {'values': [0.62]},
                 'ranking_method': {'values': ['proportion']},
-                'iteration':{'values': [0]},
+                'iteration':{'values': [0, 1, 2, 3, 4, 5, 6, 7, 8, 9]},
             }
         }
     elif nn_config['training']['opt_method'] == 'oneloss':
@@ -78,7 +78,7 @@ def setup_hyper_opt(main, nn_config):
         sweep_config = {
             'method': 'grid',
             #'name':'test_roc',
-            'name': f"exp_s_{nn_config['data']['sample_size']}_l_{nn_config['data']['seq_length']}_sn_{nn_config['data']['sn_ratio']}_oneloss - 3005",
+            'name': f"exp_s_{nn_config['data']['sample_size']}_l_{nn_config['data']['seq_length']}_sn_{nn_config['data']['sn_ratio']}_oneloss - test new biases",
             'metric': {'goal': 'maximize', 'name': 'weighted_f1'},
             'parameters': {
                 'learning_rate': {'values': [0.09]},
@@ -99,7 +99,7 @@ def setup_hyper_opt(main, nn_config):
                 'decay_parameter_1': {'values': [0.69]},
                 'decay_parameter_2': {'values': [0.62]},
                 'ranking_method': {'values': ['proportion']},
-                'iteration':{'values': [0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20]},
+                'iteration':{'values': [0, 1, 2, 3, 4, 5, 6, 7, 8, 9]},
             }
         }
     else:

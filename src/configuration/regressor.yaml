@@ -6,7 +6,7 @@ dataloader_parameters:
 model_parameters:
   ID: gn42liaz
   gpu: true
-  sufix_path: GAIA3_LOG_IMPUTED_BY_CLASS_6PP
+  sufix_path: GAIA3_LOG_6PP
 plotting:
   residual_plot_alpha: 0.05
   scatter_plot_alpha: 0.05

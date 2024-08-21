@@ -766,8 +766,8 @@ def revert_light_curve(period, folded_normed_light_curve,
         if np.max(folded_normed_light_curve[i,:,0])<0.95: 
             continue
 
-        normed_magnitudes_min = np.min(folded_normed_light_curve[i,:,1])
-        normed_magnitudes_max = np.max(folded_normed_light_curve[i,:,1])
+        normed_magnitudes_min = np.quantile(folded_normed_light_curve[i,:,1], 0.01) 
+        normed_magnitudes_max = np.quantile(folded_normed_light_curve[i,:,1], 0.99)
         
         normed_magnitudes = ((folded_normed_light_curve[i,:,1]-normed_magnitudes_min)/
                             (normed_magnitudes_max-normed_magnitudes_min))
@@ -883,7 +883,7 @@ def get_time_sequence(n=1, star_class=['RRLYR']):
 
             try: 
                 if counter < 50:
-                    quantile_series = lc_train[lc_train.CLASS == star].Amplitude.quantile(0.25)
+                    quantile_series = lc_train[lc_train.CLASS == star].Amplitude.quantile(0.1)
                     quantile_value = float(quantile_series)
                     new_label = (lc_train[(lc_train.CLASS==star) 
                                                                 & (lc_train.Amplitude > quantile_value)]

@@ -389,7 +389,7 @@ def run_cnn(create_samples: Any, vae_model=None, pp = None,
 
     best_val = np.iinfo(np.int64).max
     harder_samples = True
-    no_improvement_count, counter, weight_f1_score_hyperparameter_search  = 0, 0, 0.3
+    no_improvement_count, counter, weight_f1_score_hyperparameter_search  = 0, 0, 0.15
     train_loss_values, val_loss_values, train_accuracy_values, \
                                         val_accuracy_values  = [], [], [], []
     

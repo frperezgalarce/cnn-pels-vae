@@ -91,14 +91,14 @@ if __name__ == "__main__":
     # Setup hyperparameter optimization if Weights & Biases is active
     if wandb_active:
         sample_sizes = [40000]
-        sn_ratios = [6]
+        sn_ratios = [4, 6]
         seq_lengths = [300]
 
         # Create a total progress bar for all iterations
         total_iterations = len(sample_sizes) * len(sn_ratios) * len(seq_lengths)
         with tqdm(total=total_iterations) as pbar:
             for sample_size in sample_sizes:
-                for method in ['twolosses']:#, 
+                for method in ['twolosses', 'oneloss']:#, 
                     for sn_ratio in sn_ratios:
                         for seq_length in seq_lengths:
                             # Clearing the GPU cache to ensure maximum available memory

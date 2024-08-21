@@ -300,6 +300,7 @@ def plot_wall_lcs_sampling(lc_gen, lc_real, cls=[], lc_gen2=None, save=True, wan
 
     for ax_i in [0, 1, 2, 3, 4]:
         axis[ax_i].set_ylabel('Norm Magnitude', fontsize=12)
+        axis[ax_i].tick_params(axis='y', labelcolor='royalblue')
         axis[ax_i].xaxis.set_major_locator(MaxNLocator(4))
         axis[ax_i].yaxis.set_major_locator(MaxNLocator(4))
         axis[ax_i].xaxis.set_major_formatter(FormatStrFormatter('%.1f'))
@@ -319,9 +320,14 @@ def plot_wall_lcs_sampling(lc_gen, lc_real, cls=[], lc_gen2=None, save=True, wan
     axis[3].invert_yaxis()
     axis[4].invert_yaxis()
     print('saving: ', save)
+    
     if save:
+        #figure_id_df = pd.DataFrame([0], columns=['figure_id'])
+        #figure_id_df.to_csv('figure_id.csv') 
+        figure_id_df = pd.read_csv('figure_id.csv', index_col=None)
+        figure_id = figure_id_df.figure_id.max() 
         feature = str(sensivity).replace('[', '').replace(']','').replace('_','').replace('/','')
-        plt.savefig(PATH_FIGURES+'/epoch_recon_lc_'+str(cls[0])+'_'+feature+'.png', format='png')
+        plt.savefig(PATH_FIGURES+'/epoch_recon_lc_'+str(cls[0])+'_'+feature+'_ID_'+str(figure_id)+'.png', format='png')
         plt.show()
     if wandb_active:
         wandb.log({"epochs": wandb.Image(plt)})

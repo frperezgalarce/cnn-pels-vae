@@ -20,6 +20,7 @@ import gzip
 from concurrent.futures import ThreadPoolExecutor
 import random 
 from sklearn.metrics import confusion_matrix
+import time 
 
 logging.basicConfig(filename='error_log.txt', level=logging.ERROR)
 
@@ -378,9 +379,10 @@ def get_data(sample_size, mode):
 
     print('-'*50)
     print('MODE DATA: ', mode)
+    print
     if mode=='create':
         id_test, id_train, values_count  = get_ids(n=sample_size) 
-        x_train, x_test, y_test, y_train  = read_light_curve_ogle(id_test, id_train, values_count, lenght_lc=nn_config['data']['seq_length'])
+        x_train, x_test, y_test, y_train  = read_light_curve_ogle(id_test, id_train, values_count, lenght_lc= nn_config['data']['seq_length'])
     elif mode == 'load':
         x_train, x_test, y_test, y_train  = load_light_curve_ogle()
     else: 
@@ -422,7 +424,7 @@ def get_data(sample_size, mode):
 
     with open('src/configuration/nn_config.yaml', 'w') as file:
         yaml.safe_dump(nn_config, file)
-
+    time.sleep(2)
     # Convert the encoded labels to a PyTorch tensor
     y_labels = torch.from_numpy(encoded_labels).long()
     y_labels_test = torch.from_numpy(encoded_labels_test).long()

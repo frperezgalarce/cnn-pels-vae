@@ -149,6 +149,7 @@ def train_one_epoch_alternative(
     running_loss = 0.0
     val_loss = 0
     if mode=='oneloss':
+        print("oneloss mode is running...")
         for inputs, labels in dataloader:
             inputs, labels = inputs.to(device), labels.to(device)
             optimizer.zero_grad()
@@ -164,6 +165,10 @@ def train_one_epoch_alternative(
         return running_loss, model, val_loss
     
     elif mode=='twolosses':
+        print("Two losses mode is running...")
+        #print(criterion_2)
+        #print(dataloader_2)
+        #print(optimizer_2)
         if criterion_2 is None or dataloader_2 is None or optimizer_2 is None:
             raise ValueError("For 'twolosses' mode, criterion_2, dataloader_2, and optimizer_2 must be provided.")     
         
@@ -185,7 +190,7 @@ def train_one_epoch_alternative(
                         param.grad.data += mask * param.grad.data.clone()
                 optimizer_2.step()
                 running_loss_prior += loss_prior.item() 
-        
+        print("Synthetic samples was used to update weights")
         
         running_loss = 0.0
         for inputs, labels in dataloader:
@@ -212,7 +217,6 @@ def train_one_epoch_alternative(
             val_loss += loss.item()   
                
         return running_loss, model, val_loss
-
 
 def evaluate_dataloader(model, dataloader, criterion, device, num_classes=5):
     """
@@ -249,7 +253,7 @@ def evaluate_dataloader(model, dataloader, criterion, device, num_classes=5):
 
             # Forward pass
             outputs = model(inputs)
-            print('outputs: ', outputs)
+            #print('outputs: ', outputs)
             # Calculate loss
             _, labels_indices = torch.max(labels, 1)  # Convert one-hot to indices
             loss = criterion(outputs, labels_indices)
@@ -278,7 +282,7 @@ def evaluate_dataloader(model, dataloader, criterion, device, num_classes=5):
     #print(labels, all_scores)
     auc_roc_scores_ovr = roc_auc_score(labels, all_scores, multi_class='ovr')
     auc_roc_scores_ovo = roc_auc_score(labels, all_scores, multi_class='ovo')
-    print(auc_roc_scores_ovo, auc_roc_scores_ovr)
+    #print(auc_roc_scores_ovo, auc_roc_scores_ovr)
     model.train()  # Set the model back to training mode
     return total_loss, avg_accuracy, f1_score_val, auc_roc_scores_ovo, auc_roc_scores_ovr
 
@@ -352,7 +356,7 @@ def initialize_masks(model, device='cuda', EPS=0.25, layers=2):
     if layers > 4: 
         raise('The current implementation does not support more than 4 layers')
     
-    print('EPS: ', EPS)
+    #print('EPS: ', EPS)
     for name, param in model.named_parameters():
         if ("conv1" in name) and ("weight" in name):
             quantile = utils.quantile(torch.abs(param.mean(dim=[1, 2])), EPS)

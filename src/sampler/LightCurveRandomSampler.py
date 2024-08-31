@@ -18,16 +18,22 @@ class LightCurveRandomSampler:
         self.m = m
         self.k, _, self.n = lc_reverted.shape
 
-    def sample(self):
+    def sample(self, linspace=True):
         """Sample m segments of length new_length from each light curve in lc_reverted and replicate corresponding labels."""
         all_samples = []
         all_labels = []
 
         for i, curve in enumerate(self.lc_reverted):
-            for _ in range(self.m):
+            for j in range(self.m):
                 # Randomly select a start index
                 #start_index = np.random.randint(0, self.n - self.new_length + 1)
-                random_indexes = np.sort(np.random.choice(self.n, self.new_length, replace=False))
+                if linspace: 
+                    random_indexes = np.linspace(j, int(self.n/2)-1, self.new_length).round().astype(int)
+                else:
+                    random_indexes = np.sort(np.random.choice(self.n, self.new_length, replace=False))
+
+                
+
                 # Extract the sequence starting from the start index
                 sample = curve[:, random_indexes]
                 

@@ -2,6 +2,7 @@
 import wandb
 import yaml 
 import torch 
+import time 
 
 def save_metrics(wandb_active, opt_method, results_dict,
                  weight_f1_score_hyperparameter_search, 
@@ -48,27 +49,27 @@ def setup_hyper_opt(main, nn_config):
         # Configuration for the 'twolosses' optimization method
         sweep_config = {
             'method': 'grid',
-            'name': f"exp_s_{nn_config['data']['sample_size']}_l_{nn_config['data']['seq_length']}_sn_{nn_config['data']['sn_ratio']} twolosses- signaltonoise",
+            'name': f"exp_s_{nn_config['data']['sample_size']}_l_{nn_config['data']['seq_length']}_sn_{nn_config['data']['sn_ratio']} twolosses seql",
             'metric': {'goal': 'maximize', 'name': 'f1_val'},
             'parameters': {
-                'learning_rate': {'values': [0.06]},
-                'batch_size': {'values': [32]},
-                'patience': {'values': [9]},
-                'repetitions': {'values': [5]},
-                'synthetic_samples_by_class':  {'values': [28]},  
+                'learning_rate': {'values': [0.04]},
+                'batch_size': {'values': [256]},
+                'patience': {'values': [10]},
+                'repetitions': {'values': [1]},
+                'synthetic_samples_by_class':  {'values': [32]},  
                 'threshold_acc_synthetic': {'values': [0.74]},
                 'beta_decay_factor': {'values': [1]},
-                'EPS': {'values': [0.25]},  
-                'scaling_factor': {'values': [0.25]},
+                'EPS': {'values': [0.35]},  
+                'scaling_factor': {'values': [1.25]},
                 'vae_model': {'values': ['gn42liaz']},
-                'sufix_path': {'values': ['GAIA3_LOG_6PP']},
+                'sufix_path': {'values': ['GAIA3_LOG_IMPUTED_BY_CLASS_6PP']},
                 'layers': {'values': [4]},
-                'loss': {'values': ['focalLoss']}, 
-                'focal_loss_scale': {'values': [4]},  
-                'n_oversampling': {'values': [2]},
-                'decay_parameter_1':{'values': [0.77]},
-                'decay_parameter_2':{'values': [0.43]},
-                'ranking_method': {'values': ['max_confusion']},
+                'loss': {'values': ['CrossEntropyLoss']}, 
+                'focal_loss_scale': {'values': [2]},  
+                'n_oversampling': {'values': [4]},
+                'decay_parameter_1':{'values': [0.9]},
+                'decay_parameter_2':{'values': [0.9]},
+                'ranking_method': {'values': ['no_priority']},
                 'iteration':{'values': [0, 1, 2, 3, 4, 5, 6, 7, 8, 9]}
             }
         }
@@ -77,27 +78,27 @@ def setup_hyper_opt(main, nn_config):
         sweep_config = {
             'method': 'grid',
             #'name':'test_roc',
-            'name': f"exp_s_{nn_config['data']['sample_size']}_l_{nn_config['data']['seq_length']}_sn_{nn_config['data']['sn_ratio']}_oneloss - signaltonoise",
+            'name': f"exp_s_{nn_config['data']['sample_size']}_l_{nn_config['data']['seq_length']}_sn_{nn_config['data']['sn_ratio']}_oneloss - seql",
             'metric': {'goal': 'maximize', 'name': 'weighted_f1'},
             'parameters': {
-                'learning_rate': {'values': [0.06]},
-                'batch_size': {'values': [32]},
-                'patience': {'values': [9]},
-                'repetitions': {'values': [5]},
-                'synthetic_samples_by_class':  {'values': [28]},  
+                'learning_rate': {'values': [0.04]},
+                'batch_size': {'values': [256]},
+                'patience': {'values': [10]},
+                'repetitions': {'values': [1]},
+                'synthetic_samples_by_class':  {'values': [32]},  
                 'threshold_acc_synthetic': {'values': [0.74]},
                 'beta_decay_factor': {'values': [1]},
-                'EPS': {'values': [0.25]},  
-                'scaling_factor': {'values': [0.25]},
+                'EPS': {'values': [0.35]},  
+                'scaling_factor': {'values': [1.25]},
                 'vae_model': {'values': ['gn42liaz']},
-                'sufix_path': {'values': ['GAIA3_LOG_6PP']},
+                'sufix_path': {'values': ['GAIA3_LOG_IMPUTED_BY_CLASS_6PP']},
                 'layers': {'values': [4]},
-                'loss': {'values': ['focalLoss']}, 
-                'focal_loss_scale': {'values': [4]},  
-                'n_oversampling': {'values': [2]},
-                'decay_parameter_1':{'values': [0.77]},
-                'decay_parameter_2':{'values': [0.43]},
-                'ranking_method': {'values': ['max_confusion']},
+                'loss': {'values': ['CrossEntropyLoss']}, 
+                'focal_loss_scale': {'values': [2]},  
+                'n_oversampling': {'values': [4]},
+                'decay_parameter_1':{'values': [0.9]},
+                'decay_parameter_2':{'values': [0.9]},
+                'ranking_method': {'values': ['no_priority']},
                 'iteration':{'values': [0, 1, 2, 3, 4, 5, 6, 7, 8, 9]}
             }
         }
@@ -184,6 +185,11 @@ def cnn_hyperparameters(wandb_active, hyperparam_opt, nn_config, config_file):
 
             with open('src/configuration/regressor.yaml', 'w') as file:
                 yaml.dump(config_file, file)
+            time.sleep(2)
+            
+            with open('src/configuration/nn_config.yaml', 'w') as file:
+                yaml.dump(nn_config, file)
+            time.sleep(2)
 
         wandb.config.epochs = nn_config['training']['epochs']
         wandb.config.patience = nn_config['training']['patience']

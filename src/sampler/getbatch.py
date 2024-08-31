@@ -179,14 +179,15 @@ class SyntheticDataBatcher:
             print(f"Number of NaN values detected: {np.sum(np.isnan(lc_reverted))}")
             raise ValueError("NaN values detected in lc_reverted array")
     
-    def set_lc_length(self, oversampling, lc_reverted, n_oversampling, onehot_to_train):
+    def set_lc_length(self, oversampling, lc_reverted, n_oversampling, onehot_to_train, linspace=True):
         if oversampling: 
             sampler = LightCurveRandomSampler(lc_reverted, onehot_to_train, self.seq_length, n_oversampling)
             lc_reverted, onehot_to_train = sampler.sample()
         else:
-            obs = lc_reverted.shape[2]
-            print(obs)
-            random_indexes = np.sort(np.random.choice(600, self.seq_length, replace=False))
+            if linspace:
+                random_indexes = np.linspace(0, 299, self.seq_length).round().astype(int)
+            else:
+                random_indexes = np.sort(np.random.choice(600, self.seq_length, replace=False))
             lc_reverted = lc_reverted[:, :, random_indexes]
         return lc_reverted, onehot_to_train
         
@@ -272,8 +273,6 @@ class SyntheticDataBatcher:
             self.plot_light_curve(lc_reverted[indices], label_y = 'Magnitude', label_x='MJD')
 
         mean_value = np.nanmean(lc_reverted)
-
-
 
         lc_reverted[np.isnan(lc_reverted)] = mean_value
 

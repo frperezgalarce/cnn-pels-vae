@@ -30,6 +30,7 @@ import src.gmm.bgmm as bgmm
 import src.sampler.fit_regressor as reg
 from src.utils import load_pp_list, pp_sensitive_test, load_metadata
 import src.wandb_setup as wsetup
+import time 
 
 def main(train_gmm: Optional[bool] = True, create_samples: Optional[bool] = True,
          train_classifier: Optional[bool] = True, sensitive_test: Optional[bool] = False,
@@ -91,16 +92,17 @@ if __name__ == "__main__":
     # Setup hyperparameter optimization if Weights & Biases is active
     if wandb_active:
         sample_sizes = [40000]
-        sn_ratios = [4, 6]
-        seq_lengths = [300]
+        sn_ratios = [6]
+        seq_lengths = [50, 100, 150, 200]
 
         # Create a total progress bar for all iterations
         total_iterations = len(sample_sizes) * len(sn_ratios) * len(seq_lengths)
         with tqdm(total=total_iterations) as pbar:
             for sample_size in sample_sizes:
-                for method in ['twolosses', 'oneloss']:#, 
+                for method in ['oneloss', 'twolosses']:#, 
                     for sn_ratio in sn_ratios:
                         for seq_length in seq_lengths:
+                            nn_config['data']['mode_running'] = "create"
                             # Clearing the GPU cache to ensure maximum available memory
                             torch.cuda.empty_cache()
                             nn_config['data']['sample_size'] = sample_size
@@ -118,6 +120,7 @@ if __name__ == "__main__":
                                 print(f"Error writing to file: {e}")
 
                             print(nn_config)
+                            time.sleep(2)
                             wsetup.setup_hyper_opt(main, nn_config)
                             pbar.update(1)
 

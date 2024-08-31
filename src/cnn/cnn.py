@@ -13,6 +13,7 @@ from src.sampler.getbatch import SyntheticDataBatcher
 from src.cnn.focalloss import FocalLossMultiClass as focal_loss
 import src.utils as utils
 import src.wandb_setup as wset
+import time
 from src.cnn.training_cnn import (get_dict_class_priorization,
                                  train_one_epoch_alternative, create_dataloader,
                                  evaluate_dataloader,
@@ -146,11 +147,13 @@ class CNN(nn.Module):
         Returns:
             Tensor: The output tensor with shape (batch_size, num_classes).
         """
+        #print("new CNN was created with seq_length: "+ str(self.seq_length)+" layers: "+ str(self.layers))
+
+        #print(f'Input shape: {x.shape}')
         x = self.conv1(x)
         x = self.bn1(x)
         x = F.relu(x)
         x = self.pool1(x)        
-
         
         x = self.conv2(x)
         x = self.bn2(x)
@@ -173,11 +176,10 @@ class CNN(nn.Module):
             x = self.bn4(x)
             x = F.relu(x)
             x = self.pool4(x)
-        
+
         x = x.view(x.size(0), -1)  
         x = self.fc1(x)
         x = F.relu(x)
-        
         x = self.fc2(x)
         
         if (self.loss_function=='NLLLoss') or (self.loss_function=='focalLoss'):
@@ -210,8 +212,10 @@ def setup_model(num_classes: int, show_architecture: bool = True) -> nn.Module:
 
     print('----- model setup --------')
     # Initialize the CNN model with parameters from the configuration file
+
     model = CNN(num_classes=num_classes, seq_length = nn_config['data']['seq_length'], 
-                layers=nn_config['training']['layers'], loss_function=nn_config['training']['loss'])
+                layers=nn_config['training']['layers'],
+                loss_function=nn_config['training']['loss'])
 
     # Move the model to the specified device (CPU or GPU)
     if torch.cuda.is_available():
@@ -371,6 +375,9 @@ def run_cnn(create_samples: Any, vae_model=None, pp = None,
     """
     nn_config, config_file = load_yaml_files(nn_config=True, regressor=True)
 
+    nn_config, config_file = wset.cnn_hyperparameters(wandb_active, hyperparam_opt, 
+                                                      nn_config, config_file)
+
     vae_model: str = config_file['model_parameters']['ID']
     
     x_train, x_test, y_train, y_test, x_val, y_val, \
@@ -380,8 +387,7 @@ def run_cnn(create_samples: Any, vae_model=None, pp = None,
     class_weights, num_classes, _  = get_counts_and_weights_by_class(y_train_labeled, 
                                                         y_test_labeled, x_train)
     
-    model = setup_model(num_classes, device)
-    wset.setup_gradients(wandb_active, model)
+
 
     training_data = utils.move_data_to_device((x_train, y_train), device)
     val_data = utils.move_data_to_device((x_val, y_val), device)
@@ -393,8 +399,11 @@ def run_cnn(create_samples: Any, vae_model=None, pp = None,
     train_loss_values, val_loss_values, train_accuracy_values, \
                                         val_accuracy_values  = [], [], [], []
     
-    nn_config, config_file = wset.cnn_hyperparameters(wandb_active, hyperparam_opt, 
-                                                      nn_config, config_file)
+
+
+    model = setup_model(num_classes, device)
+
+    wset.setup_gradients(wandb_active, model)
 
     train_dataloader = create_dataloader(training_data, nn_config['training']['batch_size'])
     val_dataloader = create_dataloader(val_data, nn_config['training']['batch_size'])
@@ -461,7 +470,7 @@ def run_cnn(create_samples: Any, vae_model=None, pp = None,
                                                 samples_dict = dict_priorization,
                                                 n_oversampling = nn_config['training']['n_oversampling'])
 
-
+            print("The Batch was created sucessfully...")
             decay_parameter1 = nn_config['training']['decay_parameter_1']
             decay_parameter2= nn_config['training']['decay_parameter_2']
             beta_actual = decay_parameter1 + (1-decay_parameter1) * np.exp(-decay_parameter2 * epoch)
@@ -482,8 +491,10 @@ def run_cnn(create_samples: Any, vae_model=None, pp = None,
                                         locked_masks = locked_masks, 
                                         repetitions = nn_config['training']['repetitions'])
                                  
-        _, accuracy_val, f1_val, roc_val_ovo, roc_val_ovr = evaluate_dataloader(model, val_dataloader, criterion, device)
-        _, accuracy_train, f1_train, roc_train_ovo, roc_train_ovr = evaluate_dataloader(model, train_dataloader, criterion, device)
+        _, accuracy_val, f1_val, roc_val_ovo, roc_val_ovr = evaluate_dataloader(model, val_dataloader, 
+                                                                                criterion, device)
+        _, accuracy_train, f1_train, roc_train_ovo, roc_train_ovr = evaluate_dataloader(model, train_dataloader,
+                                                                                 criterion, device)
 
 
         if nn_config['training']['opt_method']=='twolosses':
@@ -612,4 +623,11 @@ def run_cnn(create_samples: Any, vae_model=None, pp = None,
     torch.save(model, 'self_regulated_cnn_model.pt')
     del model
     del optimizer1, optimizer2, locked_masks, locked_masks2 
-    gc.collect()  
+    gc.collect() 
+
+    #Create a new data set only in the first execution (from ten)
+    nn_config['data']['mode_running'] = "load" 
+    with open('src/configuration/nn_config.yaml', 'w') as file:
+        yaml.dump(nn_config, file)
+        file.flush()  # Force flushing the file buffer to disk
+    time.sleep(2)

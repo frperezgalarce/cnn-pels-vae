@@ -1,27 +1,27 @@
 method: grid
 metric:
   goal: maximize
-  name: weighted_f1
-name: exp_s_40000_l_300_sn_4_oneloss - signaltonoise
+  name: f1_val
+name: exp_s_40000_l_300_sn_6 twolosses seql
 parameters:
   EPS:
     values:
-    - 0.25
+    - 0.35
   batch_size:
     values:
-    - 32
+    - 256
   beta_decay_factor:
     values:
     - 1
   decay_parameter_1:
     values:
-    - 0.77
+    - 0.9
   decay_parameter_2:
     values:
-    - 0.43
+    - 0.9
   focal_loss_scale:
     values:
-    - 4
+    - 2
   iteration:
     values:
     - 0
@@ -39,31 +39,31 @@ parameters:
     - 4
   learning_rate:
     values:
-    - 0.06
+    - 0.04
   loss:
     values:
-    - focalLoss
+    - CrossEntropyLoss
   n_oversampling:
     values:
-    - 2
+    - 4
   patience:
     values:
-    - 9
+    - 10
   ranking_method:
     values:
-    - max_confusion
+    - no_priority
   repetitions:
     values:
-    - 5
+    - 1
   scaling_factor:
     values:
-    - 0.25
+    - 1.25
   sufix_path:
     values:
-    - GAIA3_LOG_6PP
+    - GAIA3_LOG_IMPUTED_BY_CLASS_6PP
   synthetic_samples_by_class:
     values:
-    - 28
+    - 32
   threshold_acc_synthetic:
     values:
     - 0.74

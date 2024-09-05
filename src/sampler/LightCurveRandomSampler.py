@@ -18,7 +18,7 @@ class LightCurveRandomSampler:
         self.m = m
         self.k, _, self.n = lc_reverted.shape
 
-    def sample(self, linspace=True):
+    def sample(self, linspace=False):
         """Sample m segments of length new_length from each light curve in lc_reverted and replicate corresponding labels."""
         all_samples = []
         all_labels = []

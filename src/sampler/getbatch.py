@@ -179,7 +179,7 @@ class SyntheticDataBatcher:
             print(f"Number of NaN values detected: {np.sum(np.isnan(lc_reverted))}")
             raise ValueError("NaN values detected in lc_reverted array")
     
-    def set_lc_length(self, oversampling, lc_reverted, n_oversampling, onehot_to_train, linspace=True):
+    def set_lc_length(self, oversampling, lc_reverted, n_oversampling, onehot_to_train, linspace=False):
         if oversampling: 
             sampler = LightCurveRandomSampler(lc_reverted, onehot_to_train, self.seq_length, n_oversampling)
             lc_reverted, onehot_to_train = sampler.sample()

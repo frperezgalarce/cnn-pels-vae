@@ -8,9 +8,9 @@ data:
   delta_time_max: 100
   limit_to_define_minority_Class: 5000
   minimum_lenght_real_curves: 50
-  mode_running: load
+  mode_running: create
   opt_method: twolosses
-  sample_size: 40000
+  sample_size: 400000
   seq_length: 300
   sn_ratio: 6
   upper_limit_majority_classes: 20000
@@ -24,26 +24,26 @@ sampling:
   mode: two_steps
 seq_length: 300
 training:
-  EPS: 0.35
+  EPS: 0.25
   alpha: 0.3
-  base_learning_rate: 0.04
-  batch_size: 256
+  base_learning_rate: 0.01
+  batch_size: 32
   beta_decay_factor: 0.99
   beta_initial: 1.0
-  decay_parameter_1: 0.9
-  decay_parameter_2: 0.9
+  decay_parameter_1: 0.77
+  decay_parameter_2: 0.46
   epochs: 500
-  focal_loss_scale: 2
+  focal_loss_scale: 1.5
   layers: 4
-  loss: CrossEntropyLoss
+  loss: focalLoss
   lr: 0.001
   m: 1
-  n_oversampling: 4
+  n_oversampling: 2
   opt_method: twolosses
-  patience: 10
+  patience: 9
   ranking_method: no_priority
-  repetitions: 1
-  scaling_factor: 1.25
-  synthetic_samples_by_class: 32
+  repetitions: 5
+  scaling_factor: 0.75
+  synthetic_samples_by_class: 28
   threshold_acc_synthetic: 0.74
   weight_decay: 0.0001

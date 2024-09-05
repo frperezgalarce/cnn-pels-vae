@@ -508,7 +508,7 @@ def run_cnn(create_samples: Any, vae_model=None, pp = None,
             raise('This method is unavailable, please use: oneloss or twolosses')
         
         condition1 = (accuracy_train_synthetic>nn_config['training']['threshold_acc_synthetic'])
-        condition2 = (counter > 3) 
+        condition2 = (counter > 5) 
         
         if condition1 or condition2:
             harder_samples = True

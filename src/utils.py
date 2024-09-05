@@ -20,6 +20,8 @@ import gzip
 from concurrent.futures import ThreadPoolExecutor
 import random 
 from sklearn.metrics import confusion_matrix
+from sklearn.model_selection import StratifiedShuffleSplit
+
 import time 
 
 logging.basicConfig(filename='error_log.txt', level=logging.ERROR)
@@ -280,31 +282,35 @@ def get_ids(n=1):
     path_test = PATH_FEATURES_TEST
     lc_test = pd.read_table(path_test, sep= ',')
     lc_train = pd.read_table(path_train, sep= ',')
-
     example_test  = lc_test[['ID']]
-    
-    if n>=lc_train.shape[0]:
-        example_train =lc_train[['ID']]
-    else:
-        example_train = lc_train.sample(n)[['ID']]
-
     new_cols_test = example_test.ID.str.split("-", n = 3, expand = True)
     new_cols_test.columns = ['survey', 'field', 'class', 'number']
     # concatenate the new columns with the original DataFrame
     example_test = pd.concat([new_cols_test, example_test], axis=1)
     example_test = delete_low_represented_classes(example_test, column='class', threshold=20)
 
-    new_cols_train = example_train.ID.str.split("-", n = 3, expand = True)
+    new_cols_train = lc_train.ID.str.split("-", n = 3, expand = True)
     new_cols_train.columns = ['survey', 'field', 'class', 'number']
-    example_train = pd.concat([new_cols_train, example_train], axis=1)
-    print(example_train['class'].value_counts())
+    lc_train = pd.concat([new_cols_train, lc_train], axis=1)
+    print(lc_train['class'].value_counts())
+    lc_train = delete_low_represented_classes(lc_train, column='class', threshold=20)
 
-    example_train = delete_low_represented_classes(example_train, column='class', threshold=20)
+
+    if n>=lc_train.shape[0]:
+        example_train =lc_train[['ID','survey', 'field', 'class', 'number']]
+    else:
+        #example_train = lc_train.sample(n, random_state=0)[['ID']]
+        frac = n/lc_train.shape[0]
+        strat_split = StratifiedShuffleSplit(n_splits=1, test_size=frac, random_state=0)
+        for _, sample_idx in strat_split.split(lc_train, lc_train['class']):
+            example_train = lc_train.iloc[sample_idx][['ID','survey', 'field', 'class', 'number']]
+
+        #example_train = lc_train.groupby(['class']).apply(lambda x: x.sample(frac=frac, random_state=0))[['ID']]
 
     #example_train = custom_sample(example_train, 'class', nn_config['data']['limit_to_define_minority_Class'], 
     #                            nn_config['data']['upper_limit_majority_classes'])
 
-    print(example_train['class'].value_counts())
+    #print(example_train['class'].value_counts())
 
     values_count = example_train['class'].value_counts().reset_index()
     values_count.columns = ['Type', 'counter']
@@ -379,7 +385,7 @@ def get_data(sample_size, mode):
 
     print('-'*50)
     print('MODE DATA: ', mode)
-    print
+
     if mode=='create':
         id_test, id_train, values_count  = get_ids(n=sample_size) 
         x_train, x_test, y_test, y_train  = read_light_curve_ogle(id_test, id_train, values_count, lenght_lc= nn_config['data']['seq_length'])

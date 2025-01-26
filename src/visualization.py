@@ -266,13 +266,13 @@ def plot_wall_lcs_sampling(lc_gen, lc_real, cls=[], lc_gen2=None, save=True, wan
                              sharex=False, sharey=False)
     
     for i, ax in enumerate(axis.flat):
-        print(", ".join([f"{all_columns[j]}: {np.round(to_title[i, j], 2)}" for j in range(len(all_columns))]))
+        print(", ".join([f"{all_columns[j]}: {np.round(to_title[i, j], 2)}" for j in range(len(all_columns))]))        
 
-        ax.errorbar(lc_real[i, :, 0],
+        ax.errorbar(lc_real[i, :, 0]*2,
                     lc_real[i, :, 1],
                     fmt='.', c='gray', alpha=.5)
 
-        ax.errorbar(lc_gen[i, :, 0],
+        ax.errorbar(lc_gen[i, :, 0]*2,
                     lc_gen[i, :, 1], 
                     yerr=None,
                     fmt='.', c='royalblue', label=cls[i])
@@ -296,7 +296,7 @@ def plot_wall_lcs_sampling(lc_gen, lc_real, cls=[], lc_gen2=None, save=True, wan
             logging.error(f"The light curve was not loaded: {error}")
 
 
-    axis[4].set_xlabel('Phase', fontsize=12)
+    axis[4].set_xlabel('$t_{PELS-VAE}$', fontsize=12)
 
     for ax_i in [0, 1, 2, 3, 4]:
         axis[ax_i].set_ylabel('Norm Magnitude', fontsize=12)

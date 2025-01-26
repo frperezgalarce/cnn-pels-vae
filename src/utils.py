@@ -898,7 +898,7 @@ def get_time_sequence(n=1, star_class=['RRLYR']):
                                                                 .sample(1, replace=True)['ID']
                                                                 .to_list()[0]
                                 )
-                    print(new_label)
+                    #print(new_label)
                 else:
                     quantile_series = lc_train.Amplitude.quantile(0.25)
                     quantile_value = float(quantile_series)
@@ -914,16 +914,16 @@ def get_time_sequence(n=1, star_class=['RRLYR']):
 
                 if lcu[['time', 'magnitude', 'error']].apply(np.isinf).any().any():
                     infinity_sanity_test = False
-                    print(lcu)
+                    #print(lcu)
 
-                print(len(lcu['time'].to_list()), infinity_sanity_test, (lcu['time'].is_monotonic_increasing))
+                #print(len(lcu['time'].to_list()), infinity_sanity_test, (lcu['time'].is_monotonic_increasing))
                 if (infinity_sanity_test) and (len(lcu['time'].to_list())>nn_config['data']['minimum_lenght_real_curves']) and (lcu['time'].is_monotonic_increasing):
                     time_sequences.append([lcu.magnitude.min(), lcu.magnitude.max(), lcu.error.mean(), lcu.error.std()])
-                    print([lcu.magnitude.min(), lcu.magnitude.max(), lcu.error.mean(), lcu.error.std()])
+                    #print([lcu.magnitude.min(), lcu.magnitude.max(), lcu.error.mean(), lcu.error.std()])
                     fail = False
 
             except Exception as error :
-                print(error) 
+                #print(error) 
                 fail = True    
                 logging.error(f"[get_time_sequence] The light curve {new_label} was not added: {error}")
 
@@ -1078,8 +1078,8 @@ def get_time_from_period(period, phased_time,  example_sequence, sequence_length
     if np.isinf(time_sequence.cpu().numpy()).any():
         print("Infinity values detected in time_sequence tensor:")
         print(time_sequence)
-    else:
-        print("No infinity values detected in time_sequence.")
+    #else:
+        #print("No infinity values detected in time_sequence.")
 
     if verbose: 
         print('time_sequence: ', time_sequence)

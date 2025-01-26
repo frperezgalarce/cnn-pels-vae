@@ -6,10 +6,10 @@ name: exp_s_400000_l_300_sn_6 twolosses - Table 7
 parameters:
   EPS:
     values:
-    - 0.25
+    - 0.15
   batch_size:
     values:
-    - 32
+    - 125
   beta_decay_factor:
     values:
     - 1
@@ -18,10 +18,10 @@ parameters:
     - 0.77
   decay_parameter_2:
     values:
-    - 0.46
+    - 0.6
   focal_loss_scale:
     values:
-    - 1.5
+    - 2.0
   iteration:
     values:
     - 0
@@ -69,22 +69,22 @@ parameters:
     - 4
   learning_rate:
     values:
-    - 0.01
+    - 0.1
   loss:
     values:
     - focalLoss
   n_oversampling:
     values:
-    - 2
+    - 10
   patience:
     values:
-    - 9
+    - 10
   ranking_method:
     values:
-    - no_priority
+    - proportion
   repetitions:
     values:
-    - 5
+    - 1
   scaling_factor:
     values:
     - 0.75
@@ -93,7 +93,7 @@ parameters:
     - GAIA3_LOG_IMPUTED_BY_CLASS_6PP
   synthetic_samples_by_class:
     values:
-    - 28
+    - 64
   threshold_acc_synthetic:
     values:
     - 0.74

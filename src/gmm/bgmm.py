@@ -95,7 +95,7 @@ def train_and_save(priors: bool = True,
         X = X.dropna()
         if 'LOG' in sufix_path:
             X['Period']=np.log(X['Period']) 
-            X['teff_val']=np.log(X['teff_val']) 
+            X['teff_val']=np.log10(X['teff_val']) 
             X['radius_val']=np.log(X['radius_val']) 
             period_upper_limit = np.log(mean_prior_dict['StarTypes'][star_class]['max_period'])
             period_lower_limit = np.log(mean_prior_dict['StarTypes'][star_class]['min_period'])

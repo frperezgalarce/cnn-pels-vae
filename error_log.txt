@@ -3708,3 +3708,9 @@ ERROR:root:[get_time_sequence] The light curve OGLE-LMC-LPV-73287.dat was not ad
 ERROR:root:[get_time_sequence] The light curve OGLE-LMC-ECL-05053.dat was not added: The truth value of a Series is ambiguous. Use a.empty, a.bool(), a.item(), a.any() or a.all().
 ERROR:root:[get_time_sequence] The light curve OGLE-BLG-LPV-063535.dat was not added: The truth value of a Series is ambiguous. Use a.empty, a.bool(), a.item(), a.any() or a.all().
 ERROR:root:[get_time_sequence] The light curve OGLE-BLG-LPV-009501.dat was not added: The truth value of a Series is ambiguous. Use a.empty, a.bool(), a.item(), a.any() or a.all().
+ERROR:wandb.sdk.internal.internal_api:400 response executing GraphQL.
+ERROR:wandb.sdk.internal.internal_api:{"errors":[{"message":"Sweep cnn-pelsvae/train-classsifier/a4e99uw7 is not running","path":["createAgent"]}],"data":{"createAgent":null}}
+ERROR:wandb.sdk.internal.internal_api:400 response executing GraphQL.
+ERROR:wandb.sdk.internal.internal_api:{"errors":[{"message":"Sweep cnn-pelsvae/train-classsifier/a4e99uw7 is not running","path":["createAgent"]}],"data":{"createAgent":null}}
+ERROR:wandb.sdk.internal.internal_api:400 response executing GraphQL.
+ERROR:wandb.sdk.internal.internal_api:{"errors":[{"message":"Sweep cnn-pelsvae/train-classsifier/a4e99uw7 is not running","path":["createAgent"]}],"data":{"createAgent":null}}

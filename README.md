@@ -33,7 +33,7 @@ Now that the Conda environment is set up and activated, you are ready to run the
 ### Execute the Main Script:
 Use the python command to execute the main script (main.py or any other appropriate script) that contains the CNN-PELSVAE model and other relevant code:
 
-`python main.py`
+`python classifier_main.py`
 
 ### Deactivate the Environment:
 After you are done with the CNN-PELSVAE model execution, deactivate the Conda environment:

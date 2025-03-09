@@ -84,15 +84,14 @@ if __name__ == "__main__":
 
     # Flag to control the activation of Weights & Biases integration
     wandb_active = True
-    #method = "twolosses"
 
     with open('src/configuration/nn_config.yaml', 'r') as file:
         nn_config = yaml.safe_load(file)
 
     # Setup hyperparameter optimization if Weights & Biases is active
     if wandb_active:
-        sample_sizes = [400000]
-        sn_ratios = [6]
+        sample_sizes = [40000]
+        sn_ratios = [4, 6, 8, 10]
         seq_lengths = [300]
 
         # Create a total progress bar for all iterations
@@ -101,8 +100,8 @@ if __name__ == "__main__":
             for sample_size in sample_sizes: 
                 for sn_ratio in sn_ratios:
                     for seq_length in seq_lengths:
-                        # nn_config['data']['mode_running'] = "create"
-                        for method in ['twolosses']:#,
+                        nn_config['data']['mode_running'] = "create"
+                        for method in ["oneloss"]:#,
                             # Clearing the GPU cache to ensure maximum available memory
                             torch.cuda.empty_cache()
                             nn_config['data']['sample_size'] = sample_size

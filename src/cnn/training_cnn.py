@@ -166,9 +166,6 @@ def train_one_epoch_alternative(
     
     elif mode=='twolosses':
         print("Two losses mode is running...")
-        #print(criterion_2)
-        #print(dataloader_2)
-        #print(optimizer_2)
         if criterion_2 is None or dataloader_2 is None or optimizer_2 is None:
             raise ValueError("For 'twolosses' mode, criterion_2, dataloader_2, and optimizer_2 must be provided.")     
         

@@ -63,7 +63,9 @@ def read_light_curve_ogle(example_test, example_train, values_count, lenght_lc=1
     numpy_array_lcus_train =  np.empty((0, 0, 2))
     numpy_y_test =  np.empty((0, ), dtype=object)
     numpy_y_train = np.empty((0, ), dtype=object)
-    
+    sn_ratio_test = []
+    sn_ratio_train = [] 
+
     def task1():
         return insert_lc(example_test, numpy_array_lcus_test,
                          numpy_y_test, lenght_lc=lenght_lc, 
@@ -71,7 +73,6 @@ def read_light_curve_ogle(example_test, example_train, values_count, lenght_lc=1
                          train_set=False, file_name='test')
     
     def task2():
-        print(len(example_train))
         return insert_lc(example_train, numpy_array_lcus_train,
                          numpy_y_train, values_count=values_count, 
                          signal_noise=nn_config['data']['sn_ratio'], 
@@ -81,9 +82,12 @@ def read_light_curve_ogle(example_test, example_train, values_count, lenght_lc=1
         future1 = executor.submit(task1)
         future2 = executor.submit(task2)
         
-        numpy_array_lcus_test, numpy_y_test = future1.result()
-        numpy_array_lcus_train, numpy_y_train = future2.result()
-    
+        numpy_array_lcus_test, numpy_y_test, sn_ratio_test = future1.result()
+        numpy_array_lcus_train, numpy_y_train, sn_ratio_train = future2.result()
+
+        sn_ratio = sn_ratio_test + sn_ratio_train
+        pd.DataFrame(sn_ratio).to_csv('sn_ratio_sample.csv')
+
     return numpy_array_lcus_train, numpy_array_lcus_test, numpy_y_test, numpy_y_train
 
 def load_light_curve_ogle():
@@ -152,6 +156,8 @@ def insert_lc(examples, np_array, np_array_y, values_count= None, lenght_lc = 0,
     counter = 0
     ELL = pd.read_table(PATH_DATA_FOLDER+'/ELL.txt')
     
+    snr_list = []
+
     for lc in tqdm(examples.ID.unique(), desc='Processing Light Curves'):
         if train_set:
             class_counter = values_count[values_count.Type==lc.split('-')[2]].counter.values[0]
@@ -168,6 +174,9 @@ def insert_lc(examples, np_array, np_array_y, values_count= None, lenght_lc = 0,
 
         condition1 = (lcu.shape[0]> lenght_lc)
         condition2 = ('error' in lcu.columns)
+
+        if 'error' in lcu.columns and not lcu['error'].isnull().all():
+            snr_list.append([(signal)/lcu['error'].mean(), lc])
 
         if condition2: 
             condition3 = ((signal)/lcu['error'].mean()>signal_noise)
@@ -225,7 +234,7 @@ def insert_lc(examples, np_array, np_array_y, values_count= None, lenght_lc = 0,
     print('shape: ', np_array.shape, np_array_y.shape)
     np.save(PATH_DATA_FOLDER+'/'+file_name+'_np_array_y.npy', np_array_y)
     np.save(PATH_DATA_FOLDER+'/'+file_name+'_np_array.npy', np_array)
-    return np_array, np_array_y
+    return np_array, np_array_y, snr_list
 
 def delete_by_std(df): 
 

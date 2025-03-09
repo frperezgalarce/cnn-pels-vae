@@ -626,7 +626,7 @@ def run_cnn(create_samples: Any, vae_model=None, pp = None,
     gc.collect() 
 
     #Create a new data set only in the first execution (from ten)
-    nn_config['data']['mode_running'] = "load" 
+    #nn_config['data']['mode_running'] = "load" 
     with open('src/configuration/nn_config.yaml', 'w') as file:
         yaml.dump(nn_config, file)
         file.flush()  # Force flushing the file buffer to disk

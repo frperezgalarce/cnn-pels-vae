@@ -15,6 +15,7 @@ from sklearn.metrics import f1_score, roc_auc_score
 from sklearn.preprocessing import label_binarize
 import torch.nn.functional as F
 
+'''
 def setup_torch_environment() -> torch.device:    
     print('#'*50)
     print('TRAINING CNN')
@@ -25,6 +26,7 @@ def setup_torch_environment() -> torch.device:
         torch.cuda.set_device(0)  # Set the GPU device index
     print('CUDA active:', torch.cuda.is_available())
     return device
+'''
 
 def get_dict_class_priorization(model, dataloader, ranking_method='CCR'):
     all_y_data = []

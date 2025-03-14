@@ -380,9 +380,15 @@ def run_cnn(create_samples: Any, vae_model=None, pp = None,
 
     vae_model: str = config_file['model_parameters']['ID']
     
+
+    if wandb_active: 
+        repetition = wandb.config.iteration
+    else: 
+        repetition = 0
+
     x_train, x_test, y_train, y_test, x_val, y_val, \
     label_encoder, y_train_labeled, y_test_labeled = utils.get_data(nn_config['data']['sample_size'], 
-                                                              nn_config['data']['mode_running'])
+                                                              nn_config['data']['mode_running'], repetition)
  
     class_weights, num_classes, _  = get_counts_and_weights_by_class(y_train_labeled, 
                                                         y_test_labeled, x_train)

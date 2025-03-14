@@ -90,7 +90,6 @@ def process_regressors(reg_conf_file: Dict[str, Any],
             z_hat = model.predict(p)
     return z_hat
 
-
 # Function to set up environment and download model weights if not available
 def setup_environment(ID: str, gpu: bool = False) -> Tuple[Any, Dict[str, Any], torch.device]:
     device = torch.device("cuda:0" if torch.cuda.is_available() and gpu else "cpu")
@@ -149,17 +148,19 @@ def prediction_error_plot(y_test: np.ndarray, y_pred: np.ndarray) -> None:
     plt.xlabel('Prediction Error')
     plt.show()
 
+'''
 def plot_figures(y_test: np.ndarray, y_pred: np.ndarray) -> None:
     scatter_plot(y_test, y_pred)
     residual_plot(y_test, y_pred)
     prediction_error_plot(y_test, y_pred)
+
 
 # Function to load predictions from a saved model
 def load_predict(pp: np.ndarray, filename: str = 'file.pkl') -> np.ndarray: 
     loaded_model = pickle.load(open(filename, 'rb'))
     z = loaded_model.predict(pp)
     return z
-
+'''
 # Function to save trained model to disk
 def save_model(model: Any, filename: str = 'filename_model.pkl') -> None:
     pickle.dump(model, open(filename, 'wb'))
@@ -204,14 +205,9 @@ def apply_regression(vae_model, samples: Union[np.ndarray, List] = None,  from_v
         meta_ = dataset.meta.dropna(subset=phys2)
         mu_ = mu.iloc[:, :-1].values
         mu_ = mu_.astype(np.float64)
-        print('meta: ', meta_.shape)
-        print('mu: ', mu_.shape)
         unique_idx = meta_.reset_index().drop_duplicates(subset=['OGLE_id']).index
         meta_ = meta_.iloc[unique_idx]
         mu_ = mu_[unique_idx]
-        print('after dropping duplicated objects')
-        print('meta: ', meta_.shape)
-        print('mu: ', mu_.shape)
         z_hat = process_regressors(reg_conf_file, phys2=dataset.phy_names, meta_= meta_, mu_=mu_,
                                   samples= None, from_vae=from_vae, 
                                   train_rf=True, grid_search=False)

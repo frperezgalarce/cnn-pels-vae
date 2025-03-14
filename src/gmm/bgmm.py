@@ -4,7 +4,7 @@ import pandas as pd
 import matplotlib.pyplot as plt
 from sklearn.mixture import BayesianGaussianMixture
 from typing import Optional, Dict, Union, Tuple, ClassVar, Any
-from src.utils import load_yaml_priors, extract_midpoints, extract_maximum_of_max_periods
+from src.utils import load_yaml_priors, extract_midpoints
 from sklearn.neighbors import NearestNeighbors
 import yaml
 from itertools import combinations
@@ -128,5 +128,6 @@ def train_and_save(priors: bool = True,
 
             bgmm.save_model('models/bgm_model_'+str(star_class)+'_priors_'+str(priors)+'_PP_'+str(len(columns))+'.pkl')
 
-def fit_gaussians(priors=True, columns = ['Type','Period', 'teff_val', '[Fe/H]_J95', 'abs_Gmag', 'radius_val', 'logg']):
+def fit_gaussians(priors=True, columns = ['Type','Period', 'teff_val', '[Fe/H]_J95', 
+                 'abs_Gmag', 'radius_val', 'logg']):
     train_and_save(priors = priors, columns= columns)

@@ -61,7 +61,6 @@ def sort_and_filter(df, df_columns=[], primary_col=None):
 
     return df_selected
 
-
 def prepare_dataset(config: Dict[str, Union[str, bool, int]]) -> Astro_lightcurves:
     dataset: Astro_lightcurves = Astro_lightcurves(survey=config['data'],
                                 band='I' if config['data'] else 'B',
@@ -80,9 +79,8 @@ def prepare_dataset(config: Dict[str, Union[str, bool, int]]) -> Astro_lightcurv
     dataset.remove_nan()
     return dataset
 
-
-
 #Incorporate samples for pp and latent space to generate light curves
+'''
 def get_synthetic_light_curves(samples: np.ndarray, z_hat: np.ndarray, training_cnn: bool = False, 
         plot:bool = False, save_plot:bool = False, 
         objects_by_class: Dict = {'ACEP':12,  'RRLYR':  12}, 
@@ -195,6 +193,7 @@ def get_synthetic_light_curves(samples: np.ndarray, z_hat: np.ndarray, training_
     #    compare_folded_crude_lc(xhat_mu, lc_reverted, cls=lb, period=sample_period)
 
     #save_arrays_to_folder(lc_reverted, lb, PATH_DATA)
+'''
 
 if __name__ == "__main__":
     main()

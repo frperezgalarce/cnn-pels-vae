@@ -80,15 +80,15 @@ def main(train_gmm: Optional[bool] = True, create_samples: Optional[bool] = True
 if __name__ == "__main__":
 
     # Flag to control the activation of Weights & Biases integration
-    wandb_active = True
+    wandb_active = False
 
     with open('src/configuration/nn_config.yaml', 'r') as file:
         nn_config = yaml.safe_load(file)
 
     # Setup hyperparameter optimization if Weights & Biases is active
     if wandb_active:
-        sample_sizes = [40000]
-        sn_ratios = [4, 6, 8, 10]
+        sample_sizes = [1000]
+        sn_ratios = [6]
         seq_lengths = [300]
 
         # Create a total progress bar for all iterations
@@ -121,8 +121,8 @@ if __name__ == "__main__":
                             pbar.update(1)
 
     else:
-        for sample_size in [10000, 20000, 40000, 80000, 160000, 320000]:
-            for ranking_method in ['CCR', 'max_confusion', 'proportion', 'max_pairwise_confusion', 'no_priority']:
+        for sample_size in [1000]:
+            for ranking_method in ['CCR']:
                 nn_config['data']['sample_size'] = sample_size
                 with open('src/configuration/nn_config.yaml', 'w') as file:
                         yaml.dump(nn_config, file)

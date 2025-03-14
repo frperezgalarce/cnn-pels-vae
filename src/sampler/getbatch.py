@@ -220,7 +220,6 @@ class SyntheticDataBatcher:
 
         return all_classes_samples
         
-    
     def create_synthetic_batch(self, plot_example=False, b=1.0, 
                                wandb_active=False, samples_dict = None, 
                                oversampling = True, n_oversampling=12):

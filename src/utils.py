@@ -286,54 +286,52 @@ def custom_sample(df, class_column, threshold, n):
     # Concatenate the results and return
     return pd.concat(sampled_dataframes)
 
-def get_ids(n=1): 
+def get_ids(n=1, iteration=0): 
     path_train = PATH_FEATURES_TRAIN
     path_test = PATH_FEATURES_TEST
+
     lc_test = pd.read_table(path_test, sep= ',')
     lc_train = pd.read_table(path_train, sep= ',')
+
     example_test  = lc_test[['ID']]
     new_cols_test = example_test.ID.str.split("-", n = 3, expand = True)
     new_cols_test.columns = ['survey', 'field', 'class', 'number']
-    # concatenate the new columns with the original DataFrame
+
     example_test = pd.concat([new_cols_test, example_test], axis=1)
-    example_test = delete_low_represented_classes(example_test, column='class', threshold=20)
+    example_test = delete_low_represented_classes(example_test, column='class', 
+                                                  threshold=20)
 
     new_cols_train = lc_train.ID.str.split("-", n = 3, expand = True)
     new_cols_train.columns = ['survey', 'field', 'class', 'number']
     lc_train = pd.concat([new_cols_train, lc_train], axis=1)
-    print(lc_train['class'].value_counts())
     lc_train = delete_low_represented_classes(lc_train, column='class', threshold=20)
 
-
+    '''
     if n>=lc_train.shape[0]:
         example_train =lc_train[['ID','survey', 'field', 'class', 'number']]
     else:
-        #example_train = lc_train.sample(n, random_state=0)[['ID']]
         frac = n/lc_train.shape[0]
-        strat_split = StratifiedShuffleSplit(n_splits=1, test_size=frac, random_state=0)
+        strat_split = StratifiedShuffleSplit(n_splits=1, test_size=frac, random_state=iteration)
         for _, sample_idx in strat_split.split(lc_train, lc_train['class']):
             example_train = lc_train.iloc[sample_idx][['ID','survey', 'field', 'class', 'number']]
+    ''' 
+    print(n, lc_train.shape[0])
+    if n >= lc_train.shape[0]:
+        example_train = lc_train[['ID', 'survey', 'field', 'class', 'number']]
+    else:
+        example_train, _ = train_test_split(
+            lc_train, 
+            train_size=n, 
+            stratify=lc_train['class'], 
+            random_state=iteration
+            )
 
-        #example_train = lc_train.groupby(['class']).apply(lambda x: x.sample(frac=frac, random_state=0))[['ID']]
-
-    #example_train = custom_sample(example_train, 'class', nn_config['data']['limit_to_define_minority_Class'], 
-    #                            nn_config['data']['upper_limit_majority_classes'])
-
-    #print(example_train['class'].value_counts())
 
     values_count = example_train['class'].value_counts().reset_index()
     values_count.columns = ['Type', 'counter']
     
-    print(example_train['class'].value_counts())
-
     example_train = example_train[example_train['class'].isin(list(nn_config['data']['classes']))]
     example_test = example_test[example_test['class'].isin(list(nn_config['data']['classes']))]
-
-    print('clases: ', example_train['class'].unique())
-    example_test['class'] = pd.factorize(example_test['class'])[0]
-    example_train['class'] = pd.factorize(example_train['class'])[0]
-
-    print('clases: ', example_train['class'].unique())
 
     return example_test, example_train, values_count
 
@@ -387,7 +385,7 @@ def transform_to_consecutive(input_list, label_encoder):
     modified_labels = np.array([mapping[element] for element in input_list])
     return modified_labels, modified_labelencoder_classes
 
-def get_data(sample_size, mode):
+def get_data(sample_size, mode, iteration):
 
     with open('src/configuration/nn_config.yaml', 'r') as file:
         nn_config = yaml.safe_load(file)
@@ -396,8 +394,9 @@ def get_data(sample_size, mode):
     print('MODE DATA: ', mode)
 
     if mode=='create':
-        id_test, id_train, values_count  = get_ids(n=sample_size) 
-        x_train, x_test, y_test, y_train  = read_light_curve_ogle(id_test, id_train, values_count, lenght_lc= nn_config['data']['seq_length'])
+        id_test, id_train, values_count  = get_ids(n=sample_size, iteration = iteration) 
+        x_train, x_test, y_test, y_train  = read_light_curve_ogle(id_test, id_train, values_count, 
+                                                                 lenght_lc= nn_config['data']['seq_length'])
     elif mode == 'load':
         x_train, x_test, y_test, y_train  = load_light_curve_ogle()
     else: 
@@ -413,12 +412,8 @@ def get_data(sample_size, mode):
 
     with open(PATH_MODELS+'label_encoder_vae.pkl', 'rb') as f:
             label_encoder = pickle.load(f)
-
-    #print(y_train[:20])
     
     encoded_labels = label_encoder.transform(y_train)
-    #print(encoded_labels[:20])
-
     encoded_labels_test = label_encoder.transform(y_test)
     encoded_labels, modified_labelencoder_classes = transform_to_consecutive(encoded_labels, label_encoder)
 
@@ -435,12 +430,11 @@ def get_data(sample_size, mode):
         print(f"{label}: {index}")
 
     nn_config['data']['classes'] = modified_labelencoder_classes
-    # Save the updated config back to the file
 
     with open('src/configuration/nn_config.yaml', 'w') as file:
         yaml.safe_dump(nn_config, file)
     time.sleep(2)
-    # Convert the encoded labels to a PyTorch tensor
+
     y_labels = torch.from_numpy(encoded_labels).long()
     y_labels_test = torch.from_numpy(encoded_labels_test).long()
     y_train_onehot = torch.from_numpy(y_train).long()
@@ -449,10 +443,6 @@ def get_data(sample_size, mode):
     # Convert the data to PyTorch tensors
     x_train = torch.from_numpy(x_train).float()
     x_test = torch.from_numpy(x_test).float()
-
-    # Permute the dimensions of the input tensor
-    #x_train = x_train.permute(0, 2, 1)
-    #x_test = x_test.permute(0, 2, 1)
 
     y_train, y_test = torch.from_numpy(np.asarray(y_train_onehot)), torch.from_numpy(np.asarray(y_test_onehot))
  
@@ -1173,6 +1163,7 @@ def load_metadata():
         config_file: Dict[str, Any] = yaml.safe_load(file)
     return mean_prior_dict, config_file
 
+'''
 def pp_sensitive_test(PP_list):
     print('conducting sensitive test')
     for pp in PP_list:
@@ -1183,6 +1174,7 @@ def pp_sensitive_test(PP_list):
                                             objects_by_class=temp_dict, sensivity=pp,
                                             column_to_sensivity=pp)
             del temp_dict
+'''
 
 def evaluate_and_plot_cm_from_dataloader(model, dataloader, label_encoder, title, wandb_active: bool = True):
     all_y_data = []

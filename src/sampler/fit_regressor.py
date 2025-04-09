@@ -16,7 +16,7 @@ import yaml
 #sys.path.append('./')
 from src.vae.datasets import Astro_lightcurves
 from src.utils import evaluate_encoder, load_model_list
-
+from src.sampler.regression import train_rf_with_gs
 warnings.filterwarnings('ignore')
 
 # Read configurations from a YAML file

@@ -446,7 +446,10 @@ def get_data(sample_size, mode, iteration):
 
     y_train, y_test = torch.from_numpy(np.asarray(y_train_onehot)), torch.from_numpy(np.asarray(y_test_onehot))
  
-    x_train, x_val, y_train, y_val= train_test_split(x_train, y_train, test_size=0.3, random_state=42, stratify=y_labels)
+    x_train, x_val, y_train, y_val= train_test_split(x_train, y_train, test_size=0.2, random_state=42, stratify=y_labels)
+
+    
+
 
     return x_train, x_test,  y_train, y_test, x_val,\
            y_val, modified_labelencoder_classes,\

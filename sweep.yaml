@@ -1,15 +1,15 @@
 method: grid
 metric:
   goal: maximize
-  name: weighted_f1
-name: exp_s_40000_l_300_sn_4_oneloss - SN
+  name: f1_val
+name: exp_s_40000_l_300_sn_10 twolosses - hyper
 parameters:
   EPS:
     values:
-    - 0.15
+    - 0.2
   batch_size:
     values:
-    - 125
+    - 64
   beta_decay_factor:
     values:
     - 1
@@ -18,10 +18,10 @@ parameters:
     - 0.77
   decay_parameter_2:
     values:
-    - 0.6
+    - 0.46
   focal_loss_scale:
     values:
-    - 2.0
+    - 1.5
   iteration:
     values:
     - 0
@@ -59,22 +59,25 @@ parameters:
     - 4
   learning_rate:
     values:
-    - 0.1
+    - 0.01
   loss:
     values:
     - focalLoss
   n_oversampling:
     values:
-    - 10
+    - 2
+  opt_method:
+    values:
+    - twolosses
   patience:
     values:
-    - 10
+    - 9
   ranking_method:
     values:
-    - proportion
+    - CCR
   repetitions:
     values:
-    - 1
+    - 5
   scaling_factor:
     values:
     - 0.75
@@ -83,7 +86,7 @@ parameters:
     - GAIA3_LOG_IMPUTED_BY_CLASS_6PP
   synthetic_samples_by_class:
     values:
-    - 64
+    - 28
   threshold_acc_synthetic:
     values:
     - 0.74

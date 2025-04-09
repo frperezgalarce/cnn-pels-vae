@@ -38,19 +38,20 @@ class BayesianGaussianMixtureModel:
                                             max_iter = self.max_iter, 
                                             mean_prior = self.mean_prior)
 
-    def train(self, X: pd.DataFrame) -> None:
+    def train(self, X: pd.DataFrame, verbose=False) -> None:
         self.bgm.fit(X)
         self.object = self.bgm  # Saving the trained model as the object attribute
         np.set_printoptions(precision=4, suppress=True)
 
-        print("Hyperparameters:")
-        print(self.bgm)  # This prints the hyperparameters
+        if verbose:
+            print("Hyperparameters:")
+            print(self.bgm)  # This prints the hyperparameters
 
-        print("\nFitted Means:")
-        print(self.bgm.means_)
+            print("\nFitted Means:")
+            print(self.bgm.means_)
 
-        print("\nFitted Covariances:")
-        print(self.bgm.covariances_)
+            print("\nFitted Covariances:")
+            print(self.bgm.covariances_)
 
 
     def save_model(self, filename: str) -> None:

@@ -98,7 +98,7 @@ if __name__ == "__main__":
                 for sn_ratio in sn_ratios:
                     for seq_length in seq_lengths:
                         nn_config['data']['mode_running'] = "create"
-                        for method in ["oneloss"]:#,
+                        for method in ["twolosses"]:#,
                             # Clearing the GPU cache to ensure maximum available memory
                             torch.cuda.empty_cache()
                             nn_config['data']['sample_size'] = sample_size
